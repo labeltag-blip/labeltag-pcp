@@ -191,6 +191,47 @@
   background:var(--border); border-radius:10px;
   padding:2px 8px; font-size:10px; color:var(--muted2);
 }
+.modal-artes {
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,.8); z-index:200;
+  align-items:center; justify-content:center;
+  backdrop-filter:blur(4px);
+}
+.modal-artes.open { display:flex; }
+.modal-artes-box {
+  background:#0d1526; border:1px solid #1e2d4a;
+  border-radius:12px; padding:24px; width:460px;
+  max-width:95vw; max-height:90vh; overflow-y:auto;
+}
+.modal-artes-title {
+  font-size:15px; font-weight:700; color:var(--ouro);
+  margin-bottom:4px;
+}
+.modal-artes-sub {
+  font-size:11px; color:var(--muted); margin-bottom:16px;
+}
+.arte-cadastrada {
+  background:#0a1020; border:1px solid #1e2d4a;
+  border-radius:6px; padding:8px 12px; margin-bottom:6px;
+  display:flex; align-items:center; gap:10px;
+}
+.arte-cadastrada-codigo {
+  font-family:'DM Mono',monospace; font-size:12px;
+  color:var(--ouro); min-width:90px;
+}
+.arte-cadastrada-tecnica { font-size:12px; flex:1; color:#cbd5e1; }
+.btn-remover-arte {
+  background:none; border:none; color:#ef444466;
+  cursor:pointer; font-size:14px; padding:0 4px;
+  transition:color .15s;
+}
+.btn-remover-arte:hover { color:#ef4444; }
+.form-adicionar {
+  background:#0a1020; border:1px solid #1e2d4a;
+  border-radius:8px; padding:14px; margin-bottom:14px;
+}
+.form-row { display:flex; gap:8px; margin-bottom:8px; }
+.form-row .inp { font-size:12px; }
 .dot-live { display:inline-block; width:6px; height:6px; border-radius:50%; background:#22c55e; margin-right:4px; animation:pulse 2s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
@@ -311,6 +352,37 @@
         <span id="slaSalvo" style="font-size:11px;color:#22c55e;display:none">✓ Salvo!</span>
         <button class="config-sair" onclick="sair()">Desconectar Trello</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de cadastro de artes -->
+<div class="modal-artes" id="modalArtes">
+  <div class="modal-artes-box" onclick="event.stopPropagation()">
+    <div class="modal-artes-title" id="modalArtesTitle">Cadastrar Artes</div>
+    <div class="modal-artes-sub" id="modalArtesSub">Informe os códigos das artes desta caixa</div>
+    <input type="hidden" id="modalCardId">
+
+    <!-- Artes já cadastradas -->
+    <div id="artesCadastradas"></div>
+
+    <!-- Formulário para adicionar -->
+    <div class="form-adicionar">
+      <div style="font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">Adicionar Arte</div>
+      <div class="form-row">
+        <input class="inp" id="inputCodigo" placeholder="Código ex: 3226.0080" style="flex:1">
+        <input class="inp" id="inputTecnica" placeholder="Técnica ex: Fusion Tag" style="flex:1">
+      </div>
+      <div class="form-row">
+        <input class="inp" id="inputQtd" placeholder="Qtd peças ex: 2000" type="number" style="flex:1">
+        <input class="inp" id="inputTamanho" placeholder="Tamanho ex: 75x20mm" style="flex:1">
+      </div>
+      <button class="btn-ouro" onclick="adicionarArteManual()" style="width:100%">+ Adicionar Arte</button>
+    </div>
+
+    <div style="display:flex;gap:8px">
+      <button class="btn-ouro" style="flex:1" onclick="fecharModalArtes()">✓ Salvar e Fechar</button>
+      <button class="btn-ghost" onclick="fecharModalArtes()">Cancelar</button>
     </div>
   </div>
 </div>
@@ -758,100 +830,153 @@ const STATUS_CFG_C = {
 };
 
 async function lerOrdens(cardId, btnEl) {
-  if (!CLAUDE_KEY) {
-    alert('Configure a chave da Claude API na tela de login para usar esta função.');
-    return;
-  }
-
   btnEl.disabled = true;
   btnEl.textContent = '⏳ Lendo...';
   
   try {
-    // Busca anexos do card
-    const anexos = await trelloGet(`/cards/${cardId}/attachments`);
-    const imagens = anexos.filter(a => a.mimeType && a.mimeType.startsWith('image/'));
+    // Busca comentários do card
+    const actions = await trelloGet(`/cards/${cardId}/actions`, { filter: 'commentCard' });
     
-    if (!imagens.length) {
-      btnEl.textContent = '❌ Sem imagens';
-      return;
-    }
-
-    // Para cada imagem, busca via proxy e manda para Claude
-    const artes = [];
+    let artesEncontradas = [];
     
-    for (const img of imagens.slice(0, 6)) {
-      try {
-        // Busca imagem via Trello API (autenticada)
-        const imgUrl = img.url + '?key=' + API_KEY + '&token=' + TOKEN;
-        const imgRes = await fetch(imgUrl);
-        const blob = await imgRes.blob();
-        
-        // Converte para base64
-        const base64 = await new Promise(resolve => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result.split(',')[1]);
-          reader.readAsDataURL(blob);
-        });
-
-        // Manda para Claude ler
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': CLAUDE_KEY,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true',
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 500,
-            messages: [{
-              role: 'user',
-              content: [
-                {
-                  type: 'image',
-                  source: { type: 'base64', media_type: blob.type || 'image/jpeg', data: base64 }
-                },
-                {
-                  type: 'text',
-                  text: 'Esta é uma ordem de produção de etiquetas. Extraia APENAS estas informações em JSON: {"codigo": "código do produto ex: 3226.0080", "cliente": "nome do cliente", "tecnica": "técnica ex: Fusion Tag", "quantidade": 0, "tamanho": "ex: 75x20.8mm", "setores": ["Preparação","Silk","Corte Laser"]}. Retorne APENAS o JSON, sem texto adicional.'
-                }
-              ]
-            }]
-          })
-        });
-
-        const data = await response.json();
-        const texto = data.content?.[0]?.text || '';
-        
-        try {
-          const clean = texto.replace(/```json|```/g,'').trim();
-          const arte = JSON.parse(clean);
-          artes.push(arte);
-        } catch(e) {
-          artes.push({ codigo: '?', cliente: '?', tecnica: img.name, quantidade: 0, tamanho: '?', setores: [] });
+    // Procura comentário com ARTES: ou códigos no formato XXXX.XXXX
+    for (const action of actions) {
+      const texto = action.data?.text || '';
+      
+      // Verifica se tem o marcador ARTES: ou códigos no padrão
+      if (texto.toUpperCase().includes('ARTES:') || texto.match(/\d{4}\.\d{4}/)) {
+        const linhas = texto.split('
+');
+        for (const linha of linhas) {
+          // Procura padrão: CÓDIGO - TÉCNICA - QUANTIDADE - TAMANHO
+          // Ex: 3226.0080 - Fusion Tag - 2000pç - 75x20mm
+          // Ou simplesmente: 3226.0080
+          const matchCompleto = linha.match(/(\d{4}\.\d{4})\s*[-–]?\s*([^-
+]*)?[-–]?\s*(\d+)?/);
+          if (matchCompleto) {
+            const codigo  = matchCompleto[1];
+            const tecnica = (matchCompleto[2] || '').trim().replace(/^[-–]\s*/,'') || '—';
+            const qtd     = parseInt(matchCompleto[3]) || 0;
+            if (codigo) {
+              artesEncontradas.push({ codigo, tecnica, quantidade: qtd, tamanho: '—', setores: [] });
+            }
+          }
         }
-      } catch(e) {
-        console.error('Erro ao ler imagem:', e);
+        if (artesEncontradas.length) break; // Usa o comentário mais recente com artes
       }
     }
-
-    // Salva no cache
-    ordens_cache[cardId] = { artes, lido: new Date().toISOString() };
-    localStorage.setItem('lt_ordens', JSON.stringify(ordens_cache));
     
-    btnEl.textContent = `✅ ${artes.length} arte${artes.length!==1?'s':''} lidas`;
-    btnEl.style.color = '#22c55e';
-    btnEl.style.borderColor = '#22c55e';
-    
-    // Re-renderiza a aba atual
-    if (abaAtiva === 'consolidacao') renderConsolidacao();
+    if (artesEncontradas.length > 0) {
+      // Salva no cache
+      ordens_cache[cardId] = { artes: artesEncontradas, lido: new Date().toISOString() };
+      localStorage.setItem('lt_ordens', JSON.stringify(ordens_cache));
+      
+      btnEl.textContent = `✅ ${artesEncontradas.length} arte${artesEncontradas.length!==1?'s':''}`;
+      btnEl.style.color = '#22c55e';
+      btnEl.style.borderColor = '#22c55e';
+      btnEl.disabled = false;
+      
+      if (abaAtiva === 'consolidacao') renderConsolidacao();
+    } else {
+      // Nenhum comentário com artes — abre modal manual
+      btnEl.textContent = '📝 Cadastrar';
+      btnEl.disabled = false;
+      abrirModalArtes(cardId);
+    }
     
   } catch(e) {
     console.error(e);
-    btnEl.textContent = '❌ Erro';
+    btnEl.textContent = '📝 Cadastrar';
     btnEl.disabled = false;
+    abrirModalArtes(cardId);
   }
+}
+
+function abrirModalArtes(cardId) {
+  document.getElementById('modalCardId').value = cardId;
+  
+  // Encontra o pedido/card para mostrar o nome
+  let nomeCaixa = cardId;
+  BOARDS.forEach(b => {
+    const cards = boardsCarregados[b.id]?.cards || [];
+    const card = cards.find(c => c.id === cardId);
+    if (card) nomeCaixa = card.name;
+  });
+  
+  document.getElementById('modalArtesTitle').textContent = nomeCaixa;
+  document.getElementById('modalArtesSub').textContent = 'Informe os códigos das artes desta caixa';
+  
+  // Limpa campos
+  document.getElementById('inputCodigo').value = '';
+  document.getElementById('inputTecnica').value = '';
+  document.getElementById('inputQtd').value = '';
+  document.getElementById('inputTamanho').value = '';
+  
+  renderArtesCadastradas(cardId);
+  document.getElementById('modalArtes').classList.add('open');
+  setTimeout(() => document.getElementById('inputCodigo').focus(), 100);
+}
+
+function fecharModalArtes() {
+  document.getElementById('modalArtes').classList.remove('open');
+  renderTudo();
+}
+
+function renderArtesCadastradas(cardId) {
+  const cache = ordens_cache[cardId] || { artes: [] };
+  const artes = cache.artes || [];
+  
+  const el = document.getElementById('artesCadastradas');
+  if (!artes.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;font-style:italic">Nenhuma arte cadastrada ainda.</div>';
+    return;
+  }
+  
+  el.innerHTML = `
+    <div style="font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">
+      Artes cadastradas (${artes.length})
+    </div>
+    ${artes.map((a,i) => `
+      <div class="arte-cadastrada">
+        <span style="font-size:16px">✅</span>
+        <span class="arte-cadastrada-codigo">${a.codigo}</span>
+        <span class="arte-cadastrada-tecnica">${a.tecnica}${a.quantidade ? ' · ' + a.quantidade.toLocaleString('pt-BR') + ' pç' : ''}${a.tamanho ? ' · ' + a.tamanho : ''}</span>
+        <button class="btn-remover-arte" onclick="removerArteManual('${cardId}',${i})">✕</button>
+      </div>`).join('')}
+    <div style="height:1px;background:var(--border);margin:12px 0"></div>
+  `;
+}
+
+function adicionarArteManual() {
+  const cardId = document.getElementById('modalCardId').value;
+  const codigo = document.getElementById('inputCodigo').value.trim();
+  const tecnica = document.getElementById('inputTecnica').value.trim();
+  const qtd = parseInt(document.getElementById('inputQtd').value) || 0;
+  const tamanho = document.getElementById('inputTamanho').value.trim();
+  
+  if (!codigo) { document.getElementById('inputCodigo').focus(); return; }
+  
+  if (!ordens_cache[cardId]) ordens_cache[cardId] = { artes: [], lido: new Date().toISOString() };
+  
+  ordens_cache[cardId].artes.push({ codigo, tecnica: tecnica||'—', quantidade: qtd, tamanho: tamanho||'—', setores:[] });
+  ordens_cache[cardId].lido = new Date().toISOString();
+  localStorage.setItem('lt_ordens', JSON.stringify(ordens_cache));
+  
+  // Limpa campos e mantém foco
+  document.getElementById('inputCodigo').value = '';
+  document.getElementById('inputTecnica').value = '';
+  document.getElementById('inputQtd').value = '';
+  document.getElementById('inputTamanho').value = '';
+  document.getElementById('inputCodigo').focus();
+  
+  renderArtesCadastradas(cardId);
+}
+
+function removerArteManual(cardId, idx) {
+  if (!ordens_cache[cardId]) return;
+  ordens_cache[cardId].artes.splice(idx, 1);
+  localStorage.setItem('lt_ordens', JSON.stringify(ordens_cache));
+  renderArtesCadastradas(cardId);
 }
 
 function getBtnStatus(cardId) {
@@ -946,6 +1071,14 @@ function irParaPedido(num){
 
 // Auto-atualiza a cada 3 minutos
 setInterval(()=>{if(API_KEY&&TOKEN)sincronizar();},3*60*1000);
+// Enter para adicionar arte
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('modalArtes').classList.contains('open')) {
+    adicionarArteManual();
+  }
+  if (e.key === 'Escape') fecharModalArtes();
+});
+
 init();
 </script>
 </body>
