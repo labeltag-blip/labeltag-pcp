@@ -140,7 +140,40 @@
   .sla-inp input { background:var(--bg3); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:4px 8px; width:60px; font-size:13px; font-family:'DM Mono',monospace; outline:none; text-align:center; }
   .sla-inp input:focus { border-color:var(--ouro); }
 
-  .dot-live { display:inline-block; width:6px; height:6px; border-radius:50%; background:#22c55e; margin-right:4px; animation:pulse 2s infinite; }
+  .consol-card {
+  background:var(--bg2); border:1px solid var(--border);
+  border-radius:10px; margin-bottom:10px; overflow:hidden;
+}
+.consol-header {
+  padding:14px 18px; display:flex; align-items:center;
+  gap:14px; cursor:pointer; transition:background .15s;
+}
+.consol-header:hover { background:#ffffff08; }
+.consol-body { border-top:1px solid var(--border); padding:14px 18px; }
+.consol-arte {
+  display:flex; align-items:center; gap:10px;
+  padding:7px 12px; border-radius:6px; margin-bottom:4px;
+  background:var(--bg3);
+}
+.consol-arte-nome { flex:1; font-size:12px; color:#cbd5e1; }
+.consol-arte-setor {
+  font-size:11px; font-weight:600; padding:2px 10px;
+  border-radius:20px; border:1px solid; white-space:nowrap;
+}
+.pode-faturar {
+  background:#052e16; border-color:#22c55e44;
+}
+.aguardando {
+  border-color:#f9731644;
+}
+.consol-progress {
+  height:4px; background:var(--border); border-radius:2px;
+  overflow:hidden; margin-top:6px;
+}
+.consol-progress-fill {
+  height:100%; border-radius:2px; transition:width .4s;
+}
+.dot-live { display:inline-block; width:6px; height:6px; border-radius:50%; background:#22c55e; margin-right:4px; animation:pulse 2s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
   .loading { text-align:center; padding:50px; color:var(--muted); }
@@ -208,7 +241,8 @@
     <div class="tab" onclick="mudarAba('setor','JdC3HfIg')">✂️ Corte Zund</div>
     <div class="tab" onclick="mudarAba('setor','8LcFwJ0v')">✅ Acabamento</div>
     <div class="tab" onclick="mudarAba('setor','V6wt9KT0')">📦 Faturamento</div>
-    <div class="tab" onclick="mudarAba('config')">⚙️ Config</div>
+    <div class="tab" onclick="mudarAba('consolidacao')">🔗 Consolidação</div>
+  <div class="tab" onclick="mudarAba('config')">⚙️ Config</div>
   </div>
 
   <div class="main">
@@ -231,7 +265,11 @@
       <div id="setorConteudo"></div>
     </div>
 
-    <div class="page" id="page-config">
+    <div class="page" id="page-consolidacao">
+  <div id="consolidacaoConteudo"></div>
+</div>
+
+<div class="page" id="page-config">
       <div style="font-size:14px;font-weight:700;margin-bottom:6px;color:var(--ouro)">⚙️ SLA — Tempo máximo por setor</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Define quantos dias cada pedido pode ficar em cada setor.</div>
       <div class="sla-grid" id="slaGrid"></div>
@@ -257,7 +295,7 @@ const BOARDS = [
 
 let API_KEY = '';
 let TOKEN   = '';
-let SLA     = JSON.parse(localStorage.getItem('lt_sla')||'null') || {YZiyCCIL:2,kKxRCcjN:2,dWdRLX04:2,'2psxSaAN':3,JdC3HfIg:3,'8LcFwJ0v':1,V6wt9KT0:1};
+let SLA     = JSON.parse(localStorage.getItem('lt_sla')||'null') || {YZiyCCIL:3,kKxRCcjN:3,dWdRLX04:3,'2psxSaAN':3,JdC3HfIg:2,'8LcFwJ0v':2,V6wt9KT0:1};
 let pedidos = [];
 let boardsCarregados = {};
 let filtroRisco = 'todos';
@@ -376,7 +414,7 @@ function lblR(r){return{faturado:'FATURADO',atrasado:'ATRASADO',critico:'CRÍTIC
 function setorAtualP(p){for(let i=BOARDS.length-1;i>=0;i--){if(p.setoresAtivos.has(BOARDS[i].id))return BOARDS[i];}return null;}
 
 // ── Render ────────────────────────────────────────────────────────────────
-function renderTudo(){renderStats();renderBoardsStatus();if(abaAtiva==='geral')renderGeral();else if(abaAtiva==='setor')renderSetor(setorAtivo);}
+function renderTudo(){renderStats();renderBoardsStatus();if(abaAtiva==='geral')renderGeral();else if(abaAtiva==='setor')renderSetor(setorAtivo);else if(abaAtiva==='consolidacao')renderConsolidacao();}
 
 function renderStats(){
   const total=pedidos.length;
@@ -507,6 +545,149 @@ function renderSetor(boardId){
     ${secao('🔵 PRÓXIMOS DIAS',normais,'normal','#3b82f6','#3b82f622')}`;
 }
 
+function renderConsolidacao() {
+  // Agrupa todos os pedidos por número
+  // Para cada pedido mostra todas as artes e em qual setor estão
+  const grupos = {};
+
+  BOARDS.forEach(board => {
+    const cards = boardsCarregados[board.id]?.cards || [];
+    cards.forEach(card => {
+      const m = card.name.match(/^(\d+)\s*[-–]\s*(.+)/);
+      if (!m) return;
+      const num = m[1];
+      const resto = m[2].trim();
+      // Extrai nome do cliente (última parte após traços)
+      const partes = resto.split(/\s*[-–]\s*/);
+      const cliente = partes[partes.length - 1].trim();
+
+      if (!grupos[num]) {
+        grupos[num] = {
+          num, cliente,
+          dataEntrega: pedidos.find(p=>p.numPedido===num)?.dataEntrega || null,
+          artes: []
+        };
+      }
+      // Evita duplicatas do mesmo card em boards diferentes
+      if (!grupos[num].artes.find(a=>a.id===card.id)) {
+        grupos[num].artes.push({
+          id: card.id,
+          nome: card.name,
+          board, url: card.url,
+          pronta: board.id === 'V6wt9KT0' || board.id === '8LcFwJ0v'
+        });
+      }
+    });
+  });
+
+  const lista = Object.values(grupos)
+    .filter(g => g.artes.length > 0)
+    .sort((a,b) => {
+      // Primeiro os que podem faturar, depois por data
+      const aPronta = a.artes.every(x=>x.pronta);
+      const bPronta = b.artes.every(x=>x.pronta);
+      if (aPronta && !bPronta) return -1;
+      if (!aPronta && bPronta) return 1;
+      if (!a.dataEntrega) return 1;
+      if (!b.dataEntrega) return -1;
+      return new Date(a.dataEntrega) - new Date(b.dataEntrega);
+    });
+
+  const podeFaturar = lista.filter(g => g.artes.every(a=>a.pronta));
+  const aguardando  = lista.filter(g => !g.artes.every(a=>a.pronta));
+
+  const secaoHtml = (titulo, cor, bg, items) => {
+    if (!items.length) return '';
+    return `<div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+        padding:6px 12px;border-radius:6px;background:${bg};color:${cor};margin-bottom:8px">
+        ${titulo} <span style="font-family:'DM Mono',monospace">(${items.length})</span>
+      </div>
+      ${items.map(g => cardConsolidacao(g)).join('')}
+    </div>`;
+  };
+
+  document.getElementById('consolidacaoConteudo').innerHTML = `
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+      <div class="stat-card">
+        <div class="stat-num" style="color:#22c55e">${podeFaturar.length}</div>
+        <div class="stat-lbl">Prontos para faturar</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" style="color:#f97316">${aguardando.length}</div>
+        <div class="stat-lbl">Aguardando artes</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" style="color:#3b82f6">${lista.reduce((a,g)=>a+g.artes.length,0)}</div>
+        <div class="stat-lbl">Total de artes</div>
+      </div>
+    </div>
+    ${secaoHtml('✅ PODE FATURAR — Todas as artes prontas', '#22c55e', '#052e16', podeFaturar)}
+    ${secaoHtml('⏳ AGUARDANDO — Artes ainda em produção', '#f97316', '#2d1500', aguardando)}
+  `;
+}
+
+function cardConsolidacao(g) {
+  const total  = g.artes.length;
+  const prontas = g.artes.filter(a=>a.pronta).length;
+  const pct = total > 0 ? (prontas/total)*100 : 0;
+  const podeFaturar = prontas === total;
+  const dias = diasR(g.dataEntrega);
+  const diasTxt = dias===999?'Sem data':dias<0?`${Math.abs(dias)}d atraso`:dias===0?'Hoje':dias===1?'Amanhã':`${dias}d`;
+  const diasCor = dias<0?'#ef4444':dias<=2?'#f97316':dias<=5?'#eab308':'#94a3b8';
+
+  const arteRows = g.artes.map(a => {
+    const sc = STATUS_CFG_C[a.board.id] || {cor:'#64748b', emoji:'📋'};
+    return `<div class="consol-arte">
+      <span style="font-size:14px;flex-shrink:0">${a.pronta ? '✅' : sc.emoji}</span>
+      <span class="consol-arte-nome">${a.nome}</span>
+      <span class="consol-arte-setor" style="color:${a.pronta?'#22c55e':a.board.cor};border-color:${a.pronta?'#22c55e':a.board.cor}44;background:${a.pronta?'#22c55e':a.board.cor}18">
+        ${a.board.emoji} ${a.board.nome}
+      </span>
+      <a href="${a.url}" target="_blank" class="trello-link">↗</a>
+    </div>`;
+  }).join('');
+
+  return `<div class="consol-card ${podeFaturar?'pode-faturar':'aguardando'}">
+    <div class="consol-header" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
+          <span style="font-family:'DM Mono',monospace;color:var(--ouro);font-size:12px">#${g.num}</span>
+          <span style="font-weight:700;font-size:14px">${g.cliente}</span>
+          ${podeFaturar
+            ? '<span style="background:#22c55e22;border:1px solid #22c55e;color:#22c55e;border-radius:4px;padding:1px 8px;font-size:10px;font-weight:700">PODE FATURAR</span>'
+            : `<span style="background:#f9731622;border:1px solid #f97316;color:#f97316;border-radius:4px;padding:1px 8px;font-size:10px;font-weight:700">AGUARDANDO ${total-prontas} ARTE${total-prontas!==1?'S':''}</span>`
+          }
+        </div>
+        <div style="font-size:11px;color:var(--muted);display:flex;gap:10px">
+          <span>📅 ${fmtD(g.dataEntrega)}</span>
+          <span style="color:${diasCor}">${diasTxt}</span>
+          <span>${total} arte${total!==1?'s':''}</span>
+        </div>
+        <div class="consol-progress">
+          <div class="consol-progress-fill" style="width:${pct}%;background:${podeFaturar?'#22c55e':'#f97316'}"></div>
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:${podeFaturar?'#22c55e':'#f97316'};line-height:1">${prontas}/${total}</div>
+        <div style="font-size:10px;color:var(--muted)">prontas</div>
+      </div>
+      <div style="color:var(--muted);font-size:12px;flex-shrink:0">▼</div>
+    </div>
+    <div class="consol-body" style="display:none">${arteRows}</div>
+  </div>`;
+}
+
+const STATUS_CFG_C = {
+  YZiyCCIL:{cor:'#6366f1',emoji:'🔷'},
+  kKxRCcjN:{cor:'#ec4899',emoji:'🎨'},
+  dWdRLX04:{cor:'#8b5cf6',emoji:'🖨️'},
+  '2psxSaAN':{cor:'#f59e0b',emoji:'⚡'},
+  JdC3HfIg:{cor:'#f97316',emoji:'✂️'},
+  '8LcFwJ0v':{cor:'#84cc16',emoji:'✅'},
+  V6wt9KT0:{cor:'#22c55e',emoji:'📦'},
+};
+
 function renderSLAGrid(){
   document.getElementById('slaGrid').innerHTML=BOARDS.map(b=>`
     <div class="sla-item">
@@ -542,6 +723,11 @@ function mudarAba(aba,boardId=null){
     const idx=BOARDS.findIndex(x=>x.id===boardId);
     document.querySelectorAll('.tab')[idx+1].classList.add('ativo');
     renderSetor(boardId);
+  } else if(aba==='consolidacao'){
+    document.getElementById('page-consolidacao').classList.add('ativo');
+    document.getElementById('headerTitle').textContent='Consolidação de Pedidos';
+    document.querySelectorAll('.tab')[BOARDS.length+1].classList.add('ativo');
+    renderConsolidacao();
   } else if(aba==='config'){
     document.getElementById('page-config').classList.add('ativo');
     document.getElementById('headerTitle').textContent='Configurações';
