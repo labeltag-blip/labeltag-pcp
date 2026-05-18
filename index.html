@@ -292,6 +292,17 @@
 </div>
 
 <div class="page" id="page-config">
+      <div style="font-size:14px;font-weight:700;margin-bottom:6px;color:var(--ouro)">🤖 Claude API — Leitura de Ordens de Produção</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Necessária para ler automaticamente as imagens das ordens de produção anexadas nos cards do Trello.</div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:20px">
+        <label style="font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:6px">Chave API Claude</label>
+        <div style="display:flex;gap:8px">
+          <input class="inp" id="claudeKeyInput" type="password" placeholder="sk-ant-api03-..." style="font-family:'DM Mono',monospace;font-size:12px">
+          <button class="btn-ouro" onclick="salvarClaudeKey()" style="white-space:nowrap">Salvar</button>
+        </div>
+        <div id="claudeStatus" style="font-size:11px;margin-top:8px;color:var(--muted)"></div>
+      </div>
+
       <div style="font-size:14px;font-weight:700;margin-bottom:6px;color:var(--ouro)">⚙️ SLA — Tempo máximo por setor</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Define quantos dias cada pedido pode ficar em cada setor.</div>
       <div class="sla-grid" id="slaGrid"></div>
@@ -341,21 +352,15 @@ async function conectar() {
   const k = document.getElementById('inputKey').value.trim();
   const t = document.getElementById('inputToken').value.trim();
   if (!k || !t) { mostrarErro('Preencha a chave e o token.'); return; }
+  if (!k.match(/^[a-f0-9]{32}$/i)) { mostrarErro('Chave de API inválida — deve ter 32 caracteres.'); return; }
+  if (!t.startsWith('ATTA') && !t.startsWith('atta')) { mostrarErro('Token inválido — deve começar com ATTA.'); return; }
 
-  document.querySelector('.login-btn').textContent = '⟳ Conectando...';
-  try {
-    const res = await fetch(`https://api.trello.com/1/members/me?key=${k}&token=${t}`);
-    if (!res.ok) throw new Error();
-    localStorage.setItem('lt_key', k);
-    localStorage.setItem('lt_token', t);
-    const ck = document.getElementById('inputClaude').value.trim();
-    if (ck) localStorage.setItem('lt_claude', ck);
-    API_KEY = k; TOKEN = t;
-    mostrarApp();
-  } catch {
-    mostrarErro('Credenciais inválidas. Verifique a chave e o token.');
-    document.querySelector('.login-btn').textContent = '🔌 Conectar ao Trello';
-  }
+  localStorage.setItem('lt_key', k);
+  localStorage.setItem('lt_token', t);
+  const ck = document.getElementById('inputClaude').value.trim();
+  if (ck) localStorage.setItem('lt_claude', ck);
+  API_KEY = k; TOKEN = t; CLAUDE_KEY = ck;
+  mostrarApp();
 }
 
 function mostrarErro(msg) {
@@ -857,6 +862,18 @@ function getBtnStatus(cardId) {
 }
 
 function renderSLAGrid(){
+  // Mostra status da chave Claude
+  const ck = localStorage.getItem('lt_claude');
+  const statusEl = document.getElementById('claudeStatus');
+  if (statusEl) {
+    if (ck) {
+      statusEl.textContent = '✓ Chave Claude configurada — leitura de ordens ativa';
+      statusEl.style.color = '#22c55e';
+    } else {
+      statusEl.textContent = '⚠ Chave não configurada — cole a chave acima para ativar';
+      statusEl.style.color = '#f97316';
+    }
+  }
   document.getElementById('slaGrid').innerHTML=BOARDS.map(b=>`
     <div class="sla-item">
       <div class="sla-nome">${b.emoji} ${b.nome}</div>
@@ -865,6 +882,17 @@ function renderSLAGrid(){
         <span style="font-size:11px;color:var(--muted)">dias máx.</span>
       </div>
     </div>`).join('');
+}
+
+function salvarClaudeKey() {
+  const k = document.getElementById('claudeKeyInput').value.trim();
+  if (!k) { alert('Cole a chave Claude antes de salvar.'); return; }
+  localStorage.setItem('lt_claude', k);
+  CLAUDE_KEY = k;
+  const el = document.getElementById('claudeStatus');
+  el.textContent = '✓ Chave salva! Botões "Ler Ordens" já estão funcionando.';
+  el.style.color = '#22c55e';
+  document.getElementById('claudeKeyInput').value = '';
 }
 
 function salvarSLA(){
