@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Label Tag — PCP Central</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+  * { box-sizing:border-box; margin:0; padding:0; }
+  :root {
+    --bg:#070d1a; --bg2:#0d1526; --bg3:#0a1020;
+    --border:#1e2d4a; --ouro:#c8a96e; --ouro2:#e0c080;
+    --text:#e2e8f0; --muted:#64748b; --muted2:#94a3b8;
+  }
+  body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+  ::-webkit-scrollbar { width:4px; height:4px; }
+  ::-webkit-scrollbar-thumb { background:var(--ouro); border-radius:2px; }
+
+  /* ── Login ── */
+  .login-wrap {
+    display:flex; align-items:center; justify-content:center;
+    min-height:100vh; padding:20px;
+  }
+  .login-box {
+    background:var(--bg2); border:1px solid var(--border);
+    border-radius:14px; padding:36px; width:100%; max-width:460px;
+  }
+  .login-logo { font-size:10px; color:var(--ouro); letter-spacing:.18em; text-transform:uppercase; margin-bottom:6px; }
+  .login-title { font-size:22px; font-weight:700; margin-bottom:6px; }
+  .login-sub { font-size:13px; color:var(--muted); margin-bottom:28px; line-height:1.6; }
+  .login-label { font-size:11px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; display:block; margin-bottom:6px; margin-top:18px; }
+  .login-label:first-of-type { margin-top:0; }
+  .login-inp {
+    background:var(--bg3); border:1px solid var(--border);
+    color:var(--text); font-family:'DM Mono',monospace;
+    border-radius:6px; padding:10px 14px; width:100%;
+    font-size:12px; outline:none; transition:border-color .2s;
+  }
+  .login-inp:focus { border-color:var(--ouro); }
+  .login-btn {
+    background:var(--ouro); color:#1a1209; border:none;
+    border-radius:8px; padding:12px; width:100%;
+    font-family:'DM Sans',sans-serif; font-weight:700;
+    font-size:14px; cursor:pointer; margin-top:24px;
+    transition:all .15s;
+  }
+  .login-btn:hover { background:var(--ouro2); }
+  .login-erro { background:#2d0a0a; border:1px solid #ef4444; border-radius:6px; padding:10px 14px; font-size:12px; color:#ef4444; margin-top:14px; display:none; }
+  .login-ajuda { font-size:11px; color:var(--muted); margin-top:20px; line-height:1.7; }
+  .login-ajuda a { color:var(--ouro); }
+
+  /* ── App ── */
+  #app { display:none; }
+
+  .header {
+    background:linear-gradient(180deg,#0a1628,var(--bg));
+    border-bottom:1px solid var(--border);
+    padding:12px 20px;
+    display:flex; align-items:center; justify-content:space-between;
+    position:sticky; top:0; z-index:100;
+  }
+  .header-sub { font-size:9px; color:var(--ouro); letter-spacing:.18em; text-transform:uppercase; }
+  .header-title { font-size:17px; font-weight:700; }
+
+  .tabs { display:flex; gap:2px; background:var(--bg2); border-bottom:1px solid var(--border); padding:0 20px; overflow-x:auto; }
+  .tab { padding:10px 16px; font-size:12px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; color:var(--muted2); white-space:nowrap; transition:all .15s; }
+  .tab:hover { color:var(--ouro); }
+  .tab.ativo { color:var(--ouro); border-bottom-color:var(--ouro); }
+
+  .btn-ouro { background:var(--ouro); color:#1a1209; border:none; border-radius:6px; padding:7px 14px; font-family:'DM Sans',sans-serif; font-weight:700; font-size:11px; cursor:pointer; transition:all .15s; }
+  .btn-ouro:hover { background:var(--ouro2); }
+  .btn-ghost { background:transparent; color:var(--muted2); border:1px solid var(--border); border-radius:6px; padding:6px 12px; font-family:'DM Sans',sans-serif; font-size:11px; cursor:pointer; transition:all .15s; }
+  .btn-ghost:hover { border-color:var(--ouro); color:var(--ouro); }
+
+  .inp { background:var(--bg3); border:1px solid var(--border); color:var(--text); font-family:'DM Sans',sans-serif; border-radius:6px; padding:7px 11px; font-size:12px; outline:none; transition:border-color .2s; }
+  .inp:focus { border-color:var(--ouro); }
+
+  .main { padding:16px 20px; }
+
+  .stats { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+  .stat-card { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:12px 16px; flex:1; min-width:90px; }
+  .stat-num { font-family:'DM Mono',monospace; font-size:24px; font-weight:700; line-height:1; }
+  .stat-lbl { font-size:10px; color:var(--muted); margin-top:2px; }
+
+  .toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+  .filtro-btn { background:var(--bg2); border:1px solid var(--border); color:var(--muted2); border-radius:20px; padding:4px 10px; font-size:11px; cursor:pointer; transition:all .15s; white-space:nowrap; }
+  .filtro-btn:hover { border-color:var(--ouro); color:var(--ouro); }
+  .filtro-btn.ativo { background:#c8a96e20; border-color:var(--ouro); color:var(--ouro); font-weight:600; }
+
+  .kanban { display:flex; gap:12px; overflow-x:auto; padding-bottom:16px; align-items:flex-start; }
+  .kanban-col { background:var(--bg2); border:1px solid var(--border); border-radius:10px; min-width:230px; max-width:250px; flex-shrink:0; }
+  .kanban-col.faturado { border-color:#22c55e44; }
+  .kanban-col.atrasado { border-color:#ef444444; }
+  .kanban-col.critico  { border-color:#f9731644; }
+  .kanban-col.atencao  { border-color:#eab30844; }
+
+  .col-header { padding:10px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .col-data { font-family:'DM Mono',monospace; font-size:13px; font-weight:700; }
+  .col-badge { font-size:10px; font-weight:700; padding:2px 7px; border-radius:12px; }
+  .col-body { padding:8px; max-height:68vh; overflow-y:auto; }
+
+  .mini-card { background:var(--bg3); border:1px solid var(--border); border-radius:7px; padding:9px 11px; margin-bottom:6px; cursor:pointer; transition:all .15s; }
+  .mini-card:hover { border-color:#c8a96e66; }
+  .mini-card.atrasado { border-left:3px solid #ef4444; }
+  .mini-card.critico  { border-left:3px solid #f97316; }
+  .mini-card.atencao  { border-left:3px solid #eab308; }
+  .mini-card.ok       { border-left:3px solid #3b82f6; }
+  .mini-card.faturado { border-left:3px solid #22c55e; opacity:.7; }
+
+  .mini-num { font-family:'DM Mono',monospace; font-size:10px; color:var(--ouro); }
+  .mini-cliente { font-size:12px; font-weight:600; margin:2px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mini-setor { font-size:10px; color:var(--muted2); margin-top:4px; display:flex; flex-wrap:wrap; gap:3px; }
+  .setor-chip { background:var(--border); border-radius:10px; padding:1px 6px; font-size:10px; }
+
+  .setor-panel {}
+  .setor-header-big { background:var(--bg2); border:1px solid var(--border); border-radius:10px; padding:20px; margin-bottom:16px; display:flex; align-items:center; gap:16px; }
+  .setor-emoji { font-size:36px; }
+  .setor-nome { font-size:22px; font-weight:700; }
+
+  .prioridade-secao { margin-bottom:20px; }
+  .prioridade-titulo { font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:6px 12px; border-radius:6px; margin-bottom:8px; display:flex; align-items:center; gap:8px; }
+
+  .task-card { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin-bottom:6px; display:flex; align-items:center; gap:12px; }
+  .task-card.urgente { border-left:3px solid #ef4444; }
+  .task-card.hoje    { border-left:3px solid #f97316; }
+  .task-card.amanha  { border-left:3px solid #eab308; }
+  .task-card.normal  { border-left:3px solid #3b82f6; }
+  .task-num { font-family:'DM Mono',monospace; font-size:11px; color:var(--ouro); flex-shrink:0; min-width:55px; }
+  .task-info { flex:1; }
+  .task-cliente { font-size:13px; font-weight:600; }
+  .task-detalhe { font-size:11px; color:var(--muted); margin-top:2px; }
+  .task-dias { font-family:'DM Mono',monospace; font-size:12px; font-weight:700; flex-shrink:0; }
+  .trello-link { font-size:10px; color:var(--ouro); text-decoration:none; opacity:.6; flex-shrink:0; }
+  .trello-link:hover { opacity:1; }
+
+  .sla-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; margin-bottom:16px; }
+  .sla-item { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:12px; }
+  .sla-nome { font-size:12px; font-weight:600; margin-bottom:8px; }
+  .sla-inp { display:flex; align-items:center; gap:8px; }
+  .sla-inp input { background:var(--bg3); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:4px 8px; width:60px; font-size:13px; font-family:'DM Mono',monospace; outline:none; text-align:center; }
+  .sla-inp input:focus { border-color:var(--ouro); }
+
+  .dot-live { display:inline-block; width:6px; height:6px; border-radius:50%; background:#22c55e; margin-right:4px; animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  .loading { text-align:center; padding:50px; color:var(--muted); }
+  .loading-spin { font-size:28px; display:block; animation:spin 1s linear infinite; margin-bottom:10px; }
+  @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+  .boards-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+  .board-pill { background:var(--bg2); border:1px solid var(--border); border-radius:20px; padding:3px 10px; font-size:10px; display:flex; align-items:center; gap:5px; }
+  .board-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+
+  .page { display:none; }
+  .page.ativo { display:block; }
+
+  .config-sair { font-size:11px; color:#ef4444; cursor:pointer; background:none; border:1px solid #ef444444; border-radius:6px; padding:5px 10px; font-family:'DM Sans',sans-serif; transition:all .15s; }
+  .config-sair:hover { border-color:#ef4444; }
+</style>
+</head>
+<body>
+
+<!-- ── Tela de Login ── -->
+<div class="login-wrap" id="loginWrap">
+  <div class="login-box">
+    <div class="login-logo">Label Tag</div>
+    <div class="login-title">PCP Central</div>
+    <div class="login-sub">Configure sua conexão com o Trello. As credenciais ficam salvas apenas neste computador.</div>
+
+    <span class="login-label">Chave de API do Trello</span>
+    <input class="login-inp" id="inputKey" placeholder="Ex: a67c926144cd0da8..." autocomplete="off">
+
+    <span class="login-label">Token do Trello</span>
+    <input class="login-inp" id="inputToken" placeholder="Ex: ATTA178ae6c5..." type="password" autocomplete="off">
+
+    <div class="login-erro" id="loginErro">Credenciais inválidas. Verifique a chave e o token.</div>
+
+    <button class="login-btn" onclick="conectar()">🔌 Conectar ao Trello</button>
+
+    <div class="login-ajuda">
+      <strong style="color:var(--muted2)">Como obter as credenciais:</strong><br>
+      1. Acesse <a href="https://trello.com/power-ups/admin" target="_blank">trello.com/power-ups/admin</a><br>
+      2. Abra o app <strong>Label Tag PCP</strong> → <strong>Chave de API</strong><br>
+      3. Copie a <strong>Chave de API</strong> e gere um <strong>Token</strong>
+    </div>
+  </div>
+</div>
+
+<!-- ── App principal ── -->
+<div id="app">
+  <div class="header">
+    <div>
+      <div class="header-sub">Label Tag</div>
+      <div class="header-title" id="headerTitle">PCP Central</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:10px;color:var(--muted)"><span class="dot-live"></span><span id="syncTxt">Conectando...</span></span>
+      <button class="btn-ouro" onclick="sincronizar()">↻ Atualizar</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab ativo" onclick="mudarAba('geral')">📋 Visão Geral</div>
+    <div class="tab" onclick="mudarAba('setor','YZiyCCIL')">🔷 Preparação</div>
+    <div class="tab" onclick="mudarAba('setor','kKxRCcjN')">🎨 Silk</div>
+    <div class="tab" onclick="mudarAba('setor','dWdRLX04')">🖨️ Impressão</div>
+    <div class="tab" onclick="mudarAba('setor','2psxSaAN')">⚡ Corte Laser</div>
+    <div class="tab" onclick="mudarAba('setor','JdC3HfIg')">✂️ Corte Zund</div>
+    <div class="tab" onclick="mudarAba('setor','8LcFwJ0v')">✅ Acabamento</div>
+    <div class="tab" onclick="mudarAba('setor','V6wt9KT0')">📦 Faturamento</div>
+    <div class="tab" onclick="mudarAba('config')">⚙️ Config</div>
+  </div>
+
+  <div class="main">
+    <div class="page ativo" id="page-geral">
+      <div class="stats" id="stats"></div>
+      <div class="boards-row" id="boardsStatus"></div>
+      <div class="toolbar">
+        <input class="inp" id="busca" placeholder="🔍 Buscar..." oninput="renderGeral()" style="max-width:220px">
+        <button class="filtro-btn ativo" id="f-todos"    onclick="setFiltro('todos')">Todos</button>
+        <button class="filtro-btn" id="f-atrasado" onclick="setFiltro('atrasado')">⛔ Atrasados</button>
+        <button class="filtro-btn" id="f-critico"  onclick="setFiltro('critico')">🔴 Críticos</button>
+        <button class="filtro-btn" id="f-atencao"  onclick="setFiltro('atencao')">🟡 Atenção</button>
+        <button class="filtro-btn" id="f-ok"       onclick="setFiltro('ok')">🔵 Produção</button>
+        <button class="filtro-btn" id="f-faturado" onclick="setFiltro('faturado')">✅ Faturados</button>
+      </div>
+      <div class="kanban" id="kanban"></div>
+    </div>
+
+    <div class="page" id="page-setor">
+      <div id="setorConteudo"></div>
+    </div>
+
+    <div class="page" id="page-config">
+      <div style="font-size:14px;font-weight:700;margin-bottom:6px;color:var(--ouro)">⚙️ SLA — Tempo máximo por setor</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Define quantos dias cada pedido pode ficar em cada setor.</div>
+      <div class="sla-grid" id="slaGrid"></div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:4px">
+        <button class="btn-ouro" onclick="salvarSLA()">Salvar SLA</button>
+        <span id="slaSalvo" style="font-size:11px;color:#22c55e;display:none">✓ Salvo!</span>
+        <button class="config-sair" onclick="sair()">Desconectar Trello</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const BOARDS = [
+  {id:'YZiyCCIL', nome:'Preparação',  emoji:'🔷', cor:'#6366f1', ordem:1},
+  {id:'kKxRCcjN', nome:'Silk',        emoji:'🎨', cor:'#ec4899', ordem:2},
+  {id:'dWdRLX04', nome:'Impressão',   emoji:'🖨️', cor:'#8b5cf6', ordem:3},
+  {id:'2psxSaAN', nome:'Corte Laser', emoji:'⚡', cor:'#f59e0b', ordem:4},
+  {id:'JdC3HfIg', nome:'Corte Zund',  emoji:'✂️', cor:'#f97316', ordem:5},
+  {id:'8LcFwJ0v', nome:'Acabamento',  emoji:'✅', cor:'#84cc16', ordem:6},
+  {id:'V6wt9KT0', nome:'Faturamento', emoji:'📦', cor:'#22c55e', ordem:7},
+];
+
+let API_KEY = '';
+let TOKEN   = '';
+let SLA     = JSON.parse(localStorage.getItem('lt_sla')||'null') || {YZiyCCIL:2,kKxRCcjN:2,dWdRLX04:2,'2psxSaAN':3,JdC3HfIg:3,'8LcFwJ0v':1,V6wt9KT0:1};
+let pedidos = [];
+let boardsCarregados = {};
+let filtroRisco = 'todos';
+let abaAtiva = 'geral';
+let setorAtivo = null;
+
+// ── Auth ──────────────────────────────────────────────────────────────────
+function init() {
+  const k = localStorage.getItem('lt_key');
+  const t = localStorage.getItem('lt_token');
+  if (k && t) {
+    API_KEY = k; TOKEN = t;
+    mostrarApp();
+  }
+}
+
+async function conectar() {
+  const k = document.getElementById('inputKey').value.trim();
+  const t = document.getElementById('inputToken').value.trim();
+  if (!k || !t) { mostrarErro('Preencha a chave e o token.'); return; }
+
+  document.querySelector('.login-btn').textContent = '⟳ Conectando...';
+  try {
+    const res = await fetch(`https://api.trello.com/1/members/me?key=${k}&token=${t}`);
+    if (!res.ok) throw new Error();
+    localStorage.setItem('lt_key', k);
+    localStorage.setItem('lt_token', t);
+    API_KEY = k; TOKEN = t;
+    mostrarApp();
+  } catch {
+    mostrarErro('Credenciais inválidas. Verifique a chave e o token.');
+    document.querySelector('.login-btn').textContent = '🔌 Conectar ao Trello';
+  }
+}
+
+function mostrarErro(msg) {
+  const el = document.getElementById('loginErro');
+  el.textContent = msg; el.style.display = 'block';
+  document.querySelector('.login-btn').textContent = '🔌 Conectar ao Trello';
+}
+
+function mostrarApp() {
+  document.getElementById('loginWrap').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  sincronizar();
+}
+
+function sair() {
+  if (!confirm('Desconectar do Trello?')) return;
+  localStorage.removeItem('lt_key');
+  localStorage.removeItem('lt_token');
+  location.reload();
+}
+
+// ── API ───────────────────────────────────────────────────────────────────
+async function trelloGet(path, params={}) {
+  const url = `https://api.trello.com/1${path}?${new URLSearchParams({key:API_KEY,token:TOKEN,...params})}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${res.status}`);
+  return res.json();
+}
+
+// ── Sincronizar ───────────────────────────────────────────────────────────
+async function sincronizar() {
+  document.getElementById('syncTxt').textContent = 'Sincronizando...';
+  boardsCarregados = {};
+  try {
+    const resultados = await Promise.allSettled(
+      BOARDS.map(b => trelloGet(`/boards/${b.id}/cards/open`,{fields:'name,due,labels,url'})
+        .then(cards=>({board:b,cards})))
+    );
+    const grupos = {};
+    resultados.forEach((res,idx) => {
+      const board = BOARDS[idx];
+      if (res.status==='fulfilled') {
+        boardsCarregados[board.id] = {ok:true, qtd:res.value.cards.length, cards:res.value.cards};
+        res.value.cards.forEach(card => {
+          const m = card.name.match(/^(\d+)\s*[-–]\s*(.+)/);
+          if (!m) return;
+          const num = m[1];
+          const cliente = m[2].replace(/PEDIDO\s*[-–]\s*/i,'').trim();
+          if (!grupos[num]) grupos[num] = {numPedido:num,cliente,dataEntrega:card.due?card.due.substring(0,10):null,artes:[],setoresAtivos:new Set()};
+          if (card.due && !grupos[num].dataEntrega) grupos[num].dataEntrega = card.due.substring(0,10);
+          grupos[num].artes.push({id:card.id,nome:card.name,board,url:card.url});
+          grupos[num].setoresAtivos.add(board.id);
+        });
+      } else {
+        boardsCarregados[board.id] = {ok:false,qtd:0,cards:[]};
+      }
+    });
+    pedidos = Object.values(grupos).filter(g=>g.artes.length>0)
+      .sort((a,b)=>{
+        if (!a.dataEntrega&&!b.dataEntrega) return parseInt(b.numPedido)-parseInt(a.numPedido);
+        if (!a.dataEntrega) return 1; if (!b.dataEntrega) return -1;
+        return new Date(a.dataEntrega)-new Date(b.dataEntrega);
+      });
+    const t = new Date();
+    document.getElementById('syncTxt').textContent = `Atualizado ${t.toLocaleTimeString('pt-BR')}`;
+    renderTudo();
+  } catch(e) {
+    document.getElementById('syncTxt').textContent = 'Erro — tente novamente';
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function diasR(d) { if(!d)return 999; const h=new Date();h.setHours(0,0,0,0); return Math.round((new Date(d+'T12:00:00')-h)/86400000); }
+function fmtD(d) { if(!d)return '—'; return new Date(d+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}); }
+function fmtSem(d) { if(!d)return ''; return ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][new Date(d+'T12:00:00').getDay()]; }
+function getRisco(p) {
+  if(p.setoresAtivos.has('V6wt9KT0'))return 'faturado';
+  const d=diasR(p.dataEntrega);
+  if(d<0)return 'atrasado'; if(d<=2)return 'critico'; if(d<=5)return 'atencao'; return 'ok';
+}
+function corR(r){return{faturado:'#22c55e',atrasado:'#ef4444',critico:'#f97316',atencao:'#eab308',ok:'#3b82f6'}[r]||'#64748b';}
+function lblR(r){return{faturado:'FATURADO',atrasado:'ATRASADO',critico:'CRÍTICO',atencao:'ATENÇÃO',ok:'EM PROD.'}[r]||'';}
+function setorAtualP(p){for(let i=BOARDS.length-1;i>=0;i--){if(p.setoresAtivos.has(BOARDS[i].id))return BOARDS[i];}return null;}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function renderTudo(){renderStats();renderBoardsStatus();if(abaAtiva==='geral')renderGeral();else if(abaAtiva==='setor')renderSetor(setorAtivo);}
+
+function renderStats(){
+  const total=pedidos.length;
+  const fat=pedidos.filter(p=>p.setoresAtivos.has('V6wt9KT0')).length;
+  const crit=pedidos.filter(p=>getRisco(p)==='critico').length;
+  const atr=pedidos.filter(p=>getRisco(p)==='atrasado').length;
+  document.getElementById('stats').innerHTML=[
+    {l:'Em Produção',v:total-fat,c:'#3b82f6'},
+    {l:'Faturados',v:fat,c:'#22c55e'},
+    {l:'Críticos',v:crit,c:'#f97316'},
+    {l:'Atrasados',v:atr,c:'#ef4444'},
+  ].map(s=>`<div class="stat-card"><div class="stat-num" style="color:${s.c}">${s.v}</div><div class="stat-lbl">${s.l}</div></div>`).join('');
+}
+
+function renderBoardsStatus(){
+  document.getElementById('boardsStatus').innerHTML=BOARDS.map(b=>{
+    const st=boardsCarregados[b.id]||{};
+    return `<div class="board-pill"><div class="board-dot" style="background:${st.ok?b.cor:'#ef4444'}"></div><span>${b.emoji} ${b.nome}</span><span style="color:var(--ouro);font-family:'DM Mono',monospace">${st.qtd||0}</span></div>`;
+  }).join('');
+}
+
+function renderGeral(){
+  const busca=(document.getElementById('busca').value||'').toLowerCase();
+  const filtrados=pedidos.filter(p=>{
+    const mb=!busca||p.numPedido.includes(busca)||p.cliente.toLowerCase().includes(busca);
+    return mb&&(filtroRisco==='todos'||getRisco(p)===filtroRisco);
+  });
+  const faturados=filtrados.filter(p=>p.setoresAtivos.has('V6wt9KT0'));
+  const ativos=filtrados.filter(p=>!p.setoresAtivos.has('V6wt9KT0'));
+  const grupos={};
+  ativos.forEach(p=>{const k=p.dataEntrega||'sem-data';if(!grupos[k])grupos[k]=[];grupos[k].push(p);});
+  const cols=Object.keys(grupos).sort((a,b)=>{if(a==='sem-data')return 1;if(b==='sem-data')return -1;return new Date(a)-new Date(b);});
+  let html='';
+  cols.forEach(dk=>{
+    const lista=grupos[dk];
+    const d=dk==='sem-data'?999:diasR(dk);
+    const cr=d<0?'atrasado':d<=2?'critico':d<=5?'atencao':'ok';
+    const cor=corR(cr);
+    const lbl=dk==='sem-data'?'Sem data':`${fmtSem(dk)} ${fmtD(dk)}`;
+    const dtxt=dk==='sem-data'?'':d<0?`${Math.abs(d)}d atraso`:d===0?'Hoje!':d===1?'Amanhã':`${d} dias`;
+    html+=`<div class="kanban-col ${cr}">
+      <div class="col-header">
+        <div><div class="col-data">${lbl}</div>${dtxt?`<div style="font-size:10px;color:${cor};margin-top:1px">${dtxt}</div>`:''}</div>
+        <span class="col-badge" style="background:${cor}22;color:${cor}">${lista.length}</span>
+      </div>
+      <div class="col-body">${lista.map(p=>miniCard(p)).join('')}</div>
+    </div>`;
+  });
+  if(faturados.length>0||filtroRisco==='faturado'||filtroRisco==='todos'){
+    html+=`<div class="kanban-col faturado">
+      <div class="col-header">
+        <div><div class="col-data">📦 Faturados</div><div style="font-size:10px;color:#22c55e;margin-top:1px">Concluídos</div></div>
+        <span class="col-badge" style="background:#22c55e22;color:#22c55e">${faturados.length}</span>
+      </div>
+      <div class="col-body">${faturados.map(p=>miniCard(p)).join('')}</div>
+    </div>`;
+  }
+  document.getElementById('kanban').innerHTML=html;
+}
+
+function miniCard(p){
+  const r=getRisco(p);const cor=corR(r);const setor=setorAtualP(p);
+  const emojis=p.artes.map(a=>a.board.emoji).filter((v,i,arr)=>arr.indexOf(v)===i).join(' ');
+  return `<div class="mini-card ${r}" onclick="irParaPedido('${p.numPedido}')">
+    <div class="mini-num">#${p.numPedido}</div>
+    <div class="mini-cliente">${p.cliente}</div>
+    <div class="mini-setor">
+      <span>${emojis}</span>
+      ${setor?`<span class="setor-chip" style="color:${setor.cor}">${setor.nome}</span>`:''}
+      ${p.artes.length>1?`<span class="setor-chip">${p.artes.length} artes</span>`:''}
+    </div>
+  </div>`;
+}
+
+function renderSetor(boardId){
+  const board=BOARDS.find(b=>b.id===boardId);if(!board)return;
+  const cards=(boardsCarregados[boardId]?.cards||[]);
+  const tarefas=cards.map(card=>{
+    const m=card.name.match(/^(\d+)\s*[-–]\s*(.+)/);if(!m)return null;
+    const num=m[1];const pedido=pedidos.find(p=>p.numPedido===num);
+    const dataEntrega=card.due?card.due.substring(0,10):pedido?.dataEntrega||null;
+    const d=diasR(dataEntrega);
+    const ordemAtual=board.ordem;
+    const slaPost=BOARDS.filter(b=>b.ordem>ordemAtual).reduce((acc,b)=>acc+(SLA[b.id]||1),0);
+    const dlSetor=d-slaPost;
+    return{num,nome:card.name,cliente:pedido?.cliente||m[2],dataEntrega,d,dlSetor,url:card.url};
+  }).filter(Boolean).sort((a,b)=>a.d-b.d);
+
+  const urgentes=tarefas.filter(t=>t.dlSetor<0);
+  const hoje_t=tarefas.filter(t=>t.dlSetor===0);
+  const amanha_t=tarefas.filter(t=>t.dlSetor===1);
+  const normais=tarefas.filter(t=>t.dlSetor>1);
+
+  const taskHtml=(t,tipo)=>{
+    const cor=tipo==='urgente'?'#ef4444':tipo==='hoje'?'#f97316':tipo==='amanha'?'#eab308':'#3b82f6';
+    const dTxt=t.d===999?'Sem data':t.d<0?`${Math.abs(t.d)}d atraso`:t.d===0?'Hoje':t.d===1?'Amanhã':`${t.d}d`;
+    return `<div class="task-card ${tipo}">
+      <span class="task-num">#${t.num}</span>
+      <div class="task-info"><div class="task-cliente">${t.cliente}</div><div class="task-detalhe">${t.nome}</div></div>
+      <span class="task-dias" style="color:${cor}">${dTxt}</span>
+      <a href="${t.url}" target="_blank" class="trello-link">↗</a>
+    </div>`;
+  };
+  const secao=(tit,lista,tipo,cor,bg)=>!lista.length?'':
+    `<div class="prioridade-secao">
+      <div class="prioridade-titulo" style="background:${bg};color:${cor}">${tit} <span style="font-family:'DM Mono',monospace;font-size:10px">(${lista.length})</span></div>
+      ${lista.map(t=>taskHtml(t,tipo)).join('')}
+    </div>`;
+
+  document.getElementById('setorConteudo').innerHTML=`
+    <div class="setor-header-big">
+      <div class="setor-emoji">${board.emoji}</div>
+      <div>
+        <div class="setor-nome">${board.nome}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">
+          ${new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})} · ${tarefas.length} pedidos em fila
+        </div>
+      </div>
+      <div style="margin-left:auto;text-align:right">
+        <div style="font-size:10px;color:var(--muted)">SLA deste setor</div>
+        <div style="font-family:'DM Mono',monospace;font-size:20px;color:var(--ouro)">${SLA[boardId]||1} dia${(SLA[boardId]||1)!==1?'s':''}</div>
+      </div>
+    </div>
+    ${!tarefas.length?'<div style="text-align:center;color:var(--muted);padding:40px">Nenhum pedido neste setor agora.</div>':''}
+    ${secao('🔴 URGENTE — Atrasado no setor',urgentes,'urgente','#ef4444','#ef444422')}
+    ${secao('🟠 HOJE — Precisa sair hoje',hoje_t,'hoje','#f97316','#f9731622')}
+    ${secao('🟡 AMANHÃ',amanha_t,'amanha','#eab308','#eab30822')}
+    ${secao('🔵 PRÓXIMOS DIAS',normais,'normal','#3b82f6','#3b82f622')}`;
+}
+
+function renderSLAGrid(){
+  document.getElementById('slaGrid').innerHTML=BOARDS.map(b=>`
+    <div class="sla-item">
+      <div class="sla-nome">${b.emoji} ${b.nome}</div>
+      <div class="sla-inp">
+        <input type="number" id="sla-${b.id}" value="${SLA[b.id]||1}" min="1" max="30">
+        <span style="font-size:11px;color:var(--muted)">dias máx.</span>
+      </div>
+    </div>`).join('');
+}
+
+function salvarSLA(){
+  BOARDS.forEach(b=>{const v=parseInt(document.getElementById(`sla-${b.id}`).value);if(v>0)SLA[b.id]=v;});
+  localStorage.setItem('lt_sla',JSON.stringify(SLA));
+  const el=document.getElementById('slaSalvo');el.style.display='inline';
+  setTimeout(()=>el.style.display='none',2000);
+  renderTudo();
+}
+
+function mudarAba(aba,boardId=null){
+  abaAtiva=aba; setorAtivo=boardId;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('ativo'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('ativo'));
+  if(aba==='geral'){
+    document.getElementById('page-geral').classList.add('ativo');
+    document.getElementById('headerTitle').textContent='PCP Central — Visão Geral';
+    document.querySelectorAll('.tab')[0].classList.add('ativo');
+    renderGeral();
+  } else if(aba==='setor'){
+    document.getElementById('page-setor').classList.add('ativo');
+    const b=BOARDS.find(x=>x.id===boardId);
+    document.getElementById('headerTitle').textContent=`${b?.emoji} ${b?.nome} — Painel do Setor`;
+    const idx=BOARDS.findIndex(x=>x.id===boardId);
+    document.querySelectorAll('.tab')[idx+1].classList.add('ativo');
+    renderSetor(boardId);
+  } else if(aba==='config'){
+    document.getElementById('page-config').classList.add('ativo');
+    document.getElementById('headerTitle').textContent='Configurações';
+    document.querySelectorAll('.tab')[BOARDS.length+1].classList.add('ativo');
+    renderSLAGrid();
+  }
+}
+
+function setFiltro(f){
+  filtroRisco=f;
+  document.querySelectorAll('.filtro-btn').forEach(b=>b.classList.remove('ativo'));
+  document.getElementById(`f-${f}`).classList.add('ativo');
+  renderGeral();
+}
+
+function irParaPedido(num){
+  const p=pedidos.find(x=>x.numPedido===num);if(!p)return;
+  const s=setorAtualP(p);if(s)mudarAba('setor',s.id);
+}
+
+// Auto-atualiza a cada 3 minutos
+setInterval(()=>{if(API_KEY&&TOKEN)sincronizar();},3*60*1000);
+init();
+</script>
+</body>
+</html>
