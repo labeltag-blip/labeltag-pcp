@@ -173,6 +173,24 @@
 .consol-progress-fill {
   height:100%; border-radius:2px; transition:width .4s;
 }
+.btn-ler {
+  background:transparent; border:1px solid var(--ouro)66;
+  color:var(--ouro); border-radius:6px; padding:4px 10px;
+  font-family:'DM Sans',sans-serif; font-size:11px; font-weight:600;
+  cursor:pointer; transition:all .15s; white-space:nowrap;
+}
+.btn-ler:hover { background:var(--ouro)22; border-color:var(--ouro); }
+.btn-ler:disabled { opacity:.5; cursor:not-allowed; }
+.ordem-arte {
+  background:var(--bg3); border:1px solid var(--border);
+  border-radius:6px; padding:8px 12px; margin-bottom:4px;
+  font-size:12px;
+}
+.ordem-campo { display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }
+.ordem-tag {
+  background:var(--border); border-radius:10px;
+  padding:2px 8px; font-size:10px; color:var(--muted2);
+}
 .dot-live { display:inline-block; width:6px; height:6px; border-radius:50%; background:#22c55e; margin-right:4px; animation:pulse 2s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
@@ -205,6 +223,10 @@
 
     <span class="login-label">Token do Trello</span>
     <input class="login-inp" id="inputToken" placeholder="Ex: ATTA178ae6c5..." type="password" autocomplete="off">
+
+    <span class="login-label">Chave API Claude (para ler ordens de produção)</span>
+    <input class="login-inp" id="inputClaude" placeholder="sk-ant-api03-..." type="password" autocomplete="off">
+    <div style="font-size:11px;color:var(--muted);margin-top:5px">Opcional — necessária para leitura automática das ordens de produção</div>
 
     <div class="login-erro" id="loginErro">Credenciais inválidas. Verifique a chave e o token.</div>
 
@@ -295,6 +317,8 @@ const BOARDS = [
 
 let API_KEY = '';
 let TOKEN   = '';
+let CLAUDE_KEY = '';
+let ordens_cache = JSON.parse(localStorage.getItem('lt_ordens')||'{}');
 let SLA     = JSON.parse(localStorage.getItem('lt_sla')||'null') || {YZiyCCIL:3,kKxRCcjN:3,dWdRLX04:3,'2psxSaAN':3,JdC3HfIg:2,'8LcFwJ0v':2,V6wt9KT0:1};
 let pedidos = [];
 let boardsCarregados = {};
@@ -304,10 +328,11 @@ let setorAtivo = null;
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 function init() {
-  const k = localStorage.getItem('lt_key');
-  const t = localStorage.getItem('lt_token');
+  const k  = localStorage.getItem('lt_key');
+  const t  = localStorage.getItem('lt_token');
+  const ck = localStorage.getItem('lt_claude');
   if (k && t) {
-    API_KEY = k; TOKEN = t;
+    API_KEY = k; TOKEN = t; CLAUDE_KEY = ck||'';
     mostrarApp();
   }
 }
@@ -323,6 +348,8 @@ async function conectar() {
     if (!res.ok) throw new Error();
     localStorage.setItem('lt_key', k);
     localStorage.setItem('lt_token', t);
+    const ck = document.getElementById('inputClaude').value.trim();
+    if (ck) localStorage.setItem('lt_claude', ck);
     API_KEY = k; TOKEN = t;
     mostrarApp();
   } catch {
@@ -478,14 +505,28 @@ function renderGeral(){
 function miniCard(p){
   const r=getRisco(p);const cor=corR(r);const setor=setorAtualP(p);
   const emojis=p.artes.map(a=>a.board.emoji).filter((v,i,arr)=>arr.indexOf(v)===i).join(' ');
-  return `<div class="mini-card ${r}" onclick="irParaPedido('${p.numPedido}')">
-    <div class="mini-num">#${p.numPedido}</div>
-    <div class="mini-cliente">${p.cliente}</div>
-    <div class="mini-setor">
-      <span>${emojis}</span>
-      ${setor?`<span class="setor-chip" style="color:${setor.cor}">${setor.nome}</span>`:''}
-      ${p.artes.length>1?`<span class="setor-chip">${p.artes.length} artes</span>`:''}
+  // Verifica se alguma arte foi lida
+  const artesLidas = p.artes.filter(a => ordens_cache[a.id]);
+  const totalArtes = artesLidas.reduce((acc,a) => acc + (ordens_cache[a.id]?.artes?.length||0), 0);
+  return `<div class="mini-card ${r}">
+    <div style="cursor:pointer" onclick="irParaPedido('${p.numPedido}')">
+      <div class="mini-num">#${p.numPedido}</div>
+      <div class="mini-cliente">${p.cliente}</div>
+      <div class="mini-setor">
+        <span>${emojis}</span>
+        ${setor?`<span class="setor-chip" style="color:${setor.cor}">${setor.nome}</span>`:''}
+        ${p.artes.length>1?`<span class="setor-chip">${p.artes.length} caixas</span>`:''}
+        ${totalArtes>0?`<span class="setor-chip" style="color:#22c55e">${totalArtes} artes lidas</span>`:''}
+      </div>
     </div>
+    ${p.artes.length===1 ? `
+      <div style="margin-top:6px">
+        <button class="btn-ler" id="btn-${p.artes[0].id}"
+          onclick="event.stopPropagation();lerOrdens('${p.artes[0].id}',this)"
+          ${ordens_cache[p.artes[0].id]?'style="color:#22c55e;border-color:#22c55e"':''}>
+          ${getBtnStatus(p.artes[0].id).txt}
+        </button>
+      </div>` : ''}
   </div>`;
 }
 
@@ -637,14 +678,37 @@ function cardConsolidacao(g) {
   const diasCor = dias<0?'#ef4444':dias<=2?'#f97316':dias<=5?'#eab308':'#94a3b8';
 
   const arteRows = g.artes.map(a => {
+    const cache = ordens_cache[a.id];
+    const btnStatus = getBtnStatus(a.id);
+    const artesLidas = cache?.artes || [];
     const sc = STATUS_CFG_C[a.board.id] || {cor:'#64748b', emoji:'📋'};
-    return `<div class="consol-arte">
-      <span style="font-size:14px;flex-shrink:0">${a.pronta ? '✅' : sc.emoji}</span>
-      <span class="consol-arte-nome">${a.nome}</span>
-      <span class="consol-arte-setor" style="color:${a.pronta?'#22c55e':a.board.cor};border-color:${a.pronta?'#22c55e':a.board.cor}44;background:${a.pronta?'#22c55e':a.board.cor}18">
-        ${a.board.emoji} ${a.board.nome}
-      </span>
-      <a href="${a.url}" target="_blank" class="trello-link">↗</a>
+    return `<div>
+      <div class="consol-arte">
+        <span style="font-size:14px;flex-shrink:0">${a.pronta ? '✅' : sc.emoji}</span>
+        <span class="consol-arte-nome">${a.nome}</span>
+        <span class="consol-arte-setor" style="color:${a.pronta?'#22c55e':a.board.cor};border-color:${a.pronta?'#22c55e':a.board.cor}44;background:${a.pronta?'#22c55e':a.board.cor}18">
+          ${a.board.emoji} ${a.board.nome}
+        </span>
+        <button class="btn-ler" id="btn-c-${a.id}"
+          onclick="lerOrdens('${a.id}',this)"
+          ${cache?'style="color:#22c55e;border-color:#22c55e"':''}>
+          ${btnStatus.txt}
+        </button>
+        <a href="${a.url}" target="_blank" class="trello-link">↗</a>
+      </div>
+      ${artesLidas.length ? `
+        <div style="padding:6px 12px 2px 36px">
+          ${artesLidas.map(arte => `
+            <div class="ordem-arte">
+              <div style="font-weight:600;color:var(--ouro);font-family:'DM Mono',monospace;font-size:12px">${arte.codigo}</div>
+              <div class="ordem-campo">
+                <span class="ordem-tag">${arte.tecnica}</span>
+                <span class="ordem-tag">${arte.tamanho}</span>
+                <span class="ordem-tag">${arte.quantidade} pç</span>
+                ${arte.setores.map(s=>`<span class="ordem-tag" style="color:#c8a96e">${s}</span>`).join('')}
+              </div>
+            </div>`).join('')}
+        </div>` : ''}
     </div>`;
   }).join('');
 
@@ -687,6 +751,110 @@ const STATUS_CFG_C = {
   '8LcFwJ0v':{cor:'#84cc16',emoji:'✅'},
   V6wt9KT0:{cor:'#22c55e',emoji:'📦'},
 };
+
+async function lerOrdens(cardId, btnEl) {
+  if (!CLAUDE_KEY) {
+    alert('Configure a chave da Claude API na tela de login para usar esta função.');
+    return;
+  }
+
+  btnEl.disabled = true;
+  btnEl.textContent = '⏳ Lendo...';
+  
+  try {
+    // Busca anexos do card
+    const anexos = await trelloGet(`/cards/${cardId}/attachments`);
+    const imagens = anexos.filter(a => a.mimeType && a.mimeType.startsWith('image/'));
+    
+    if (!imagens.length) {
+      btnEl.textContent = '❌ Sem imagens';
+      return;
+    }
+
+    // Para cada imagem, busca via proxy e manda para Claude
+    const artes = [];
+    
+    for (const img of imagens.slice(0, 6)) {
+      try {
+        // Busca imagem via Trello API (autenticada)
+        const imgUrl = img.url + '?key=' + API_KEY + '&token=' + TOKEN;
+        const imgRes = await fetch(imgUrl);
+        const blob = await imgRes.blob();
+        
+        // Converte para base64
+        const base64 = await new Promise(resolve => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result.split(',')[1]);
+          reader.readAsDataURL(blob);
+        });
+
+        // Manda para Claude ler
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': CLAUDE_KEY,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 500,
+            messages: [{
+              role: 'user',
+              content: [
+                {
+                  type: 'image',
+                  source: { type: 'base64', media_type: blob.type || 'image/jpeg', data: base64 }
+                },
+                {
+                  type: 'text',
+                  text: 'Esta é uma ordem de produção de etiquetas. Extraia APENAS estas informações em JSON: {"codigo": "código do produto ex: 3226.0080", "cliente": "nome do cliente", "tecnica": "técnica ex: Fusion Tag", "quantidade": 0, "tamanho": "ex: 75x20.8mm", "setores": ["Preparação","Silk","Corte Laser"]}. Retorne APENAS o JSON, sem texto adicional.'
+                }
+              ]
+            }]
+          })
+        });
+
+        const data = await response.json();
+        const texto = data.content?.[0]?.text || '';
+        
+        try {
+          const clean = texto.replace(/```json|```/g,'').trim();
+          const arte = JSON.parse(clean);
+          artes.push(arte);
+        } catch(e) {
+          artes.push({ codigo: '?', cliente: '?', tecnica: img.name, quantidade: 0, tamanho: '?', setores: [] });
+        }
+      } catch(e) {
+        console.error('Erro ao ler imagem:', e);
+      }
+    }
+
+    // Salva no cache
+    ordens_cache[cardId] = { artes, lido: new Date().toISOString() };
+    localStorage.setItem('lt_ordens', JSON.stringify(ordens_cache));
+    
+    btnEl.textContent = `✅ ${artes.length} arte${artes.length!==1?'s':''} lidas`;
+    btnEl.style.color = '#22c55e';
+    btnEl.style.borderColor = '#22c55e';
+    
+    // Re-renderiza a aba atual
+    if (abaAtiva === 'consolidacao') renderConsolidacao();
+    
+  } catch(e) {
+    console.error(e);
+    btnEl.textContent = '❌ Erro';
+    btnEl.disabled = false;
+  }
+}
+
+function getBtnStatus(cardId) {
+  const cache = ordens_cache[cardId];
+  if (!cache) return { txt: '📷 Ler Ordens', cor: '', lido: false };
+  const dt = new Date(cache.lido).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+  return { txt: `✅ ${cache.artes.length} artes · ${dt}`, cor: '#22c55e', lido: true };
+}
 
 function renderSLAGrid(){
   document.getElementById('slaGrid').innerHTML=BOARDS.map(b=>`
