@@ -468,7 +468,7 @@ async function sincronizar() {
   boardsCarregados = {};
   try {
     const resultados = await Promise.allSettled(
-      BOARDS.map(b => trelloGet(`/boards/${b.id}/cards/open`,{fields:'name,due,labels,url'})
+      BOARDS.map(b => trelloGet(`/boards/${b.id}/cards/open`,{fields:'name,due,labels,url,desc'})
         .then(cards=>({board:b,cards})))
     );
     const grupos = {};
