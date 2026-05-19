@@ -665,18 +665,11 @@ function renderConsol(){
     '<div class="tb">' +
     '<input class="inp" id="consolB" placeholder="Buscar..." style="max-width:200px" oninput="renderConsol()" value="' + (busca || '') + '">' +
     '<input class="inp" type="date" id="consolD" style="max-width:150px" onchange="renderConsol()" value="' + (fData || '') + '">' +
-    '<select class="inp" id="consolModo" style="max-width:170px" onchange="renderConsol()">' +
-    '<option value="pedido"' + (modo === 'pedido' ? ' selected' : '') + '>Por Pedido</option>' +
-    '<option value="cliente"' + (modo === 'cliente' ? ' selected' : '') + '>Por Cliente</option>' +
-    '</select>' +
+    
     (fData ? '<button class="btn-g" onclick="document.getElementById(\'consolD\').value=\'\';renderConsol()">X</button>' : '') +
     '</div>' +
-    (modo === 'pedido' ?
-      secao('PODE FATURAR', '#22c55e', '#052e16', pf, cardPedido) +
-      secao('AGUARDANDO', '#f97316', '#2d1500', ag, cardPedido) :
-      secao('CLIENTES PRONTOS', '#22c55e', '#052e16', pfC, cardCliente) +
-      secao('CLIENTES EM ANDAMENTO', '#f97316', '#2d1500', agC, cardCliente)
-    ) +
+    secao('CLIENTES PRONTOS', '#22c55e', '#052e16', pfC, cardCliente) +
+    secao('CLIENTES EM ANDAMENTO', '#f97316', '#2d1500', agC, cardCliente) +
     (!listaPedidos.length ? '<div style="text-align:center;color:var(--muted);padding:40px">Nenhum pedido encontrado.</div>' : '');
 }
 
