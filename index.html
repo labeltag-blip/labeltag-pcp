@@ -704,7 +704,7 @@ function renderRelatorio() {
     var corStatus = urg>0?'#ef4444':hj>0?'#f97316':'#22c55e';
 
     setoresHtml += '<div class="rel-setor">' +
-      '<div class="rel-shdr" onclick="var b=this.nextElementSibling;b.style.display=b.style.display==='none'?'block':'none'">' +
+      '<div class="rel-shdr" onclick="toggleRelSetor(this)">' +
       '<span style="font-size:22px">'+board.emoji+'</span>' +
       '<div style="flex:1">' +
       '<div style="font-size:15px;font-weight:700">'+board.nome+'</div>' +
@@ -778,6 +778,10 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Escape')fecharModal();
 });
 
+function toggleRelSetor(el){
+  var b=el.nextElementSibling;
+  b.style.display=b.style.display==='none'?'block':'none';
+}
 setInterval(function(){if(API_KEY&&TOKEN)sincronizar();},3*60*1000);
 init();
 </script>
