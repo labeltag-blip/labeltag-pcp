@@ -152,6 +152,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div class="tab" onclick="mudarAba('setor','8LcFwJ0v')">✅ Acabamento</div>
     <div class="tab" onclick="mudarAba('setor','V6wt9KT0')">📦 Faturamento</div>
     <div class="tab" onclick="mudarAba('consolidacao')">🔗 Consolidação</div>
+    <div class="tab" onclick="mudarAba('relatorio')">📊 Relatório</div>
     <div class="tab" onclick="mudarAba('config')">⚙️ Config</div>
   </div>
 
@@ -174,7 +175,9 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div class="page" id="page-setor"><div id="setorEl"></div></div>
     <div class="page" id="page-consolidacao"><div id="consolEl"><div class="loading"><span class="spin">⟳</span>Carregando...</div></div></div>
 
-    <div class="page" id="page-config">
+    <div class="page" id="page-relatorio"><div id="relatorioEl"><div class="loading"><span class="loading-spin">⟳</span>Carregando...</div></div></div>
+
+<div class="page" id="page-config">
       <div style="font-size:14px;font-weight:700;margin-bottom:6px;color:var(--ouro)">🤖 Chave API Claude</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Para leitura automática das ordens de produção.</div>
       <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:20px">
@@ -327,6 +330,7 @@ function renderTudo(){
   if(aba==='geral')renderGeral();
   else if(aba==='setor')renderSetor(setorId);
   else if(aba==='consolidacao')renderConsol();
+  else if(aba==='relatorio')renderRelatorio();
   else if(aba==='config')renderConfig();
 }
 
@@ -606,6 +610,128 @@ function remArte(cid,idx){
   cache[cid].artes.splice(idx,1);
   localStorage.setItem('lt_ordens',JSON.stringify(cache));
   renderArtesModal(cid);
+}
+
+function renderRelatorio() {
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+
+  function dAte(dataStr) {
+    if (!dataStr) return 999;
+    return Math.round((new Date(dataStr + 'T12:00:00') - hoje) / 86400000);
+  }
+
+  function fmtD2(d) {
+    if (!d) return '—';
+    var dt = new Date(d + 'T12:00:00');
+    var sem = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+    return sem[dt.getDay()] + ' ' + dt.getDate() + '/' + (dt.getMonth()+1);
+  }
+
+  function dTxt(d) {
+    return d===999?'Sem data':d<0?(Math.abs(d)+'d atraso'):d===0?'Hoje':d===1?'Amanhã':(d+'d');
+  }
+
+  function tipoPrazo(pi) {
+    return pi<0?'urgente':pi===0?'hoje':pi===1?'amanha':'normal';
+  }
+
+  function corPrazo(pi) {
+    return pi<0?'#ef4444':pi===0?'#f97316':pi===1?'#eab308':'#3b82f6';
+  }
+
+  var totalUrg=0, totalHj=0, totalCards=0;
+  var setoresHtml = '';
+
+  BOARDS.forEach(function(board) {
+    var cards = (boards[board.id] && boards[board.id].cards) || [];
+    if (!cards.length) return;
+
+    // SLA dos setores posteriores
+    var slaPost = BOARDS.filter(function(b){return b.ordem > board.ordem;})
+      .reduce(function(acc,b){return acc+(SLA[b.id]||1);},0);
+
+    var tarefas = cards.map(function(card) {
+      var m = card.name.match(/^(\d+)\s*[-–]\s*(.+)/);
+      if (!m) return null;
+      var num = m[1];
+      var ped = pedidos.find(function(p){return p.num===num;});
+      var de = card.due ? card.due.substring(0,10) : (ped ? ped.dataEntrega : null);
+      var diasEnt = dAte(de);
+      var prazoInt = diasEnt - slaPost;
+      return {num:num, nome:card.name, cliente:ped?ped.cliente:m[2].split(/\s*[-–]\s*/).pop().trim(), dataEntrega:de, diasEnt:diasEnt, prazoInt:prazoInt, url:card.url};
+    }).filter(Boolean).sort(function(a,b){return a.prazoInt - b.prazoInt;});
+
+    if (!tarefas.length) return;
+
+    var urg = tarefas.filter(function(t){return t.prazoInt<0;}).length;
+    var hj  = tarefas.filter(function(t){return t.prazoInt===0;}).length;
+    totalUrg += urg; totalHj += hj; totalCards += tarefas.length;
+
+    // Agrupa por dia (próximos 5 dias + urgentes + depois)
+    var grupos = [
+      {key:'urgente', tit:'🔴 URGENTE — Atrasado no setor', cor:'#ef4444', bg:'#ef444422', lista:tarefas.filter(function(t){return t.prazoInt<0;})},
+      {key:'hoje',    tit:'🟠 HOJE — Precisa sair hoje',    cor:'#f97316', bg:'#f9731622', lista:tarefas.filter(function(t){return t.prazoInt===0;})},
+      {key:'amanha',  tit:'🟡 AMANHÃ',                      cor:'#eab308', bg:'#eab30822', lista:tarefas.filter(function(t){return t.prazoInt===1;})},
+      {key:'d2',      tit:'Em 2 dias',                       cor:'#3b82f6', bg:'#3b82f622', lista:tarefas.filter(function(t){return t.prazoInt===2;})},
+      {key:'d3',      tit:'Em 3 dias',                       cor:'#3b82f6', bg:'#3b82f611', lista:tarefas.filter(function(t){return t.prazoInt===3;})},
+      {key:'d4',      tit:'Em 4 dias',                       cor:'#64748b', bg:'#64748b11', lista:tarefas.filter(function(t){return t.prazoInt===4;})},
+      {key:'d5',      tit:'Em 5 dias',                       cor:'#64748b', bg:'#64748b11', lista:tarefas.filter(function(t){return t.prazoInt===5;})},
+    ];
+
+    function itemH(t) {
+      var tp = tipoPrazo(t.prazoInt), cor = corPrazo(t.prazoInt);
+      return '<div class="rel-item '+tp+'">' +
+        '<span class="rel-num">#'+t.num+'</span>' +
+        '<div style="flex:1"><div class="rel-cli">'+t.cliente+'</div>' +
+        '<div class="rel-det">'+t.nome+'</div></div>' +
+        '<div style="text-align:right;flex-shrink:0">' +
+        '<div class="rel-dias" style="color:'+cor+'">'+dTxt(t.prazoInt)+'</div>' +
+        '<div style="font-size:10px;color:var(--muted)">Entrega: '+fmtD2(t.dataEntrega)+'</div>' +
+        '</div>' +
+        '<a href="'+t.url+'" target="_blank" class="rel-link">↗</a>' +
+        '</div>';
+    }
+
+    var bodyHtml = grupos.map(function(g) {
+      if (!g.lista.length) return '';
+      return '<div style="margin-bottom:10px">' +
+        '<div class="rel-dia-hdr" style="background:'+g.bg+';color:'+g.cor+'">' +
+        '<span>'+g.tit+'</span>' +
+        '<span style="font-family:'DM Mono',monospace">'+g.lista.length+' pedido'+(g.lista.length!==1?'s':'')+'</span>' +
+        '</div>' +
+        g.lista.map(itemH).join('') +
+        '</div>';
+    }).join('');
+
+    var corStatus = urg>0?'#ef4444':hj>0?'#f97316':'#22c55e';
+
+    setoresHtml += '<div class="rel-setor">' +
+      '<div class="rel-shdr" onclick="var b=this.nextElementSibling;b.style.display=b.style.display==='none'?'block':'none'">' +
+      '<span style="font-size:22px">'+board.emoji+'</span>' +
+      '<div style="flex:1">' +
+      '<div style="font-size:15px;font-weight:700">'+board.nome+'</div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+tarefas.length+' pedido'+(tarefas.length!==1?'s':'')+' em fila · SLA: '+(SLA[board.id]||1)+'d</div>' +
+      '</div>' +
+      (urg>0?'<span style="background:#ef444422;border:1px solid #ef4444;color:#ef4444;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700">'+urg+' URGENTE'+(urg!==1?'S':'')+'</span>':'') +
+      (hj>0?'<span style="background:#f9731622;border:1px solid #f97316;color:#f97316;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700;margin-left:4px">'+hj+' HOJE</span>':'') +
+      '<div style="color:var(--muted);font-size:12px;flex-shrink:0;margin-left:8px">▼</div>' +
+      '</div>' +
+      '<div class="rel-sbody">'+bodyHtml+'</div>' +
+      '</div>';
+  });
+
+  if (!setoresHtml) {
+    setoresHtml = '<div style="text-align:center;color:var(--muted);padding:40px">Nenhum pedido em produção.</div>';
+  }
+
+  document.getElementById('relatorioEl').innerHTML =
+    '<div class="stats" style="margin-bottom:16px">' +
+    '<div class="stat-card"><div class="stat-num" style="color:#ef4444">'+totalUrg+'</div><div class="stat-lbl">Urgentes</div></div>' +
+    '<div class="stat-card"><div class="stat-num" style="color:#f97316">'+totalHj+'</div><div class="stat-lbl">Vencem hoje</div></div>' +
+    '<div class="stat-card"><div class="stat-num" style="color:#3b82f6">'+totalCards+'</div><div class="stat-lbl">Em produção</div></div>' +
+    '<div class="stat-card"><div class="stat-num" style="color:var(--ouro);font-size:14px">'+new Date().toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"})+'</div><div class="stat-lbl">Hoje</div></div>' +
+    '</div>' +
+    setoresHtml;
 }
 
 function renderConfig(){
