@@ -470,21 +470,21 @@ function renderConsol(){
     });
   });
 
-  // Agrupa por numero de pedido
+  // Agrupa por número de pedido
   var grpPedido = {};
   Object.values(cardMap).forEach(function(item) {
     var card = item.card, b = item.board;
-    var m = card.name.match(/^(\d+)\s*-+\s*(.+)/);
+    var m = card.name.match(/^(\d+)/);
     if (!m) return;
     var num = m[1];
-    var partes = m[2].split(/\s*-+\s*/);
+    var partes = card.name.split(/\s*[-–]\s*/);
     var cli = partes[partes.length - 1].trim();
     var caixaM = card.name.match(/CAIXA\s*(\d+)/i);
     var caixaNum = caixaM ? caixaM[1] : '';
     var ped = pedidos.find(function(p) { return p.num === num; });
-    var de = ped ? ped.dataEntrega : null;
-    if (!de && card.due) de = card.due.substring(0, 10);
-    if (!grpPedido[num]) grpPedido[num] = {num: num, cliente: cli, dataEntrega: de, caixas: []};
+    var de = ped ? ped.dataEntrega : (card.due ? card.due.substring(0,10) : null);
+    if (!grpPedido[num]) grpPedido[num] = {num:num, cliente:cli, dataEntrega:de, caixas:[]};
+    if (!grpPedido[num].dataEntrega && de) grpPedido[num].dataEntrega = de;
     var c0 = cache[card.id];
     grpPedido[num].caixas.push({
       id: card.id, nome: card.name, caixaNum: caixaNum,
@@ -505,54 +505,36 @@ function renderConsol(){
     }
   });
 
-  // Filtra e ordena pedidos
-  var listaPedidos = Object.values(grpPedido)
-    .filter(function(g) {
-      return (!busca || g.num.includes(busca) || g.cliente.toLowerCase().includes(busca)) &&
-             (!fData || g.dataEntrega === fData);
-    })
-    .sort(function(a, b) {
-      var ao = a.caixas.every(function(c) { return c.pronta; });
-      var bo = b.caixas.every(function(c) { return c.pronta; });
-      if (ao && !bo) return -1;
-      if (!ao && bo) return 1;
-      if (!a.dataEntrega) return 1;
-      if (!b.dataEntrega) return -1;
-      return new Date(a.dataEntrega) - new Date(b.dataEntrega);
-    });
+  function dTxt(d) {
+    return d===999?'Sem data':d<0?(Math.abs(d)+'d atraso'):d===0?'Hoje':d===1?'Amanha':(d+'d');
+  }
 
-  var listaClientes = Object.values(grpCliente)
-    .filter(function(g) { return !busca || g.cliente.toLowerCase().includes(busca); })
-    .sort(function(a, b) {
-      if (!a.dataEntrega) return 1;
-      if (!b.dataEntrega) return -1;
-      return new Date(a.dataEntrega) - new Date(b.dataEntrega);
-    });
-
+  // Row de cada caixa
   function caixaRow(c) {
     var sc = scfg(c.board.id);
     var cor = c.pronta ? '#22c55e' : c.board.cor;
-    var ah = c.artes.length > 0
+    var artesHtml = c.artes.length > 0
       ? '<div style="margin-top:5px;display:flex;flex-wrap:wrap">' +
         c.artes.map(function(a) {
           return '<span class="atag">' + a.codigo + (a.tecnica && a.tecnica !== '-' ? ' · ' + a.tecnica : '') + '</span>';
         }).join('') + '</div>'
       : '';
-    var btnTxt = c.artes.length > 0 ? ('OK ' + c.artes.length + ' arte(s)') : 'Artes';
-    return '<div class="cr" style="border-color:' + (c.pronta ? 'rgba(34,197,94,.3)' : 'var(--border)') + '">' +
+    return '<div class="cr" style="border-color:' + (c.pronta ? 'rgba(34,197,94,.3)' : 'var(--border)') + ';margin-bottom:6px">' +
       '<div style="display:flex;align-items:center;gap:8px">' +
-      '<span style="font-size:14px">' + (c.pronta ? '✅' : sc.emoji) + '</span>' +
+      '<span style="font-size:16px">' + (c.pronta ? '✅' : sc.emoji) + '</span>' +
       '<div style="flex:1">' +
-      (c.caixaNum ? '<span style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--ouro);font-weight:700">Cx ' + c.caixaNum + ' </span>' : '') +
+      (c.caixaNum ? '<span style="font-family:\'DM Mono\',monospace;font-size:13px;color:var(--ouro);font-weight:700">Cx ' + c.caixaNum + '</span> ' : '') +
       '<span style="font-size:11px;color:var(--muted2)">' + c.nome + '</span>' +
       '</div>' +
-      '<span style="font-size:11px;padding:2px 8px;border-radius:10px;color:' + cor + ';background:' + cor + '18;border:1px solid ' + cor + '44">' +
+      '<span style="font-size:11px;padding:3px 10px;border-radius:10px;font-weight:600;color:' + cor + ';background:' + cor + '18;border:1px solid ' + cor + '44">' +
       c.board.emoji + ' ' + c.board.nome + '</span>' +
-      '<button class="btn-r" onclick="event.stopPropagation();lerOrdens(\'' + c.id + '\',this)">' + btnTxt + '</button>' +
-      '<a href="' + c.url + '" target="_blank" class="trl" onclick="event.stopPropagation()">UP</a>' +
-      '</div>' + ah + '</div>';
+      '<button class="btn-r" onclick="event.stopPropagation();lerOrdens(\'' + c.id + '\',this)">' +
+      (c.artes.length > 0 ? ('✅ ' + c.artes.length + ' arte(s)') : '📝 Artes') + '</button>' +
+      '<a href="' + c.url + '" target="_blank" class="trl">↗</a>' +
+      '</div>' + artesHtml + '</div>';
   }
 
+  // Card por número de pedido
   function cardPedido(g) {
     var tc = g.caixas.length;
     var pr = g.caixas.filter(function(c) { return c.pronta; }).length;
@@ -560,81 +542,67 @@ function renderConsol(){
     var ok = pr === tc;
     var d = dR(g.dataEntrega);
     var dc = d < 0 ? '#ef4444' : d <= 2 ? '#f97316' : d <= 5 ? '#eab308' : '#94a3b8';
-    var dt = d === 999 ? 'Sem data' : d < 0 ? (Math.abs(d) + 'd atraso') : d === 0 ? 'Hoje' : d === 1 ? 'Amanha' : (d + 'd');
-    var setoresIcons = g.caixas.map(function(c) { return c.board.emoji; })
-      .filter(function(v, i, a) { return a.indexOf(v) === i; }).join(' ');
-    return '<div class="cc' + (ok ? ' pf' : '') + '">' +
-      '<div class="chd">' +
-      '<div style="flex:1">' +
-      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">' +
-      '<span style="font-family:\'DM Mono\',monospace;color:var(--ouro);font-size:12px">#' + g.num + '</span>' +
-      '<span style="font-weight:700;font-size:14px">' + g.cliente + '</span>' +
-      (ok ? '<span style="background:#22c55e22;border:1px solid #22c55e;color:#22c55e;border-radius:4px;padding:1px 8px;font-size:10px;font-weight:700">PODE FATURAR</span>'
-          : '<span style="background:#f9731622;border:1px solid #f97316;color:#f97316;border-radius:4px;padding:1px 8px;font-size:10px;font-weight:700">' + (tc - pr) + ' pendente(s)</span>') +
+    var setoresAtivos = g.caixas.map(function(c) { return c.board.emoji; })
+      .filter(function(v,i,a) { return a.indexOf(v) === i; }).join(' ');
+
+    return '<div style="background:var(--bg2);border:1px solid ' + (ok ? 'rgba(34,197,94,.3)' : 'var(--border)') + ';border-radius:10px;margin-bottom:10px;padding:14px 18px">' +
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">' +
+      '<span style="font-family:\'DM Mono\',monospace;color:var(--ouro);font-size:13px;font-weight:700">#' + g.num + '</span>' +
+      '<span style="font-weight:700;font-size:15px">' + g.cliente + '</span>' +
+      (ok ? '<span style="background:#22c55e22;border:1px solid #22c55e;color:#22c55e;border-radius:4px;padding:2px 10px;font-size:10px;font-weight:700">✅ PODE FATURAR</span>'
+          : '<span style="background:#f9731622;border:1px solid #f97316;color:#f97316;border-radius:4px;padding:2px 10px;font-size:10px;font-weight:700">⏳ ' + (tc-pr) + ' pendente(s)</span>') +
+      '<span style="font-size:11px;color:var(--muted)">' + setoresAtivos + '</span>' +
+      '<div style="margin-left:auto;font-family:\'DM Mono\',monospace;font-size:18px;font-weight:700;color:' + (ok?'#22c55e':'#f97316') + '">' + pr + '/' + tc + '</div>' +
       '</div>' +
-      '<div style="display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--muted)">' +
-      '<span>DATA ' + fD(g.dataEntrega) + '</span>' +
-      '<span style="color:' + dc + '">' + dt + '</span>' +
+      '<div style="font-size:11px;color:var(--muted);margin-bottom:10px;display:flex;gap:12px">' +
+      '<span>📅 ' + fD(g.dataEntrega) + '</span>' +
+      '<span style="color:' + dc + '">' + dTxt(d) + '</span>' +
       '<span>' + tc + ' caixa(s)</span>' +
-      '<span>' + setoresIcons + '</span>' +
       '</div>' +
-      '<div class="pb"><div class="pf2" style="width:' + pct + '%;background:' + (ok ? '#22c55e' : '#f97316') + '"></div></div>' +
-      '</div>' +
-      '<div style="text-align:right;flex-shrink:0;margin-left:12px">' +
-      '<div style="font-family:\'DM Mono\',monospace;font-size:20px;font-weight:700;color:' + (ok ? '#22c55e' : '#f97316') + ';line-height:1">' + pr + '/' + tc + '</div>' +
-      '<div style="font-size:10px;color:var(--muted)">prontas</div>' +
-      '</div>' +
-      '' +
-      '</div>' +
-      '<div class="cbd" style="display:block">' + g.caixas.map(caixaRow).join('') + '</div>' +
+      '<div class="pb" style="margin-bottom:12px"><div class="pf2" style="width:' + pct + '%;background:' + (ok?'#22c55e':'#f97316') + '"></div></div>' +
+      g.caixas.map(caixaRow).join('') +
       '</div>';
   }
 
+  // Card por cliente
   function cardCliente(g) {
-    var totalCx = g.pedidos.reduce(function(a, p) { return a + p.caixas.length; }, 0);
-    var prontas = g.pedidos.reduce(function(a, p) {
+    var totalCx = g.pedidos.reduce(function(a,p) { return a + p.caixas.length; }, 0);
+    var prontas = g.pedidos.reduce(function(a,p) {
       return a + p.caixas.filter(function(c) { return c.pronta; }).length;
     }, 0);
     var ok = prontas === totalCx;
     var d = dR(g.dataEntrega);
     var dc = d < 0 ? '#ef4444' : d <= 2 ? '#f97316' : d <= 5 ? '#eab308' : '#94a3b8';
-    var dt = d === 999 ? 'Sem data' : d < 0 ? (Math.abs(d) + 'd atraso') : d === 0 ? 'Hoje' : d === 1 ? 'Amanha' : (d + 'd');
     var pct = totalCx > 0 ? (prontas / totalCx * 100) : 0;
+
     var pedidosHtml = g.pedidos.map(function(p) {
       var pr2 = p.caixas.filter(function(c) { return c.pronta; }).length;
       var d2 = dR(p.dataEntrega);
       var dc2 = d2 < 0 ? '#ef4444' : '#94a3b8';
       return '<div style="margin-bottom:12px">' +
-        '<div style="font-size:11px;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;gap:8px;padding:4px 8px;background:var(--bg3);border-radius:6px">' +
+        '<div style="font-size:11px;padding:5px 10px;background:var(--bg3);border-radius:6px;margin-bottom:6px;display:flex;align-items:center;gap:10px">' +
         '<span style="font-family:\'DM Mono\',monospace;color:var(--ouro);font-weight:700">Pedido #' + p.num + '</span>' +
-        '<span>' + pr2 + '/' + p.caixas.length + ' caixas</span>' +
-        '<span style="color:' + dc2 + '">DATA ' + fD(p.dataEntrega) + '</span>' +
+        '<span style="color:var(--muted)">' + pr2 + '/' + p.caixas.length + ' caixas</span>' +
+        '<span style="color:' + dc2 + '">📅 ' + fD(p.dataEntrega) + '</span>' +
         '</div>' +
         p.caixas.map(caixaRow).join('') +
         '</div>';
     }).join('');
-    return '<div class="cc' + (ok ? ' pf' : '') + '">' +
-      '<div class="chd">' +
-      '<div style="flex:1">' +
-      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">' +
-      '<span style="font-weight:800;font-size:15px">CLIENTE ' + g.cliente + '</span>' +
+
+    return '<div style="background:var(--bg2);border:1px solid ' + (ok ? 'rgba(34,197,94,.3)' : 'var(--border)') + ';border-radius:10px;margin-bottom:10px;padding:14px 18px">' +
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">' +
+      '<span style="font-weight:800;font-size:16px">👤 ' + g.cliente + '</span>' +
       '<span style="font-size:11px;color:var(--muted)">' + g.pedidos.length + ' pedido(s) · ' + totalCx + ' caixa(s)</span>' +
-      (ok ? '<span style="background:#22c55e22;border:1px solid #22c55e;color:#22c55e;border-radius:4px;padding:1px 8px;font-size:10px;font-weight:700">FATURAR TUDO</span>'
-          : '<span style="background:#f9731622;border:1px solid #f97316;color:#f97316;border-radius:4px;padding:1px 8px;font-size:10px;font-weight:700">' + (totalCx - prontas) + ' pendentes</span>') +
+      (ok ? '<span style="background:#22c55e22;border:1px solid #22c55e;color:#22c55e;border-radius:4px;padding:2px 10px;font-size:10px;font-weight:700">✅ FATURAR TUDO</span>'
+          : '<span style="background:#f9731622;border:1px solid #f97316;color:#f97316;border-radius:4px;padding:2px 10px;font-size:10px;font-weight:700">⏳ ' + (totalCx-prontas) + ' pendentes</span>') +
+      '<div style="margin-left:auto;font-family:\'DM Mono\',monospace;font-size:18px;font-weight:700;color:' + (ok?'#22c55e':'#f97316') + '">' + prontas + '/' + totalCx + '</div>' +
       '</div>' +
-      '<div style="display:flex;gap:10px;font-size:11px;color:var(--muted)">' +
-      '<span>Mais prox: ' + fD(g.dataEntrega) + '</span>' +
-      '<span style="color:' + dc + '">' + dt + '</span>' +
+      '<div style="font-size:11px;color:var(--muted);margin-bottom:10px;display:flex;gap:12px">' +
+      '<span>📅 Mais próx: ' + fD(g.dataEntrega) + '</span>' +
+      '<span style="color:' + dc + '">' + dTxt(d) + '</span>' +
       '</div>' +
-      '<div class="pb"><div class="pf2" style="width:' + pct + '%;background:' + (ok ? '#22c55e' : '#f97316') + '"></div></div>' +
-      '</div>' +
-      '<div style="text-align:right;flex-shrink:0;margin-left:12px">' +
-      '<div style="font-family:\'DM Mono\',monospace;font-size:20px;font-weight:700;color:' + (ok ? '#22c55e' : '#f97316') + ';line-height:1">' + prontas + '/' + totalCx + '</div>' +
-      '<div style="font-size:10px;color:var(--muted)">prontas</div>' +
-      '</div>' +
-      '' +
-      '</div>' +
-      '<div class="cbd" style="display:block">' + pedidosHtml + '</div>' +
+      '<div class="pb" style="margin-bottom:12px"><div class="pf2" style="width:' + pct + '%;background:' + (ok?'#22c55e':'#f97316') + '"></div></div>' +
+      pedidosHtml +
       '</div>';
   }
 
@@ -646,36 +614,54 @@ function renderConsol(){
       items.map(fn).join('') + '</div>';
   }
 
-  var pf = listaPedidos.filter(function(g) { return g.caixas.every(function(c) { return c.pronta; }); });
-  var ag = listaPedidos.filter(function(g) { return !g.caixas.every(function(c) { return c.pronta; }); });
-  var pfC = listaClientes.filter(function(g) {
-    return g.pedidos.every(function(p) { return p.caixas.every(function(c) { return c.pronta; }); });
-  });
-  var agC = listaClientes.filter(function(g) {
-    return !g.pedidos.every(function(p) { return p.caixas.every(function(c) { return c.pronta; }); });
-  });
+  // Filtra e ordena
+  var listaPedidos = Object.values(grpPedido)
+    .filter(function(g) {
+      return (!busca || g.num.includes(busca) || g.cliente.toLowerCase().includes(busca)) &&
+             (!fData || g.dataEntrega === fData);
+    })
+    .sort(function(a,b) {
+      var ao = a.caixas.every(function(c){return c.pronta;}), bo = b.caixas.every(function(c){return c.pronta;});
+      if (ao && !bo) return -1; if (!ao && bo) return 1;
+      if (!a.dataEntrega) return 1; if (!b.dataEntrega) return -1;
+      return new Date(a.dataEntrega) - new Date(b.dataEntrega);
+    });
+
+  var listaClientes = Object.values(grpCliente)
+    .filter(function(g) { return !busca || g.cliente.toLowerCase().includes(busca); })
+    .sort(function(a,b) {
+      if (!a.dataEntrega) return 1; if (!b.dataEntrega) return -1;
+      return new Date(a.dataEntrega) - new Date(b.dataEntrega);
+    });
+
+  var pf = listaPedidos.filter(function(g){return g.caixas.every(function(c){return c.pronta;});});
+  var ag = listaPedidos.filter(function(g){return !g.caixas.every(function(c){return c.pronta;});});
+  var pfC = listaClientes.filter(function(g){return g.pedidos.every(function(p){return p.caixas.every(function(c){return c.pronta;});});});
+  var agC = listaClientes.filter(function(g){return !g.pedidos.every(function(p){return p.caixas.every(function(c){return c.pronta;});});});
+
+  var totalCaixas = listaPedidos.reduce(function(a,g){return a+g.caixas.length;},0);
 
   document.getElementById('consolEl').innerHTML =
     '<div class="stats">' +
     '<div class="sc"><div class="sn" style="color:#22c55e">' + pf.length + '</div><div class="sl">Podem faturar</div></div>' +
     '<div class="sc"><div class="sn" style="color:#f97316">' + ag.length + '</div><div class="sl">Aguardando</div></div>' +
-    '<div class="sc"><div class="sn" style="color:#3b82f6">' + listaPedidos.reduce(function(a,g){return a+g.caixas.length;},0) + '</div><div class="sl">Total caixas</div></div>' +
+    '<div class="sc"><div class="sn" style="color:#3b82f6">' + totalCaixas + '</div><div class="sl">Total caixas</div></div>' +
     '<div class="sc"><div class="sn" style="color:var(--ouro)">' + Object.keys(grpCliente).length + '</div><div class="sl">Clientes</div></div>' +
     '</div>' +
     '<div class="tb">' +
-    '<input class="inp" id="consolB" placeholder="Buscar..." style="max-width:200px" oninput="renderConsol()" value="' + (busca || '') + '">' +
-    '<input class="inp" type="date" id="consolD" style="max-width:150px" onchange="renderConsol()" value="' + (fData || '') + '">' +
+    '<input class="inp" id="consolB" placeholder="Buscar pedido ou cliente..." style="max-width:240px" oninput="renderConsol()" value="' + (busca||'') + '">' +
+    '<input class="inp" type="date" id="consolD" style="max-width:150px" onchange="renderConsol()" value="' + (fData||'') + '">' +
     '<select class="inp" id="consolModo" style="max-width:180px" onchange="renderConsol()">' +
     '<option value="pedido"' + (modo==='pedido'?' selected':'') + '>📦 Por Pedido</option>' +
     '<option value="cliente"' + (modo==='cliente'?' selected':'') + '>👤 Por Cliente</option>' +
     '</select>' +
-    (fData ? '<button class="btn-g" onclick="document.getElementById(\'consolD\').value=\'\';renderConsol()">X</button>' : '') +
+    (fData ? '<button class="btn-g" onclick="document.getElementById(\'consolD\').value=\'\';renderConsol()">✕</button>' : '') +
     '</div>' +
-    (modo==='pedido' ?
-      secao('PODE FATURAR', '#22c55e', '#052e16', pf, cardPedido) +
-      secao('AGUARDANDO', '#f97316', '#2d1500', ag, cardPedido) :
-      secao('CLIENTES PRONTOS', '#22c55e', '#052e16', pfC, cardCliente) +
-      secao('CLIENTES EM ANDAMENTO', '#f97316', '#2d1500', agC, cardCliente)
+    (modo === 'pedido' ?
+      secao('✅ PODE FATURAR', '#22c55e', '#052e16', pf, cardPedido) +
+      secao('⏳ AGUARDANDO', '#f97316', '#2d1500', ag, cardPedido) :
+      secao('✅ CLIENTES PRONTOS', '#22c55e', '#052e16', pfC, cardCliente) +
+      secao('⏳ CLIENTES EM ANDAMENTO', '#f97316', '#2d1500', agC, cardCliente)
     ) +
     (!listaPedidos.length ? '<div style="text-align:center;color:var(--muted);padding:40px">Nenhum pedido encontrado.</div>' : '');
 }
