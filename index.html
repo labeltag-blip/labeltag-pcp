@@ -302,15 +302,13 @@ function sincronizar(){
   document.getElementById('syncTxt').textContent='Sincronizando...';
   boards={};
   Promise.allSettled(BOARDS.map(function(b){
-    return Promise.all([
-          tGet('/boards/'+b.id+'/cards/open',{fields:'name,due,labels,url,desc,idList'}),
-          tGet('/boards/'+b.id+'/lists',{fields:'id,name'})
-        ]).then(function(res){
-          var cards=res[0],lists=res[1];
+    return tGet('/boards/'+b.id+'/lists',{fields:'id,name'}).then(function(lists){
           var listMap={};
           lists.forEach(function(l){listMap[l.id]=l.name;});
-          cards.forEach(function(c){c.listName=listMap[c.idList]||'';});
-          return{board:b,cards:cards};
+          return tGet('/boards/'+b.id+'/cards/open',{fields:'name,due,labels,url,desc,idList'}).then(function(cards){
+            cards.forEach(function(c){c.listName=listMap[c.idList]||'';});
+            return{board:b,cards:cards};
+          });
         });
   })).then(function(res){
     var grupos={};
