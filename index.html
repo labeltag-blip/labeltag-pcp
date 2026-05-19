@@ -302,7 +302,16 @@ function sincronizar(){
   document.getElementById('syncTxt').textContent='Sincronizando...';
   boards={};
   Promise.allSettled(BOARDS.map(function(b){
-    return tGet('/boards/'+b.id+'/cards/open',{fields:'name,due,labels,url,desc'}).then(function(cards){return{board:b,cards:cards};});
+    return Promise.all([
+          tGet('/boards/'+b.id+'/cards/open',{fields:'name,due,labels,url,desc,idList'}),
+          tGet('/boards/'+b.id+'/lists',{fields:'id,name'})
+        ]).then(function(res){
+          var cards=res[0],lists=res[1];
+          var listMap={};
+          lists.forEach(function(l){listMap[l.id]=l.name;});
+          cards.forEach(function(c){c.listName=listMap[c.idList]||'';});
+          return{board:b,cards:cards};
+        });
   })).then(function(res){
     var grupos={};
     res.forEach(function(r,idx){
@@ -310,7 +319,7 @@ function sincronizar(){
       if(r.status==='fulfilled'){
         boards[b.id]={ok:true,qtd:r.value.cards.length,cards:r.value.cards};
         r.value.cards.forEach(function(card){
-          var m=card.name.match(/^(\d+)\s*[-\u2013]\s*(.+)/);
+          var m=card.name.match(/^(\d+)[^\s-]*\s*[-\u2013]\s*(.+)/);
           if(!m)return;
           var num=m[1],cli=m[2].split(/\s*[-\u2013]\s*/).pop().trim();
           if(!grupos[num])grupos[num]={num:num,cliente:cli,dataEntrega:card.due?card.due.substring(0,10):null,artes:[],setores:new Set()};
@@ -411,7 +420,11 @@ var caixas = p.artes.map(function(a){
 var caixaInfo = caixas.length ? ' · Cx ' + caixas.join(', ') : '';
 h+='<div class="mn">#'+p.num+'</div><div class="mcliente">'+p.cliente+caixaInfo+'</div>';
   h+='<div class="mset"><span>'+emojis+'</span>';
-  if(sa)h+='<span class="chip" style="color:'+sa.cor+'">'+sa.nome+'</span>';
+  if(sa){
+  var listN='';
+  p.artes.forEach(function(a){if(a.board.id===sa.id&&a.listName)listN=a.listName;});
+  h+='<span class="chip" style="color:'+sa.cor+'">'+sa.nome+(listN?' · '+listN:'')+'</span>';
+}
   if(p.artes.length>1)h+='<span class="chip">'+p.artes.length+' caixas</span>';
   if(al>0)h+='<span class="chip" style="color:#22c55e">'+al+' artes</span>';
   h+='</div></div>';
@@ -427,7 +440,7 @@ function renderSetor(bid){
   var b=BOARDS.find(function(x){return x.id===bid;});if(!b)return;
   var cards=(boards[bid]&&boards[bid].cards)||[];
   var tasks=cards.map(function(card){
-    var m=card.name.match(/^(\d+)\s*[-\u2013]\s*(.+)/);if(!m)return null;
+    var m=card.name.match(/^(\d+)[^\s-]*\s*[-\u2013]\s*(.+)/);if(!m)return null;
     var num=m[1],ped=pedidos.find(function(p){return p.num===num;});
     var de=card.due?card.due.substring(0,10):(ped?ped.dataEntrega:null);
     var d=dR(de),slaP=BOARDS.filter(function(x){return x.ordem>b.ordem;}).reduce(function(a,x){return a+(SLA[x.id]||1);},0);
@@ -474,7 +487,7 @@ function renderConsol(){
   var grpPedido = {};
   Object.values(cardMap).forEach(function(item) {
     var card = item.card, b = item.board;
-    var m = card.name.match(/^(\d+)/);
+    var m = card.name.match(/^(\d+)/);  // pega só o número base antes de / ou -
     if (!m) return;
     var num = m[1];
     var partes = card.name.split(/\s*[-–]\s*/);
@@ -489,6 +502,7 @@ function renderConsol(){
     grpPedido[num].caixas.push({
       id: card.id, nome: card.name, caixaNum: caixaNum,
       board: b, url: card.url,
+      listName: card.listName||'',
       pronta: b.id === 'V6wt9KT0' || b.id === '8LcFwJ0v',
       artes: c0 && c0.artes ? c0.artes : []
     });
