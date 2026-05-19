@@ -564,7 +564,7 @@ function renderConsol(){
     var setoresIcons = g.caixas.map(function(c) { return c.board.emoji; })
       .filter(function(v, i, a) { return a.indexOf(v) === i; }).join(' ');
     return '<div class="cc' + (ok ? ' pf' : '') + '">' +
-      '<div class="chd" onclick="var b=this.nextElementSibling;b.style.display=b.style.display===\'none\'?\'block\':\'none\'">' +
+      '<div class="chd">' +
       '<div style="flex:1">' +
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">' +
       '<span style="font-family:\'DM Mono\',monospace;color:var(--ouro);font-size:12px">#' + g.num + '</span>' +
@@ -584,7 +584,7 @@ function renderConsol(){
       '<div style="font-family:\'DM Mono\',monospace;font-size:20px;font-weight:700;color:' + (ok ? '#22c55e' : '#f97316') + ';line-height:1">' + pr + '/' + tc + '</div>' +
       '<div style="font-size:10px;color:var(--muted)">prontas</div>' +
       '</div>' +
-      '<div style="color:var(--muted);font-size:12px;flex-shrink:0;margin-left:8px">v</div>' +
+      '' +
       '</div>' +
       '<div class="cbd" style="display:block">' + g.caixas.map(caixaRow).join('') + '</div>' +
       '</div>';
@@ -614,7 +614,7 @@ function renderConsol(){
         '</div>';
     }).join('');
     return '<div class="cc' + (ok ? ' pf' : '') + '">' +
-      '<div class="chd" onclick="var b=this.nextElementSibling;b.style.display=b.style.display===\'none\'?\'block\':\'none\'">' +
+      '<div class="chd">' +
       '<div style="flex:1">' +
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">' +
       '<span style="font-weight:800;font-size:15px">CLIENTE ' + g.cliente + '</span>' +
@@ -632,7 +632,7 @@ function renderConsol(){
       '<div style="font-family:\'DM Mono\',monospace;font-size:20px;font-weight:700;color:' + (ok ? '#22c55e' : '#f97316') + ';line-height:1">' + prontas + '/' + totalCx + '</div>' +
       '<div style="font-size:10px;color:var(--muted)">prontas</div>' +
       '</div>' +
-      '<div style="color:var(--muted);font-size:12px;flex-shrink:0;margin-left:8px">v</div>' +
+      '' +
       '</div>' +
       '<div class="cbd" style="display:block">' + pedidosHtml + '</div>' +
       '</div>';
