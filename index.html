@@ -250,8 +250,6 @@ function conectar(){
   var c=document.getElementById('iClaude').value.trim();
   var e=document.getElementById('lErro');
   if(!k||!t){e.textContent='Preencha a chave e o token.';e.style.display='block';return;}
-  if(k.length<20){e.textContent='Chave inválida.';e.style.display='block';return;}
-  if(t.toUpperCase().indexOf('ATTA')!==0){e.textContent='Token inválido — deve começar com ATTA.';e.style.display='block';return;}
   localStorage.setItem('lt_key',k);localStorage.setItem('lt_token',t);
   if(c)localStorage.setItem('lt_claude',c);
   API_KEY=k;TOKEN=t;CLAUDE_KEY=c;
