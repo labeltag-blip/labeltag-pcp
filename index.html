@@ -758,7 +758,8 @@ function mudarAba(a,bid){
   if(a==='geral'){document.getElementById('page-geral').classList.add('ativo');document.getElementById('htit').textContent='PCP Label Tag — Visão Geral';idx=0;renderGeral();}
   else if(a==='setor'){document.getElementById('page-setor').classList.add('ativo');var b=BOARDS.find(function(x){return x.id===bid;});document.getElementById('htit').textContent=(b?b.emoji+' '+b.nome:'')+' — Painel';idx=BOARDS.findIndex(function(x){return x.id===bid;})+1;renderSetor(bid);}
   else if(a==='consolidacao'){document.getElementById('page-consolidacao').classList.add('ativo');document.getElementById('htit').textContent='Consolidação de Pedidos';idx=BOARDS.length+1;renderConsol();}
-  else if(a==='config'){document.getElementById('page-config').classList.add('ativo');document.getElementById('htit').textContent='Configurações';idx=BOARDS.length+2;renderConfig();}
+  else if(a==='relatorio'){document.getElementById('page-relatorio').classList.add('ativo');document.getElementById('htit').textContent='Relatório de Prioridades';idx=BOARDS.length+2;renderRelatorio();}
+  else if(a==='config'){document.getElementById('page-config').classList.add('ativo');document.getElementById('htit').textContent='Configurações';idx=BOARDS.length+3;renderConfig();}
   var tabs=document.querySelectorAll('.tab');if(tabs[idx])tabs[idx].classList.add('ativo');
 }
 
