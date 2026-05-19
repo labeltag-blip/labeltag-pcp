@@ -49,7 +49,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .fb{background:var(--bg2);border:1px solid var(--border);color:var(--muted2);border-radius:20px;padding:4px 10px;font-size:11px;cursor:pointer;transition:all .15s;white-space:nowrap}
 .fb:hover{border-color:var(--ouro);color:var(--ouro)}
 .fb.ativo{background:rgba(200,169,110,.15);border-color:var(--ouro);color:var(--ouro);font-weight:600}
-.kanban{display:flex;gap:12px;overflow-x:auto;padding-bottom:16px;align-items:flex-start}
+.kanban{display:flex;gap:12px;overflow-x:auto;padding-bottom:16px;align-items:flex-start;cursor:grab;user-select:none}
 .kcol{background:var(--bg2);border:1px solid var(--border);border-radius:10px;min-width:230px;max-width:250px;flex-shrink:0}
 .kcol.atrasado{border-color:rgba(239,68,68,.3)}
 .kcol.critico{border-color:rgba(249,115,22,.3)}
@@ -925,6 +925,42 @@ function toggleRelSetor(el){
   b.style.display=b.style.display==='none'?'block':'none';
 }
 setInterval(function(){if(API_KEY&&TOKEN)sincronizar();},3*60*1000);
+
+// Drag scroll no kanban
+(function(){
+  var el, isDown=false, startX, scrollLeft;
+  document.addEventListener('mousedown', function(e){
+    el = document.getElementById('kanban');
+    if(!el||!el.contains(e.target))return;
+    // Não ativa se clicar em botão ou link
+    if(e.target.tagName==='BUTTON'||e.target.tagName==='A'||e.target.tagName==='INPUT')return;
+    isDown=true;
+    el.style.cursor='grabbing';
+    startX=e.pageX-el.offsetLeft;
+    scrollLeft=el.scrollLeft;
+    e.preventDefault();
+  });
+  document.addEventListener('mouseleave', function(){
+    isDown=false;
+    var el2=document.getElementById('kanban');
+    if(el2)el2.style.cursor='grab';
+  });
+  document.addEventListener('mouseup', function(){
+    isDown=false;
+    var el2=document.getElementById('kanban');
+    if(el2)el2.style.cursor='grab';
+  });
+  document.addEventListener('mousemove', function(e){
+    if(!isDown)return;
+    el=document.getElementById('kanban');
+    if(!el)return;
+    e.preventDefault();
+    var x=e.pageX-el.offsetLeft;
+    var walk=(x-startX)*1.5;
+    el.scrollLeft=scrollLeft-walk;
+  });
+})();
+
 init();
 </script>
 </body>
