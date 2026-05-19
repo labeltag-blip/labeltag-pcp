@@ -541,7 +541,7 @@ function renderConsol(){
       '<span style="font-size:11px;color:var(--muted2)">' + c.nome + '</span>' +
       '</div>' +
       '<span style="font-size:11px;padding:3px 10px;border-radius:10px;font-weight:600;color:' + cor + ';background:' + cor + '18;border:1px solid ' + cor + '44">' +
-      c.board.emoji + ' ' + c.board.nome + '</span>' +
+      c.board.emoji + ' ' + c.board.nome + (c.listName ? ' · ' + c.listName : '') + '</span>' +
       '<button class="btn-r" onclick="event.stopPropagation();lerOrdens(\'' + c.id + '\',this)">' +
       (c.artes.length > 0 ? ('✅ ' + c.artes.length + ' arte(s)') : '📝 Artes') + '</button>' +
       '<a href="' + c.url + '" target="_blank" class="trl">↗</a>' +
