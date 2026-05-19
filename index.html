@@ -455,122 +455,231 @@ function renderSetor(bid){
 }
 
 function renderConsol(){
-  var busca=(document.getElementById('consolB')?document.getElementById('consolB').value:'').toLowerCase();
-  var fData=document.getElementById('consolD')?document.getElementById('consolD').value:'';
-  var grp={};
-  // Mapa de cards: cardId -> {board mais avançado, card}
-  var cardMap={};
-  BOARDS.forEach(function(b){
-    var cards=(boards[b.id]&&boards[b.id].cards)||[];
-    cards.forEach(function(card){
-      // Guarda o setor mais avançado para cada card
-      if(!cardMap[card.id]||b.ordem>cardMap[card.id].board.ordem){
-        cardMap[card.id]={board:b,card:card};
+  var busca = (document.getElementById('consolB') ? document.getElementById('consolB').value : '').toLowerCase();
+  var fData = document.getElementById('consolD') ? document.getElementById('consolD').value : '';
+  var modo = document.getElementById('consolModo') ? document.getElementById('consolModo').value : 'pedido';
+
+  // Pega setor mais avançado de cada card
+  var cardMap = {};
+  BOARDS.forEach(function(b) {
+    var cards = (boards[b.id] && boards[b.id].cards) || [];
+    cards.forEach(function(card) {
+      if (!cardMap[card.id] || b.ordem > cardMap[card.id].board.ordem) {
+        cardMap[card.id] = {board: b, card: card};
       }
     });
   });
-  // Agrupa por número de pedido
-  Object.values(cardMap).forEach(function(item){
-    var card=item.card,b=item.board;
-    var m=card.name.match(/^(\d+)\s*[-\u2013]\s*(.+)/);if(!m)return;
-    var num=m[1];
-    // Extrai nome do cliente — última parte após traços
-    var partes=m[2].split(/\s*[-\u2013]\s*/);
-    var cli=partes[partes.length-1].trim();
-    // Extrai número da caixa
-    var caixaM=card.name.match(/CAIXA\s*(\d+)/i);
-    var caixaNum=caixaM?caixaM[1]:'';
-    var ped=pedidos.find(function(p){return p.num===num;});
-    if(!grp[num])grp[num]={num:num,cliente:cli,dataEntrega:ped?ped.dataEntrega:null,caixas:[]};
-    var c0=cache[card.id];
-    grp[num].caixas.push({
-      id:card.id,
-      nome:card.name,
-      caixaNum:caixaNum,
-      board:b,url:card.url,
-      desc:card.desc||'',
-      pronta:b.id==='V6wt9KT0'||b.id==='8LcFwJ0v',
-      artes:c0&&c0.artes?c0.artes:[]
+
+  // Agrupa por numero de pedido
+  var grpPedido = {};
+  Object.values(cardMap).forEach(function(item) {
+    var card = item.card, b = item.board;
+    var m = card.name.match(/^(\d+)\s*-+\s*(.+)/);
+    if (!m) return;
+    var num = m[1];
+    var partes = m[2].split(/\s*-+\s*/);
+    var cli = partes[partes.length - 1].trim();
+    var caixaM = card.name.match(/CAIXA\s*(\d+)/i);
+    var caixaNum = caixaM ? caixaM[1] : '';
+    var ped = pedidos.find(function(p) { return p.num === num; });
+    var de = ped ? ped.dataEntrega : null;
+    if (!de && card.due) de = card.due.substring(0, 10);
+    if (!grpPedido[num]) grpPedido[num] = {num: num, cliente: cli, dataEntrega: de, caixas: []};
+    var c0 = cache[card.id];
+    grpPedido[num].caixas.push({
+      id: card.id, nome: card.name, caixaNum: caixaNum,
+      board: b, url: card.url,
+      pronta: b.id === 'V6wt9KT0' || b.id === '8LcFwJ0v',
+      artes: c0 && c0.artes ? c0.artes : []
     });
   });
 
-  var lista=Object.values(grp).filter(function(g){return g.caixas.length>0;})
-    .filter(function(g){return!busca||g.num.includes(busca)||g.cliente.toLowerCase().includes(busca);})
-    .filter(function(g){return!fData||g.dataEntrega===fData;})
-    .sort(function(a,b){
-      var ao=a.caixas.every(function(c){return c.pronta;}),bo=b.caixas.every(function(c){return c.pronta;});
-      if(ao&&!bo)return-1;if(!ao&&bo)return 1;
-      if(!a.dataEntrega)return 1;if(!b.dataEntrega)return-1;
-      return new Date(a.dataEntrega)-new Date(b.dataEntrega);
+  // Agrupa por cliente
+  var grpCliente = {};
+  Object.values(grpPedido).forEach(function(p) {
+    var cli = p.cliente.toUpperCase().trim();
+    if (!grpCliente[cli]) grpCliente[cli] = {cliente: p.cliente, pedidos: [], dataEntrega: null};
+    grpCliente[cli].pedidos.push(p);
+    if (p.dataEntrega && (!grpCliente[cli].dataEntrega || p.dataEntrega < grpCliente[cli].dataEntrega)) {
+      grpCliente[cli].dataEntrega = p.dataEntrega;
+    }
+  });
+
+  // Filtra e ordena pedidos
+  var listaPedidos = Object.values(grpPedido)
+    .filter(function(g) {
+      return (!busca || g.num.includes(busca) || g.cliente.toLowerCase().includes(busca)) &&
+             (!fData || g.dataEntrega === fData);
+    })
+    .sort(function(a, b) {
+      var ao = a.caixas.every(function(c) { return c.pronta; });
+      var bo = b.caixas.every(function(c) { return c.pronta; });
+      if (ao && !bo) return -1;
+      if (!ao && bo) return 1;
+      if (!a.dataEntrega) return 1;
+      if (!b.dataEntrega) return -1;
+      return new Date(a.dataEntrega) - new Date(b.dataEntrega);
     });
 
-  var pf=lista.filter(function(g){return g.caixas.every(function(c){return c.pronta;});});
-  var ag=lista.filter(function(g){return!g.caixas.every(function(c){return c.pronta;});});
+  var listaClientes = Object.values(grpCliente)
+    .filter(function(g) { return !busca || g.cliente.toLowerCase().includes(busca); })
+    .sort(function(a, b) {
+      if (!a.dataEntrega) return 1;
+      if (!b.dataEntrega) return -1;
+      return new Date(a.dataEntrega) - new Date(b.dataEntrega);
+    });
 
-  function cpedido(g){
-    var tc=g.caixas.length,pr=g.caixas.filter(function(c){return c.pronta;}).length;
-    var pct=tc>0?(pr/tc*100):0,ok=pr===tc;
-    var d=dR(g.dataEntrega),dc=d<0?'#ef4444':d<=2?'#f97316':d<=5?'#eab308':'#94a3b8';
-    var dt=d===999?'Sem data':d<0?(Math.abs(d)+'d atraso'):d===0?'Hoje':d===1?'Amanhã':(d+'d');
-    var cxh=g.caixas.map(function(c){
-      var sc=scfg(c.board.id);
-      var ah=c.artes.length>0
-        ?'<div style="margin-top:6px;display:flex;flex-wrap:wrap">'+c.artes.map(function(a){return'<span class="atag">'+a.codigo+(a.tecnica&&a.tecnica!=='—'?' · '+a.tecnica:'')+(a.quantidade?' · '+a.quantidade.toLocaleString('pt-BR')+'pç':'')+'</span>';}).join('')+'</div>'
-        :'<div style="margin-top:4px;font-size:10px;color:#475569;font-style:italic">Sem artes — <span style="color:var(--ouro);cursor:pointer;text-decoration:underline" onclick="event.stopPropagation();lerOrdens(\''+c.id+'\',this)">Cadastrar</span></div>';
-      var bt=c.artes.length>0?('✅ '+c.artes.length+' arte(s)'):'📝 Artes';
-      var bs=c.artes.length>0?'color:#22c55e;border-color:#22c55e':'';
-      return'<div class="cr" style="border-color:'+(c.pronta?'rgba(34,197,94,.3)':'var(--border)')+'">'+
-        '<div style="display:flex;align-items:center;gap:8px">'+
-        '<span style="font-size:14px">'+(c.pronta?'✅':sc.emoji)+'</span>'+
-        '<span style="font-size:12px;font-weight:600;flex:1;color:#cbd5e1">'+(c.caixaNum?'Cx '+c.caixaNum+' — ':'')+c.nome+'</span>'+
-        '<span style="font-size:11px;padding:2px 8px;border-radius:10px;color:'+(c.pronta?'#22c55e':c.board.cor)+';background:'+(c.pronta?'#22c55e22':c.board.cor+'22')+';border:1px solid '+(c.pronta?'rgba(34,197,94,.3)':c.board.cor+'44')+'">'+c.board.emoji+' '+c.board.nome+'</span>'+
-        '<button class="btn-r" style="'+bs+'" onclick="event.stopPropagation();lerOrdens(\''+c.id+'\',this)">'+bt+'</button>'+
-        '<a href="'+c.url+'" target="_blank" class="trl" onclick="event.stopPropagation()">↗</a>'+
-        '</div>'+ah+'</div>';
+  function caixaRow(c) {
+    var sc = scfg(c.board.id);
+    var cor = c.pronta ? '#22c55e' : c.board.cor;
+    var ah = c.artes.length > 0
+      ? '<div style="margin-top:5px;display:flex;flex-wrap:wrap">' +
+        c.artes.map(function(a) {
+          return '<span class="atag">' + a.codigo + (a.tecnica && a.tecnica !== '-' ? ' · ' + a.tecnica : '') + '</span>';
+        }).join('') + '</div>'
+      : '';
+    var btnTxt = c.artes.length > 0 ? ('OK ' + c.artes.length + ' arte(s)') : 'Artes';
+    return '<div class="cr" style="border-color:' + (c.pronta ? 'rgba(34,197,94,.3)' : 'var(--border)') + '">' +
+      '<div style="display:flex;align-items:center;gap:8px">' +
+      '<span style="font-size:14px">' + (c.pronta ? '✅' : sc.emoji) + '</span>' +
+      '<div style="flex:1">' +
+      (c.caixaNum ? '<span style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--ouro);font-weight:700">Cx ' + c.caixaNum + ' </span>' : '') +
+      '<span style="font-size:11px;color:var(--muted2)">' + c.nome + '</span>' +
+      '</div>' +
+      '<span style="font-size:11px;padding:2px 8px;border-radius:10px;color:' + cor + ';background:' + cor + '18;border:1px solid ' + cor + '44">' +
+      c.board.emoji + ' ' + c.board.nome + '</span>' +
+      '<button class="btn-r" onclick="event.stopPropagation();lerOrdens(\'' + c.id + '\',this)">' + btnTxt + '</button>' +
+      '<a href="' + c.url + '" target="_blank" class="trl" onclick="event.stopPropagation()">UP</a>' +
+      '</div>' + ah + '</div>';
+  }
+
+  function cardPedido(g) {
+    var tc = g.caixas.length;
+    var pr = g.caixas.filter(function(c) { return c.pronta; }).length;
+    var pct = tc > 0 ? (pr / tc * 100) : 0;
+    var ok = pr === tc;
+    var d = dR(g.dataEntrega);
+    var dc = d < 0 ? '#ef4444' : d <= 2 ? '#f97316' : d <= 5 ? '#eab308' : '#94a3b8';
+    var dt = d === 999 ? 'Sem data' : d < 0 ? (Math.abs(d) + 'd atraso') : d === 0 ? 'Hoje' : d === 1 ? 'Amanha' : (d + 'd');
+    var setoresIcons = g.caixas.map(function(c) { return c.board.emoji; })
+      .filter(function(v, i, a) { return a.indexOf(v) === i; }).join(' ');
+    return '<div class="cc' + (ok ? ' pf' : '') + '">' +
+      '<div class="chd" onclick="var b=this.nextElementSibling;b.style.display=b.style.display===\'none\'?\'block\':\'none\'">' +
+      '<div style="flex:1">' +
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">' +
+      '<span style="font-family:\'DM Mono\',monospace;color:var(--ouro);font-size:12px">#' + g.num + '</span>' +
+      '<span style="font-weight:700;font-size:14px">' + g.cliente + '</span>' +
+      (ok ? '<span style="background:#22c55e22;border:1px solid #22c55e;color:#22c55e;border-radius:4px;padding:1px 8px;font-size:10px;font-weight:700">PODE FATURAR</span>'
+          : '<span style="background:#f9731622;border:1px solid #f97316;color:#f97316;border-radius:4px;padding:1px 8px;font-size:10px;font-weight:700">' + (tc - pr) + ' pendente(s)</span>') +
+      '</div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--muted)">' +
+      '<span>DATA ' + fD(g.dataEntrega) + '</span>' +
+      '<span style="color:' + dc + '">' + dt + '</span>' +
+      '<span>' + tc + ' caixa(s)</span>' +
+      '<span>' + setoresIcons + '</span>' +
+      '</div>' +
+      '<div class="pb"><div class="pf2" style="width:' + pct + '%;background:' + (ok ? '#22c55e' : '#f97316') + '"></div></div>' +
+      '</div>' +
+      '<div style="text-align:right;flex-shrink:0;margin-left:12px">' +
+      '<div style="font-family:\'DM Mono\',monospace;font-size:20px;font-weight:700;color:' + (ok ? '#22c55e' : '#f97316') + ';line-height:1">' + pr + '/' + tc + '</div>' +
+      '<div style="font-size:10px;color:var(--muted)">prontas</div>' +
+      '</div>' +
+      '<div style="color:var(--muted);font-size:12px;flex-shrink:0;margin-left:8px">v</div>' +
+      '</div>' +
+      '<div class="cbd" style="display:none">' + g.caixas.map(caixaRow).join('') + '</div>' +
+      '</div>';
+  }
+
+  function cardCliente(g) {
+    var totalCx = g.pedidos.reduce(function(a, p) { return a + p.caixas.length; }, 0);
+    var prontas = g.pedidos.reduce(function(a, p) {
+      return a + p.caixas.filter(function(c) { return c.pronta; }).length;
+    }, 0);
+    var ok = prontas === totalCx;
+    var d = dR(g.dataEntrega);
+    var dc = d < 0 ? '#ef4444' : d <= 2 ? '#f97316' : d <= 5 ? '#eab308' : '#94a3b8';
+    var dt = d === 999 ? 'Sem data' : d < 0 ? (Math.abs(d) + 'd atraso') : d === 0 ? 'Hoje' : d === 1 ? 'Amanha' : (d + 'd');
+    var pct = totalCx > 0 ? (prontas / totalCx * 100) : 0;
+    var pedidosHtml = g.pedidos.map(function(p) {
+      var pr2 = p.caixas.filter(function(c) { return c.pronta; }).length;
+      var d2 = dR(p.dataEntrega);
+      var dc2 = d2 < 0 ? '#ef4444' : '#94a3b8';
+      return '<div style="margin-bottom:12px">' +
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;gap:8px;padding:4px 8px;background:var(--bg3);border-radius:6px">' +
+        '<span style="font-family:\'DM Mono\',monospace;color:var(--ouro);font-weight:700">Pedido #' + p.num + '</span>' +
+        '<span>' + pr2 + '/' + p.caixas.length + ' caixas</span>' +
+        '<span style="color:' + dc2 + '">DATA ' + fD(p.dataEntrega) + '</span>' +
+        '</div>' +
+        p.caixas.map(caixaRow).join('') +
+        '</div>';
     }).join('');
-    return'<div class="cc'+(ok?' pf':'')+'">'+
-      '<div class="chd" onclick="var b=this.nextElementSibling;b.style.display=b.style.display===\'none\'?\'block\':\'none\'">'+
-      '<div style="flex:1">'+
-      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">'+
-      '<span style="font-family:\'DM Mono\',monospace;color:var(--ouro);font-size:12px">#'+g.num+'</span>'+
-      '<span style="font-weight:700;font-size:14px">'+g.cliente+'</span>'+
-      (ok?'<span style="background:#22c55e22;border:1px solid #22c55e;color:#22c55e;border-radius:4px;padding:1px 8px;font-size:10px;font-weight:700">✅ PODE FATURAR</span>':
-          '<span style="background:#f9731622;border:1px solid #f97316;color:#f97316;border-radius:4px;padding:1px 8px;font-size:10px;font-weight:700">⏳ '+(tc-pr)+' pendente(s)</span>')+
-      '</div>'+
-      '<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--muted)">'+
-      '<span>📅 '+fD(g.dataEntrega)+'</span><span style="color:'+dc+'">'+dt+'</span><span>'+tc+' caixa(s)</span>'+
-      '</div>'+
-      '<div class="pb"><div class="pf2" style="width:'+pct+'%;background:'+(ok?'#22c55e':'#f97316')+'"></div></div>'+
-      '</div>'+
-      '<div style="text-align:right;flex-shrink:0;margin-left:12px">'+
-      '<div style="font-family:\'DM Mono\',monospace;font-size:20px;font-weight:700;color:'+(ok?'#22c55e':'#f97316')+';line-height:1">'+pr+'/'+tc+'</div>'+
-      '<div style="font-size:10px;color:var(--muted)">prontas</div></div>'+
-      '<div style="color:var(--muted);font-size:12px;flex-shrink:0;margin-left:8px">▼</div>'+
-      '</div>'+
-      '<div class="cbd" style="display:none">'+cxh+'</div></div>';
+    return '<div class="cc' + (ok ? ' pf' : '') + '">' +
+      '<div class="chd" onclick="var b=this.nextElementSibling;b.style.display=b.style.display===\'none\'?\'block\':\'none\'">' +
+      '<div style="flex:1">' +
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">' +
+      '<span style="font-weight:800;font-size:15px">CLIENTE ' + g.cliente + '</span>' +
+      '<span style="font-size:11px;color:var(--muted)">' + g.pedidos.length + ' pedido(s) · ' + totalCx + ' caixa(s)</span>' +
+      (ok ? '<span style="background:#22c55e22;border:1px solid #22c55e;color:#22c55e;border-radius:4px;padding:1px 8px;font-size:10px;font-weight:700">FATURAR TUDO</span>'
+          : '<span style="background:#f9731622;border:1px solid #f97316;color:#f97316;border-radius:4px;padding:1px 8px;font-size:10px;font-weight:700">' + (totalCx - prontas) + ' pendentes</span>') +
+      '</div>' +
+      '<div style="display:flex;gap:10px;font-size:11px;color:var(--muted)">' +
+      '<span>Mais prox: ' + fD(g.dataEntrega) + '</span>' +
+      '<span style="color:' + dc + '">' + dt + '</span>' +
+      '</div>' +
+      '<div class="pb"><div class="pf2" style="width:' + pct + '%;background:' + (ok ? '#22c55e' : '#f97316') + '"></div></div>' +
+      '</div>' +
+      '<div style="text-align:right;flex-shrink:0;margin-left:12px">' +
+      '<div style="font-family:\'DM Mono\',monospace;font-size:20px;font-weight:700;color:' + (ok ? '#22c55e' : '#f97316') + ';line-height:1">' + prontas + '/' + totalCx + '</div>' +
+      '<div style="font-size:10px;color:var(--muted)">prontas</div>' +
+      '</div>' +
+      '<div style="color:var(--muted);font-size:12px;flex-shrink:0;margin-left:8px">v</div>' +
+      '</div>' +
+      '<div class="cbd" style="display:none">' + pedidosHtml + '</div>' +
+      '</div>';
   }
 
-  function secC(tit,cor,bg,items){
-    if(!items.length)return'';
-    return'<div style="margin-bottom:20px"><div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:7px 14px;border-radius:6px;background:'+bg+';color:'+cor+';margin-bottom:10px;display:flex;align-items:center;justify-content:space-between"><span>'+tit+'</span><span>'+items.length+' pedido(s)</span></div>'+items.map(cpedido).join('')+'</div>';
+  function secao(tit, cor, bg, items, fn) {
+    if (!items.length) return '';
+    return '<div style="margin-bottom:20px">' +
+      '<div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:7px 14px;border-radius:6px;background:' + bg + ';color:' + cor + ';margin-bottom:10px;display:flex;align-items:center;justify-content:space-between">' +
+      '<span>' + tit + '</span><span>' + items.length + ' item(s)</span></div>' +
+      items.map(fn).join('') + '</div>';
   }
 
-  document.getElementById('consolEl').innerHTML=
-    '<div class="stats">'+
-    '<div class="sc"><div class="sn" style="color:#22c55e">'+pf.length+'</div><div class="sl">Podem faturar</div></div>'+
-    '<div class="sc"><div class="sn" style="color:#f97316">'+ag.length+'</div><div class="sl">Aguardando</div></div>'+
-    '<div class="sc"><div class="sn" style="color:#3b82f6">'+lista.reduce(function(a,g){return a+g.caixas.length;},0)+'</div><div class="sl">Total caixas</div></div>'+
-    '<div class="sc"><div class="sn" style="color:var(--ouro)">'+lista.reduce(function(a,g){return a+g.caixas.reduce(function(b,c){return b+c.artes.length;},0);},0)+'</div><div class="sl">Artes</div></div>'+
-    '</div>'+
-    '<div class="tb">'+
-    '<input class="inp" id="consolB" placeholder="🔍 Buscar..." style="max-width:220px" oninput="renderConsol()" value="'+(busca||'')+'">'+
-    '<input class="inp" type="date" id="consolD" style="max-width:160px" onchange="renderConsol()" value="'+(fData||'')+'">'+
-    (fData?'<button class="btn-g" onclick="document.getElementById(\'consolD\').value=\'\';renderConsol()">✕ Limpar</button>':'')+
-    '</div>'+
-    secC('✅ PODE FATURAR','#22c55e','#052e16',pf)+
-    secC('⏳ AGUARDANDO','#f97316','#2d1500',ag)+
-    (!lista.length?'<div style="text-align:center;color:var(--muted);padding:40px">Nenhum pedido encontrado.</div>':'');
+  var pf = listaPedidos.filter(function(g) { return g.caixas.every(function(c) { return c.pronta; }); });
+  var ag = listaPedidos.filter(function(g) { return !g.caixas.every(function(c) { return c.pronta; }); });
+  var pfC = listaClientes.filter(function(g) {
+    return g.pedidos.every(function(p) { return p.caixas.every(function(c) { return c.pronta; }); });
+  });
+  var agC = listaClientes.filter(function(g) {
+    return !g.pedidos.every(function(p) { return p.caixas.every(function(c) { return c.pronta; }); });
+  });
+
+  document.getElementById('consolEl').innerHTML =
+    '<div class="stats">' +
+    '<div class="sc"><div class="sn" style="color:#22c55e">' + pf.length + '</div><div class="sl">Podem faturar</div></div>' +
+    '<div class="sc"><div class="sn" style="color:#f97316">' + ag.length + '</div><div class="sl">Aguardando</div></div>' +
+    '<div class="sc"><div class="sn" style="color:#3b82f6">' + listaPedidos.reduce(function(a,g){return a+g.caixas.length;},0) + '</div><div class="sl">Total caixas</div></div>' +
+    '<div class="sc"><div class="sn" style="color:var(--ouro)">' + Object.keys(grpCliente).length + '</div><div class="sl">Clientes</div></div>' +
+    '</div>' +
+    '<div class="tb">' +
+    '<input class="inp" id="consolB" placeholder="Buscar..." style="max-width:200px" oninput="renderConsol()" value="' + (busca || '') + '">' +
+    '<input class="inp" type="date" id="consolD" style="max-width:150px" onchange="renderConsol()" value="' + (fData || '') + '">' +
+    '<select class="inp" id="consolModo" style="max-width:170px" onchange="renderConsol()">' +
+    '<option value="pedido"' + (modo === 'pedido' ? ' selected' : '') + '>Por Pedido</option>' +
+    '<option value="cliente"' + (modo === 'cliente' ? ' selected' : '') + '>Por Cliente</option>' +
+    '</select>' +
+    (fData ? '<button class="btn-g" onclick="document.getElementById(\'consolD\').value=\'\';renderConsol()">X</button>' : '') +
+    '</div>' +
+    (modo === 'pedido' ?
+      secao('PODE FATURAR', '#22c55e', '#052e16', pf, cardPedido) +
+      secao('AGUARDANDO', '#f97316', '#2d1500', ag, cardPedido) :
+      secao('CLIENTES PRONTOS', '#22c55e', '#052e16', pfC, cardCliente) +
+      secao('CLIENTES EM ANDAMENTO', '#f97316', '#2d1500', agC, cardCliente)
+    ) +
+    (!listaPedidos.length ? '<div style="text-align:center;color:var(--muted);padding:40px">Nenhum pedido encontrado.</div>' : '');
 }
+
 
 function lerOrdens(cardId,btn){
   var card=null;
