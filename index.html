@@ -665,14 +665,12 @@ function renderConsol(){
     '<div class="tb">' +
     '<input class="inp" id="consolB" placeholder="Buscar..." style="max-width:200px" oninput="renderConsol()" value="' + (busca || '') + '">' +
     '<input class="inp" type="date" id="consolD" style="max-width:150px" onchange="renderConsol()" value="' + (fData || '') + '">' +
-    
-    (fData ? '<button class="btn-g" onclick="document.getElementById(\'consolD\').value=\'\';renderConsol()">X</button>' : '') +
-    '</div>' +
-    '<div class="tb" style="margin-bottom:16px">' +
-    '<select class="inp" id="consolModo" style="max-width:200px" onchange="renderConsol()">' +
+    '<select class="inp" id="consolModo" style="max-width:180px" onchange="renderConsol()">' +
     '<option value="pedido"' + (modo==='pedido'?' selected':'') + '>📦 Por Pedido</option>' +
     '<option value="cliente"' + (modo==='cliente'?' selected':'') + '>👤 Por Cliente</option>' +
-    '</select></div>' +
+    '</select>' +
+    (fData ? '<button class="btn-g" onclick="document.getElementById(\'consolD\').value=\'\';renderConsol()">X</button>' : '') +
+    '</div>' +
     (modo==='pedido' ?
       secao('PODE FATURAR', '#22c55e', '#052e16', pf, cardPedido) +
       secao('AGUARDANDO', '#f97316', '#2d1500', ag, cardPedido) :
