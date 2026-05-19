@@ -324,7 +324,7 @@ function sincronizar(){
           var num=m[1],cli=m[2].split(/\s*[-\u2013]\s*/).pop().trim();
           if(!grupos[num])grupos[num]={num:num,cliente:cli,dataEntrega:card.due?card.due.substring(0,10):null,artes:[],setores:new Set()};
           if(card.due&&!grupos[num].dataEntrega)grupos[num].dataEntrega=card.due.substring(0,10);
-          grupos[num].artes.push({id:card.id,nome:card.name,board:b,url:card.url,desc:card.desc||''});
+          grupos[num].artes.push({id:card.id,nome:card.name,board:b,url:card.url,desc:card.desc||'',listName:card.listName||''});
           grupos[num].setores.add(b.id);
         });
       }else{boards[b.id]={ok:false,qtd:0,cards:[]};}
