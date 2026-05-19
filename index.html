@@ -403,7 +403,13 @@ function miniCard(p){
   var al=p.artes.reduce(function(acc,a){return acc+((cache[a.id]&&cache[a.id].artes)?cache[a.id].artes.length:0);},0);
   var h='<div class="mc '+r+'">';
   h+='<div style="cursor:pointer" onclick="irPara(\''+p.num+'\')">';
-  h+='<div class="mn">#'+p.num+'</div><div class="mcliente">'+p.cliente+'</div>';
+  // Extrai número da caixa do nome do card
+var caixaInfo = '';
+if(p.artes.length===1){
+  var caixaM = p.artes[0].nome.match(/CAIXA\s+(\d+)/i);
+  if(caixaM) caixaInfo = ' · Cx '+caixaM[1];
+}
+h+='<div class="mn">#'+p.num+caixaInfo+'</div><div class="mcliente">'+p.cliente+'</div>';
   h+='<div class="mset"><span>'+emojis+'</span>';
   if(sa)h+='<span class="chip" style="color:'+sa.cor+'">'+sa.nome+'</span>';
   if(p.artes.length>1)h+='<span class="chip">'+p.artes.length+' caixas</span>';
@@ -806,4 +812,3 @@ init();
 </script>
 </body>
 </html>
-
