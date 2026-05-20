@@ -427,7 +427,7 @@ function renderBrow(){
 function renderGeral(){
   var busca=(document.getElementById('busca').value||'').toLowerCase();
   var fil=pedidos.filter(function(p){
-    var mb=!busca||p.num.includes(busca)||p.cliente.toLowerCase().includes(busca);
+    var numBase=p.num.split('/')[0];var mb=!busca||p.num.includes(busca)||numBase.includes(busca)||p.cliente.toLowerCase().includes(busca);
     return mb&&(filtro==='todos'||risco(p)===filtro);
   });
   var fat=fil.filter(function(p){return p.setores.has('V6wt9KT0');});
@@ -678,7 +678,7 @@ function renderConsol(){
   // Filtra e ordena
   var listaPedidos = Object.values(grpPedido)
     .filter(function(g) {
-      return (!busca || g.num.includes(busca) || g.cliente.toLowerCase().includes(busca)) &&
+      var numBase2=g.num.split('/')[0];return (!busca || g.num.includes(busca) || numBase2.includes(busca) || g.cliente.toLowerCase().includes(busca)) &&
              (!fData || g.dataEntrega === fData);
     })
     .sort(function(a,b) {
