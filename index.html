@@ -1127,7 +1127,12 @@ function imprimirSetorEspecifico() {
     var de = card.due ? card.due.substring(0,10) : (ped ? ped.dataEntrega : null);
     var d = de ? Math.round((new Date(de+'T12:00:00')-hoje)/86400000) : 999;
     var pi = d - slaPost;
-    return {num:num, nome:card.name, d:d, pi:pi, listName:card.listName||''};
+    var caixaM = card.name.match(/CAIXA\s*(\d+)/i);
+    var caixaNum = caixaM ? caixaM[1] : '';
+    var partes = card.name.split(/\s*[-]\s*/);
+    var cliente = partes[partes.length-1].trim();
+    var dtFmt = de ? new Date(de+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '';
+    return {num:num, nome:card.name, d:d, pi:pi, listName:card.listName||'', caixaNum:caixaNum, cliente:cliente, dtFmt:dtFmt};
   }).filter(Boolean).sort(function(a,b){return a.pi-b.pi;});
 
   var dtHoje = hoje.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
@@ -1149,7 +1154,12 @@ function imprimirSetorEspecifico() {
     linhas.push(titulo + ' (' + lista.length + ')');
     lista.forEach(function(t) {
       var dt = t.d<0?(Math.abs(t.d)+'d atraso'):t.d===0?'Hoje':t.d===1?'Amanha':(t.d+'d');
-      linhas.push('* #' + t.num + (t.listName?' - '+t.listName:'') + ' - ' + dt);
+      var info = '* #' + t.num;
+      if (t.caixaNum) info += ' - Cx ' + t.caixaNum;
+      info += ' - ' + t.cliente;
+      if (t.listName) info += ' - ' + t.listName;
+      info += ' - ' + dt;
+      linhas.push(info);
     });
   }
 
