@@ -720,7 +720,7 @@ function renderConsol(){
     '<div class="sc"><div class="sn" style="color:var(--ouro)">' + Object.keys(grpCliente).length + '</div><div class="sl">Clientes</div></div>' +
     '</div>' +
     '<div class="tb">' +
-    '<input class="inp" id="consolB" placeholder="Buscar pedido ou cliente..." style="max-width:240px" oninput="renderConsol()" value="' + (busca||'') + '">' +
+    '<input class="inp" id="consolB" placeholder="Buscar pedido ou cliente..." style="max-width:240px" oninput="renderConsol()" value="' + (busca||'') + '" autofocus>' +
     '<input class="inp" type="date" id="consolD" style="max-width:150px" onchange="renderConsol()" onclick="this.showPicker&&this.showPicker()" value="' + (fData||'') + '">' +
     '<select class="inp" id="consolModo" style="max-width:180px" onchange="renderConsol()">' +
     '<option value="pedido"' + (modo==='pedido'?' selected':'') + '>📦 Por Pedido</option>' +
