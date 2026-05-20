@@ -115,6 +115,18 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;flex:1;min-width:90px}
 .stat-num{font-family:"DM Mono",monospace;font-size:24px;font-weight:700;line-height:1}
 .stat-lbl{font-size:10px;color:var(--muted);margin-top:2px}
+.dash-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;margin-bottom:20px}
+.dash-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px}
+.dash-title{font-size:12px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px}
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.bar-label{font-size:11px;color:var(--muted2);min-width:100px;text-align:right;flex-shrink:0}
+.bar-wrap{flex:1;background:var(--border);border-radius:4px;height:20px;overflow:hidden;position:relative}
+.bar-fill{height:100%;border-radius:4px;transition:width .5s ease;display:flex;align-items:center;padding-left:8px}
+.bar-val{font-size:10px;font-weight:700;color:white;white-space:nowrap}
+.kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.kpi-item{background:var(--bg3);border-radius:8px;padding:12px;text-align:center}
+.kpi-num{font-family:"DM Mono",monospace;font-size:28px;font-weight:700;line-height:1}
+.kpi-lbl{font-size:10px;color:var(--muted);margin-top:4px}
 .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#22c55e;margin-right:4px;animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 .loading{text-align:center;padding:50px;color:var(--muted)}
@@ -171,6 +183,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div class="tab" onclick="mudarAba('setor','8LcFwJ0v')">✅ Acabamento</div>
     <div class="tab" onclick="mudarAba('setor','V6wt9KT0')">📦 Faturamento</div>
     <div class="tab" onclick="mudarAba('consolidacao')">🔗 Consolidação</div>
+    <div class="tab" onclick="mudarAba('dashboard')">📈 Dashboard</div>
     <div class="tab" onclick="mudarAba('relatorio')">📊 Relatório</div>
     <div class="tab" onclick="mudarAba('config')">⚙️ Config</div>
   </div>
@@ -193,6 +206,8 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
 
     <div class="page" id="page-setor"><div id="setorEl"></div></div>
     <div class="page" id="page-consolidacao"><div id="consolEl"><div class="loading"><span class="spin">⟳</span>Carregando...</div></div></div>
+
+    <div class="page" id="page-dashboard"><div id="dashEl"><div class="loading"><span class="spin">⟳</span>Carregando...</div></div></div>
 
     <div class="page" id="page-relatorio"><div id="relatorioEl"><div class="loading"><span class="loading-spin">⟳</span>Carregando...</div></div></div>
 
@@ -354,6 +369,7 @@ function renderTudo(){
   if(aba==='geral')renderGeral();
   else if(aba==='setor')renderSetor(setorId);
   else if(aba==='consolidacao')renderConsol();
+  else if(aba==='dashboard')renderDashboard();
   else if(aba==='relatorio')renderRelatorio();
   else if(aba==='config')renderConfig();
 }
@@ -762,6 +778,109 @@ function remArte(cid,idx){
   cache[cid].artes.splice(idx,1);
   localStorage.setItem('lt_ordens',JSON.stringify(cache));
   renderArtesModal(cid);
+}
+
+function renderDashboard() {
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+
+  function dAte(d) {
+    if (!d) return 999;
+    return Math.round((new Date(d + 'T12:00:00') - hoje) / 86400000);
+  }
+
+  // Coleta dados por setor
+  var dadosSetor = BOARDS.map(function(b) {
+    var cards = (boards[b.id] && boards[b.id].cards) || [];
+    var atrasados=0, urgentes=0, atencao=0, emDia=0;
+    cards.forEach(function(card) {
+      var ped = pedidos.find(function(p){return card.name.startsWith(p.num);});
+      var de = card.due ? card.due.substring(0,10) : (ped ? ped.dataEntrega : null);
+      var d = dAte(de);
+      var slaPost = BOARDS.filter(function(x){return x.ordem>b.ordem;}).reduce(function(a,x){return a+(SLA[x.id]||1);},0);
+      var pi = d - slaPost;
+      if (pi < 0) atrasados++;
+      else if (pi === 0 || pi === 1) urgentes++;
+      else if (pi <= 3) atencao++;
+      else emDia++;
+    });
+    return {board:b, total:cards.length, atrasados:atrasados, urgentes:urgentes, atencao:atencao, emDia:emDia};
+  }).filter(function(d){return d.total>0;});
+
+  // KPIs gerais
+  var totalPedidos = pedidos.length;
+  var totalFaturados = pedidos.filter(function(p){return p.setores.has('V6wt9KT0');}).length;
+  var totalAtrasados = pedidos.filter(function(p){var d=dAte(p.dataEntrega);return d<0&&!p.setores.has('V6wt9KT0');}).length;
+  var totalUrgentes = pedidos.filter(function(p){var d=dAte(p.dataEntrega);return d>=0&&d<=2&&!p.setores.has('V6wt9KT0');}).length;
+  var totalCards = BOARDS.reduce(function(a,b){return a+((boards[b.id]&&boards[b.id].qtd)||0);},0);
+
+  function barChart(titulo, dados, maxVal) {
+    var rows = dados.map(function(d) {
+      var pct = maxVal > 0 ? Math.round(d.val/maxVal*100) : 0;
+      return '<div class="bar-row">' +
+        '<div class="bar-label">' + d.label + '</div>' +
+        '<div class="bar-wrap">' +
+        '<div class="bar-fill" style="width:' + pct + '%;background:' + d.cor + '">' +
+        (d.val > 0 ? '<span class="bar-val">' + d.val + '</span>' : '') +
+        '</div></div></div>';
+    }).join('');
+    return '<div class="dash-card"><div class="dash-title">' + titulo + '</div>' + rows + '</div>';
+  }
+
+  // Gráfico 1: Carga por setor
+  var maxCarga = Math.max.apply(null, dadosSetor.map(function(d){return d.total;}));
+  var cargaDados = dadosSetor.map(function(d){
+    return {label: d.board.emoji+' '+d.board.nome, val: d.total, cor: d.board.cor};
+  });
+
+  // Gráfico 2: Atrasados por setor
+  var maxAtr = Math.max.apply(null, dadosSetor.map(function(d){return d.atrasados;})) || 1;
+  var atrDados = dadosSetor.map(function(d){
+    return {label: d.board.emoji+' '+d.board.nome, val: d.atrasados, cor: d.atrasados>0?'#ef4444':'#22c55e44'};
+  });
+
+  // Gráfico 3: Status por setor (urgentes)
+  var maxUrg = Math.max.apply(null, dadosSetor.map(function(d){return d.urgentes;})) || 1;
+  var urgDados = dadosSetor.map(function(d){
+    return {label: d.board.emoji+' '+d.board.nome, val: d.urgentes, cor: d.urgentes>0?'#f97316':'#22c55e44'};
+  });
+
+  // Gráfico 4: Em atenção por setor
+  var maxAt = Math.max.apply(null, dadosSetor.map(function(d){return d.atencao;})) || 1;
+  var atDados = dadosSetor.map(function(d){
+    return {label: d.board.emoji+' '+d.board.nome, val: d.atencao, cor: d.atencao>0?'#eab308':'#22c55e44'};
+  });
+
+  // Gráfico 5: Em dia por setor
+  var maxOk = Math.max.apply(null, dadosSetor.map(function(d){return d.emDia;})) || 1;
+  var okDados = dadosSetor.map(function(d){
+    return {label: d.board.emoji+' '+d.board.nome, val: d.emDia, cor: '#3b82f6'};
+  });
+
+  // Data de hoje
+  var dtHoje = hoje.toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
+
+  document.getElementById('dashEl').innerHTML =
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">' + dtHoje + '</div>' +
+
+    // KPIs
+    '<div class="dash-card" style="margin-bottom:16px">' +
+    '<div class="dash-title">📊 Visão Geral — KPIs</div>' +
+    '<div class="kpi-grid">' +
+    '<div class="kpi-item"><div class="kpi-num" style="color:#3b82f6">' + totalPedidos + '</div><div class="kpi-lbl">Total Pedidos</div></div>' +
+    '<div class="kpi-item"><div class="kpi-num" style="color:#ef4444">' + totalAtrasados + '</div><div class="kpi-lbl">Atrasados</div></div>' +
+    '<div class="kpi-item"><div class="kpi-num" style="color:#f97316">' + totalUrgentes + '</div><div class="kpi-lbl">Urgentes (até 2d)</div></div>' +
+    '<div class="kpi-item"><div class="kpi-num" style="color:#22c55e">' + totalFaturados + '</div><div class="kpi-lbl">Faturados</div></div>' +
+    '<div class="kpi-item"><div class="kpi-num" style="color:var(--ouro)">' + totalCards + '</div><div class="kpi-lbl">Cards em produção</div></div>' +
+    '<div class="kpi-item"><div class="kpi-num" style="color:#84cc16">' + Math.round(totalFaturados/Math.max(totalPedidos,1)*100) + '%</div><div class="kpi-lbl">Taxa faturamento</div></div>' +
+    '</div></div>' +
+
+    '<div class="dash-grid">' +
+    barChart('📦 Carga por Setor — Total de cards', cargaDados, maxCarga) +
+    barChart('🔴 Pedidos Atrasados por Setor', atrDados, maxAtr) +
+    barChart('🟠 Pedidos Urgentes por Setor (vence hoje/amanhã)', urgDados, maxUrg) +
+    barChart('🟡 Pedidos em Atenção por Setor (2-5 dias)', atDados, maxAt) +
+    barChart('🔵 Pedidos em Dia por Setor', okDados, maxOk) +
+    '</div>';
 }
 
 function renderRelatorio() {
