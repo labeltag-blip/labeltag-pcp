@@ -541,6 +541,8 @@ function renderConsol(){
     var cli = partes[partes.length - 1].trim();
     var caixaM = card.name.match(/CAIXA\s*(\d+)/i);
     var caixaNum = caixaM ? caixaM[1] : '';
+    var numCompleto = m[1];
+    var sufixo = numCompleto.indexOf('/') >= 0 ? numCompleto.split('/')[1] : '';
     var ped = pedidos.find(function(p) { return p.num === num; });
     var de = ped ? ped.dataEntrega : (card.due ? card.due.substring(0,10) : null);
     if (!grpPedido[num]) grpPedido[num] = {num:num, cliente:cli, dataEntrega:de, caixas:[]};
