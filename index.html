@@ -548,6 +548,7 @@ function renderConsol(){
     var c0 = cache[card.id];
     grpPedido[num].caixas.push({
       id: card.id, nome: card.name, caixaNum: caixaNum,
+      numCompleto: numCompleto, sufixo: sufixo,
       board: b, url: card.url,
       listName: card.listName||'',
       pronta: b.id === 'V6wt9KT0' || b.id === '8LcFwJ0v',
@@ -584,7 +585,9 @@ function renderConsol(){
       '<div style="display:flex;align-items:center;gap:8px">' +
       '<span style="font-size:16px">' + (c.pronta ? '✅' : sc.emoji) + '</span>' +
       '<div style="flex:1">' +
-      (c.caixaNum ? '<span style="font-family:\'DM Mono\',monospace;font-size:13px;color:var(--ouro);font-weight:700">Cx ' + c.caixaNum + '</span> ' : '') +
+      '<span style="font-family:\'DM Mono\',monospace;font-size:13px;color:var(--ouro);font-weight:700">' +
+      (c.numCompleto || c.caixaNum ? '#'+(c.numCompleto||'')+(c.caixaNum?' · Cx '+c.caixaNum:'') : '') +
+      '</span> ' +
       '<span style="font-size:11px;color:var(--muted2)">' + c.nome + '</span>' +
       '</div>' +
       '<span style="font-size:11px;padding:3px 10px;border-radius:10px;font-weight:600;color:' + cor + ';background:' + cor + '18;border:1px solid ' + cor + '44">' +
