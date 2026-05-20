@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PCP Label Tag</title>
+<title>PCP Label Tag v2</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
@@ -212,13 +212,18 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
       <div class="stats" id="stats"></div>
       <div class="brow" id="brow"></div>
       <div class="tb">
-        <input class="inp" id="busca" placeholder="🔍 Buscar cliente, número, setor..." oninput="renderGeral()" style="max-width:280px">
+        <input class="inp" id="busca" placeholder="Buscar cliente, numero, setor..." oninput="renderGeral()" style="max-width:200px">
+        <input class="inp" type="date" id="dataInicio" onchange="renderGeral()" onclick="this.showPicker&&this.showPicker()" style="max-width:140px" title="Data inicio">
+        <input class="inp" type="date" id="dataFim" onchange="renderGeral()" onclick="this.showPicker&&this.showPicker()" style="max-width:140px" title="Data fim">
+        <button class="btn-o" onclick="gerarPDFGeral()" style="white-space:nowrap;padding:7px 12px">PDF</button>
+      </div>
+      <div class="tb">
         <button class="fb ativo" id="f-todos" onclick="setFiltro('todos')">Todos</button>
-        <button class="fb" id="f-atrasado" onclick="setFiltro('atrasado')">⛔ Atrasados</button>
-        <button class="fb" id="f-critico" onclick="setFiltro('critico')">[URGENTE] Críticos</button>
-        <button class="fb" id="f-atencao" onclick="setFiltro('atencao')">[AMANHA] Atenção</button>
-        <button class="fb" id="f-ok" onclick="setFiltro('ok')">[PROXIMOS] Produção</button>
-        <button class="fb" id="f-faturado" onclick="setFiltro('faturado')">✅ Faturados</button>
+        <button class="fb" id="f-atrasado" onclick="setFiltro('atrasado')">Atrasados</button>
+        <button class="fb" id="f-critico" onclick="setFiltro('critico')">Criticos</button>
+        <button class="fb" id="f-atencao" onclick="setFiltro('atencao')">Atencao</button>
+        <button class="fb" id="f-ok" onclick="setFiltro('ok')">Producao</button>
+        <button class="fb" id="f-faturado" onclick="setFiltro('faturado')">Faturados</button>
       </div>
       <div class="kanban" id="kanban"></div>
     </div>
