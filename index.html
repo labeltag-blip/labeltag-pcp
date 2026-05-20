@@ -534,7 +534,7 @@ function renderConsol(){
   var grpPedido = {};
   Object.values(cardMap).forEach(function(item) {
     var card = item.card, b = item.board;
-    var m = card.name.match(/^(\d+)/);  // pega só o número base antes de / ou -
+    var m = card.name.match(/^(\d+(?:\/\d+)?)/);  // pega só o número base antes de / ou -
     if (!m) return;
     var num = m[1];
     var partes = card.name.split(/\s*[-–]\s*/);
@@ -1134,7 +1134,7 @@ function imprimirSetorEspecifico() {
     .reduce(function(acc,b){return acc+(SLA[b.id]||1);},0);
 
   var tarefas = cards.map(function(card) {
-    var m = card.name.match(/^(\d+)/);
+    var m = card.name.match(/^(\d+(?:\/\d+)?)/);
     if (!m) return null;
     var num = m[1];
     var ped = pedidos.find(function(p){return p.num===num;});
