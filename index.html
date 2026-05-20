@@ -127,6 +127,25 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .kpi-item{background:var(--bg3);border-radius:8px;padding:12px;text-align:center}
 .kpi-num{font-family:"DM Mono",monospace;font-size:28px;font-weight:700;line-height:1}
 .kpi-lbl{font-size:10px;color:var(--muted);margin-top:4px}
+/* Estilos de impressão */
+@media print {
+  .hdr, .tabs, .tb, .btn-o, .btn-r, .btn-g, .btn-sair, .no-print { display:none!important; }
+  body { background:white!important; color:black!important; }
+  .print-only { display:block!important; }
+  .rel-item { border:1px solid #ddd!important; background:white!important; color:black!important; break-inside:avoid; }
+  .rel-dia-hdr { background:#f5f5f5!important; color:black!important; }
+  .rel-setor { border:1px solid #ccc!important; background:white!important; break-inside:avoid; }
+  .rel-shdr { background:#f0f0f0!important; color:black!important; border-bottom:1px solid #ccc!important; }
+  .rel-sbody { padding:10px!important; }
+  .rel-num, .rel-cli, .rel-det, .rel-dias { color:black!important; }
+  .print-header { display:flex!important; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:10px; border-bottom:2px solid #c8a96e; }
+  .print-logo { font-size:20px; font-weight:800; color:#c8a96e; }
+  .print-data { font-size:12px; color:#666; }
+  @page { margin:15mm; }
+}
+.print-only { display:none; }
+.print-header { display:none; }
+
 .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#22c55e;margin-right:4px;animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 .loading{text-align:center;padding:50px;color:var(--muted)}
@@ -196,9 +215,9 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
         <input class="inp" id="busca" placeholder="🔍 Buscar cliente, número, setor..." oninput="renderGeral()" style="max-width:280px">
         <button class="fb ativo" id="f-todos" onclick="setFiltro('todos')">Todos</button>
         <button class="fb" id="f-atrasado" onclick="setFiltro('atrasado')">⛔ Atrasados</button>
-        <button class="fb" id="f-critico" onclick="setFiltro('critico')">🔴 Críticos</button>
-        <button class="fb" id="f-atencao" onclick="setFiltro('atencao')">🟡 Atenção</button>
-        <button class="fb" id="f-ok" onclick="setFiltro('ok')">🔵 Produção</button>
+        <button class="fb" id="f-critico" onclick="setFiltro('critico')">[URGENTE] Críticos</button>
+        <button class="fb" id="f-atencao" onclick="setFiltro('atencao')">[AMANHA] Atenção</button>
+        <button class="fb" id="f-ok" onclick="setFiltro('ok')">[PROXIMOS] Produção</button>
         <button class="fb" id="f-faturado" onclick="setFiltro('faturado')">✅ Faturados</button>
       </div>
       <div class="kanban" id="kanban"></div>
@@ -221,7 +240,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
         </div>
         <div id="claudeSt" style="font-size:11px;margin-top:8px;color:var(--muted)"></div>
       </div>
-      <div style="font-size:14px;font-weight:700;margin-bottom:6px;color:var(--ouro)">⚙️ SLA — Dias máximos por setor</div>
+      <div style="font-size:14px;font-weight:700;margin-bottom:6px;color:var(--ouro)">⚙️ SLA - Dias máximos por setor</div>
       <div class="sla-grid" id="slaGrid"></div>
       <div style="display:flex;gap:10px;align-items:center">
         <button class="btn-o" onclick="salvarSLA()">Salvar SLA</button>
@@ -302,7 +321,7 @@ function salvarClaude(){
   var k=document.getElementById('claudeInp').value.trim();
   if(!k)return;
   localStorage.setItem('lt_claude',k);CLAUDE_KEY=k;
-  document.getElementById('claudeSt').textContent='✓ Chave salva!';
+  document.getElementById('claudeSt').textContent='OK Chave salva!';
   document.getElementById('claudeSt').style.color='#22c55e';
   document.getElementById('claudeInp').value='';
 }
@@ -349,11 +368,11 @@ function sincronizar(){
     });
     document.getElementById('syncTxt').textContent='Atualizado '+new Date().toLocaleTimeString('pt-BR');
     renderTudo();
-  }).catch(function(e){document.getElementById('syncTxt').textContent='Erro — tente novamente';});
+  }).catch(function(e){document.getElementById('syncTxt').textContent='Erro - tente novamente';});
 }
 
 function dR(d){if(!d)return 999;var h=new Date();h.setHours(0,0,0,0);return Math.round((new Date(d+'T12:00:00')-h)/86400000);}
-function fD(d){if(!d)return '—';return new Date(d+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});}
+function fD(d){if(!d)return '-';return new Date(d+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});}
 function fSem(d){if(!d)return '';return['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][new Date(d+'T12:00:00').getDay()];}
 function risco(p){
   if(p.setores.has('V6wt9KT0'))return'faturado';
@@ -407,7 +426,7 @@ function renderGeral(){
     var lista=grp[dk],d=dk==='x'?999:dR(dk);
     var cr=d<0?'atrasado':d<=2?'critico':d<=5?'atencao':'ok',cor=corR(cr);
     var lbl=dk==='x'?'Sem data':fSem(dk)+' '+fD(dk);
-    var dtxt=dk==='x'?'':d<0?(Math.abs(d)+'d atraso'):d===0?'Hoje!':d===1?'Amanhã':(d+' dias');
+    var dtxt=dk==='x'?'':d<0?(Math.abs(d)+'d atraso'):d===0?'Hoje!':d===1?'Amanha':(d+' dias');
     h+='<div class="kcol '+cr+'"><div class="chdr"><div><div style="font-family:\'DM Mono\',monospace;font-size:13px;font-weight:700">'+lbl+'</div>';
     if(dtxt)h+='<div style="font-size:10px;color:'+cor+';margin-top:1px">'+dtxt+'</div>';
     h+='</div><span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:12px;background:'+cor+'22;color:'+cor+'">'+lista.length+'</span></div>';
@@ -465,7 +484,7 @@ function renderSetor(bid){
 
   function tk(t,tp){
     var cor=tp==='urgente'?'#ef4444':tp==='hoje'?'#f97316':tp==='amanha'?'#eab308':'#3b82f6';
-    var dt=t.d===999?'Sem data':t.d<0?(Math.abs(t.d)+'d atraso'):t.d===0?'Hoje':t.d===1?'Amanhã':(t.d+'d');
+    var dt=t.d===999?'Sem data':t.d<0?(Math.abs(t.d)+'d atraso'):t.d===0?'Hoje':t.d===1?'Amanha':(t.d+'d');
     return '<div class="tk '+tp+'"><span class="tnum">#'+t.num+'</span><div class="tinfo"><div class="tcli">'+t.cliente+'</div><div class="tdet">'+t.nome+'</div></div><span class="tdias" style="color:'+cor+'">'+dt+'</span><a href="'+t.url+'" target="_blank" class="trl">↗</a></div>';
   }
   function sec(tit,lista,tp,cor,bg){
@@ -475,10 +494,10 @@ function renderSetor(bid){
   document.getElementById('setorEl').innerHTML=
     '<div class="setor-hdr"><div style="font-size:36px">'+b.emoji+'</div><div><div style="font-size:22px;font-weight:700">'+b.nome+'</div><div style="font-size:12px;color:var(--muted);margin-top:2px">'+new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})+' · '+tasks.length+' pedidos</div></div><div style="margin-left:auto;text-align:right"><div style="font-size:10px;color:var(--muted)">SLA</div><div style="font-family:\'DM Mono\',monospace;font-size:20px;color:var(--ouro)">'+(SLA[bid]||1)+'d</div></div></div>'+
     (!tasks.length?'<div style="text-align:center;color:var(--muted);padding:40px">Nenhum pedido neste setor.</div>':'')+
-    sec('🔴 URGENTE',urg,'urgente','#ef4444','#ef444422')+
-    sec('🟠 HOJE',hj,'hoje','#f97316','#f9731622')+
-    sec('🟡 AMANHÃ',am,'amanha','#eab308','#eab30822')+
-    sec('🔵 PRÓXIMOS DIAS',nm,'normal','#3b82f6','#3b82f622');
+    sec('[URGENTE] URGENTE',urg,'urgente','#ef4444','#ef444422')+
+    sec('[HOJE] HOJE',hj,'hoje','#f97316','#f9731622')+
+    sec('[AMANHA] AMANHA',am,'amanha','#eab308','#eab30822')+
+    sec('[PROXIMOS] PROXIMOS DIAS',nm,'normal','#3b82f6','#3b82f622');
 }
 
 function renderConsol(){
@@ -583,7 +602,7 @@ function renderConsol(){
       '<div style="margin-left:auto;font-family:\'DM Mono\',monospace;font-size:18px;font-weight:700;color:' + (ok?'#22c55e':'#f97316') + '">' + pr + '/' + tc + '</div>' +
       '</div>' +
       '<div style="font-size:11px;color:var(--muted);margin-bottom:10px;display:flex;gap:12px">' +
-      '<span>📅 ' + fD(g.dataEntrega) + '</span>' +
+      '<span> ' + fD(g.dataEntrega) + '</span>' +
       '<span style="color:' + dc + '">' + dTxt(d) + '</span>' +
       '<span>' + tc + ' caixa(s)</span>' +
       '</div>' +
@@ -611,7 +630,7 @@ function renderConsol(){
         '<div style="font-size:11px;padding:5px 10px;background:var(--bg3);border-radius:6px;margin-bottom:6px;display:flex;align-items:center;gap:10px">' +
         '<span style="font-family:\'DM Mono\',monospace;color:var(--ouro);font-weight:700">Pedido #' + p.num + '</span>' +
         '<span style="color:var(--muted)">' + pr2 + '/' + p.caixas.length + ' caixas</span>' +
-        '<span style="color:' + dc2 + '">📅 ' + fD(p.dataEntrega) + '</span>' +
+        '<span style="color:' + dc2 + '"> ' + fD(p.dataEntrega) + '</span>' +
         '</div>' +
         p.caixas.map(caixaRow).join('') +
         '</div>';
@@ -626,7 +645,7 @@ function renderConsol(){
       '<div style="margin-left:auto;font-family:\'DM Mono\',monospace;font-size:18px;font-weight:700;color:' + (ok?'#22c55e':'#f97316') + '">' + prontas + '/' + totalCx + '</div>' +
       '</div>' +
       '<div style="font-size:11px;color:var(--muted);margin-bottom:10px;display:flex;gap:12px">' +
-      '<span>📅 Mais próx: ' + fD(g.dataEntrega) + '</span>' +
+      '<span> Mais próx: ' + fD(g.dataEntrega) + '</span>' +
       '<span style="color:' + dc + '">' + dTxt(d) + '</span>' +
       '</div>' +
       '<div class="pb" style="margin-bottom:12px"><div class="pf2" style="width:' + pct + '%;background:' + (ok?'#22c55e':'#f97316') + '"></div></div>' +
@@ -707,9 +726,9 @@ function lerOrdens(cardId,btn){
       var m=linha.match(/(\d{4}\.\d{4})/);
       if(m){
         var cod=m[1],partes=linha.split(/\s*[-\u2013]\s*/);
-        var tec=partes.length>1?partes[1].trim():'—';
+        var tec=partes.length>1?partes[1].trim():'-';
         var qm=linha.match(/(\d{3,})/);
-        artes.push({codigo:cod,tecnica:tec,quantidade:qm?parseInt(qm[1]):0,tamanho:'—',setores:[]});
+        artes.push({codigo:cod,tecnica:tec,quantidade:qm?parseInt(qm[1]):0,tamanho:'-',setores:[]});
       }
     });
   }
@@ -764,7 +783,7 @@ function addArte(){
   var tam=document.getElementById('iTam').value.trim();
   if(!cod){document.getElementById('iCodigo').focus();return;}
   if(!cache[cid])cache[cid]={artes:[],lido:new Date().toISOString()};
-  cache[cid].artes.push({codigo:cod,tecnica:tec||'—',quantidade:qtd,tamanho:tam||'—',setores:[]});
+  cache[cid].artes.push({codigo:cod,tecnica:tec||'-',quantidade:qtd,tamanho:tam||'-',setores:[]});
   cache[cid].lido=new Date().toISOString();
   localStorage.setItem('lt_ordens',JSON.stringify(cache));
   document.getElementById('iCodigo').value='';document.getElementById('iTecnica').value='';
@@ -869,7 +888,7 @@ function renderDashboard() {
 
     // KPIs
     '<div class="dash-card" style="margin-bottom:16px">' +
-    '<div class="dash-title">📊 Visão Geral — KPIs</div>' +
+    '<div class="dash-title">📊 Visão Geral - KPIs</div>' +
     '<div class="kpi-grid">' +
     '<div class="kpi-item"><div class="kpi-num" style="color:#3b82f6">' + totalPedidos + '</div><div class="kpi-lbl">Total Pedidos</div></div>' +
     '<div class="kpi-item"><div class="kpi-num" style="color:#ef4444">' + totalAtrasados + '</div><div class="kpi-lbl">Atrasados</div></div>' +
@@ -880,11 +899,11 @@ function renderDashboard() {
     '</div></div>' +
 
     '<div class="dash-grid">' +
-    barChart('📦 Carga por Setor — Total de cards', cargaDados, maxCarga) +
-    barChart('🔴 Pedidos Atrasados por Setor', atrDados, maxAtr) +
-    barChart('🟠 Pedidos Urgentes por Setor (vence hoje/amanhã)', urgDados, maxUrg) +
-    barChart('🟡 Pedidos em Atenção por Setor (2-5 dias)', atDados, maxAt) +
-    barChart('🔵 Pedidos em Dia por Setor', okDados, maxOk) +
+    barChart('📦 Carga por Setor - Total de cards', cargaDados, maxCarga) +
+    barChart('[URGENTE] Pedidos Atrasados por Setor', atrDados, maxAtr) +
+    barChart('[HOJE] Pedidos Urgentes por Setor (vence hoje/amanhã)', urgDados, maxUrg) +
+    barChart('[AMANHA] Pedidos em Atenção por Setor (2-5 dias)', atDados, maxAt) +
+    barChart('[PROXIMOS] Pedidos em Dia por Setor', okDados, maxOk) +
     '</div>';
 }
 
@@ -897,14 +916,14 @@ function renderRelatorio() {
   }
 
   function fmtD2(d) {
-    if (!d) return '—';
+    if (!d) return '-';
     var dt = new Date(d + 'T12:00:00');
     var sem = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
     return sem[dt.getDay()] + ' ' + dt.getDate() + '/' + (dt.getMonth()+1);
   }
 
   function dTxt(d) {
-    return d===999?'Sem data':d<0?(Math.abs(d)+'d atraso'):d===0?'Hoje':d===1?'Amanhã':(d+'d');
+    return d===999?'Sem data':d<0?(Math.abs(d)+'d atraso'):d===0?'Hoje':d===1?'Amanha':(d+'d');
   }
 
   function tipoPrazo(pi) {
@@ -945,9 +964,9 @@ function renderRelatorio() {
 
     // Agrupa por dia (próximos 5 dias + urgentes + depois)
     var grupos = [
-      {key:'urgente', tit:'🔴 URGENTE — Atrasado no setor', cor:'#ef4444', bg:'#ef444422', lista:tarefas.filter(function(t){return t.prazoInt<0;})},
-      {key:'hoje',    tit:'🟠 HOJE — Precisa sair hoje',    cor:'#f97316', bg:'#f9731622', lista:tarefas.filter(function(t){return t.prazoInt===0;})},
-      {key:'amanha',  tit:'🟡 AMANHÃ',                      cor:'#eab308', bg:'#eab30822', lista:tarefas.filter(function(t){return t.prazoInt===1;})},
+      {key:'urgente', tit:'[URGENTE] URGENTE - Atrasado no setor', cor:'#ef4444', bg:'#ef444422', lista:tarefas.filter(function(t){return t.prazoInt<0;})},
+      {key:'hoje',    tit:'[HOJE] HOJE - Precisa sair hoje',    cor:'#f97316', bg:'#f9731622', lista:tarefas.filter(function(t){return t.prazoInt===0;})},
+      {key:'amanha',  tit:'[AMANHA] AMANHA',                      cor:'#eab308', bg:'#eab30822', lista:tarefas.filter(function(t){return t.prazoInt===1;})},
       {key:'d2',      tit:'Em 2 dias',                       cor:'#3b82f6', bg:'#3b82f622', lista:tarefas.filter(function(t){return t.prazoInt===2;})},
       {key:'d3',      tit:'Em 3 dias',                       cor:'#3b82f6', bg:'#3b82f611', lista:tarefas.filter(function(t){return t.prazoInt===3;})},
       {key:'d4',      tit:'Em 4 dias',                       cor:'#64748b', bg:'#64748b11', lista:tarefas.filter(function(t){return t.prazoInt===4;})},
@@ -1001,6 +1020,10 @@ function renderRelatorio() {
   }
 
   document.getElementById('relatorioEl').innerHTML =
+    '<div class="no-print" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">' +
+    '<button class="btn-o" onclick="imprimirRelatorio()">🖨️ Gerar PDF - Todos os Setores</button>' +
+    '<button class="btn-g" onclick="imprimirSetorEspecifico()">📱 WhatsApp - Setor específico</button>' +
+    '</div>' +
     '<div class="stats" style="margin-bottom:16px">' +
     '<div class="stat-card"><div class="stat-num" style="color:#ef4444">'+totalUrg+'</div><div class="stat-lbl">Urgentes</div></div>' +
     '<div class="stat-card"><div class="stat-num" style="color:#f97316">'+totalHj+'</div><div class="stat-lbl">Vencem hoje</div></div>' +
@@ -1013,7 +1036,7 @@ function renderRelatorio() {
 function renderConfig(){
   var ck=localStorage.getItem('lt_claude');
   var el=document.getElementById('claudeSt');
-  if(el){el.textContent=ck?'✓ Chave configurada':'⚠ Chave não configurada';el.style.color=ck?'#22c55e':'#f97316';}
+  if(el){el.textContent=ck?'OK Chave configurada':'⚠ Chave não configurada';el.style.color=ck?'#22c55e':'#f97316';}
   document.getElementById('slaGrid').innerHTML=BOARDS.map(function(b){
     return'<div class="sla-item"><div style="font-size:12px;font-weight:600;margin-bottom:6px">'+b.emoji+' '+b.nome+'</div><div style="display:flex;align-items:center;gap:8px"><input type="number" id="sla-'+b.id+'" value="'+(SLA[b.id]||1)+'" min="1" max="30"><span style="font-size:11px;color:var(--muted)">dias máx.</span></div></div>';
   }).join('');
@@ -1031,8 +1054,8 @@ function mudarAba(a,bid){
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('ativo');});
   document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('ativo');});
   var idx=0;
-  if(a==='geral'){document.getElementById('page-geral').classList.add('ativo');document.getElementById('htit').textContent='PCP Label Tag — Visão Geral';idx=0;renderGeral();}
-  else if(a==='setor'){document.getElementById('page-setor').classList.add('ativo');var b=BOARDS.find(function(x){return x.id===bid;});document.getElementById('htit').textContent=(b?b.emoji+' '+b.nome:'')+' — Painel';idx=BOARDS.findIndex(function(x){return x.id===bid;})+1;renderSetor(bid);}
+  if(a==='geral'){document.getElementById('page-geral').classList.add('ativo');document.getElementById('htit').textContent='PCP Label Tag - Visão Geral';idx=0;renderGeral();}
+  else if(a==='setor'){document.getElementById('page-setor').classList.add('ativo');var b=BOARDS.find(function(x){return x.id===bid;});document.getElementById('htit').textContent=(b?b.emoji+' '+b.nome:'')+' - Painel';idx=BOARDS.findIndex(function(x){return x.id===bid;})+1;renderSetor(bid);}
   else if(a==='consolidacao'){document.getElementById('page-consolidacao').classList.add('ativo');document.getElementById('htit').textContent='Consolidação de Pedidos';idx=8;renderConsol();}
   else if(a==='dashboard'){document.getElementById('page-dashboard').classList.add('ativo');document.getElementById('htit').textContent='Dashboard';idx=9;renderDashboard();}
   else if(a==='relatorio'){document.getElementById('page-relatorio').classList.add('ativo');document.getElementById('htit').textContent='Relatório de Prioridades';idx=10;renderRelatorio();}
@@ -1061,6 +1084,90 @@ function toggleRelSetor(el){
   var b=el.nextElementSibling;
   b.style.display=b.style.display==='none'?'block':'none';
 }
+function imprimirRelatorio() {
+  // Adiciona header de impressão
+  var header = document.getElementById('printHeader');
+  if (!header) {
+    header = document.createElement('div');
+    header.id = 'printHeader';
+    header.className = 'print-only print-header';
+    document.body.prepend(header);
+  }
+  header.innerHTML = '<div class="print-logo">LABEL TAG - PCP</div>' +
+    '<div class="print-data">Relatório de Prioridades - ' +
+    new Date().toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'}) +
+    '</div>';
+  window.print();
+}
+
+function imprimirSetorEspecifico() {
+  var nomes = BOARDS.map(function(b, i) {
+    var qtd = (boards[b.id] && boards[b.id].qtd) || 0;
+    return (i+1) + '. ' + b.nome + ' (' + qtd + ' pedidos)';
+  }).join('\n');
+
+  var escolha = prompt('Qual setor?\n\n' + nomes + '\n\nDigite o numero:');
+  if (!escolha) return;
+  var idx = parseInt(escolha) - 1;
+  if (idx < 0 || idx >= BOARDS.length) { alert('Setor invalido.'); return; }
+
+  var board = BOARDS[idx];
+  var cards = (boards[board.id] && boards[board.id].cards) || [];
+  if (!cards.length) { alert('Nenhum pedido neste setor.'); return; }
+
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  var slaPost = BOARDS.filter(function(b){return b.ordem > board.ordem;})
+    .reduce(function(acc,b){return acc+(SLA[b.id]||1);},0);
+
+  var tarefas = cards.map(function(card) {
+    var m = card.name.match(/^(\d+)/);
+    if (!m) return null;
+    var num = m[1];
+    var ped = pedidos.find(function(p){return p.num===num;});
+    var de = card.due ? card.due.substring(0,10) : (ped ? ped.dataEntrega : null);
+    var d = de ? Math.round((new Date(de+'T12:00:00')-hoje)/86400000) : 999;
+    var pi = d - slaPost;
+    return {num:num, nome:card.name, d:d, pi:pi, listName:card.listName||''};
+  }).filter(Boolean).sort(function(a,b){return a.pi-b.pi;});
+
+  var dtHoje = hoje.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  
+  var linhas = [];
+  linhas.push('*LABEL TAG - PCP*');
+  linhas.push(board.nome.toUpperCase());
+  linhas.push('Data: ' + dtHoje);
+  linhas.push('----------------');
+
+  var urgentes = tarefas.filter(function(t){return t.pi<0;});
+  var hojeT = tarefas.filter(function(t){return t.pi===0;});
+  var amanha = tarefas.filter(function(t){return t.pi===1;});
+  var proximos = tarefas.filter(function(t){return t.pi>1&&t.pi<=5;});
+
+  function addSecao(titulo, lista) {
+    if (!lista.length) return;
+    linhas.push('');
+    linhas.push(titulo + ' (' + lista.length + ')');
+    lista.forEach(function(t) {
+      var dt = t.d<0?(Math.abs(t.d)+'d atraso'):t.d===0?'Hoje':t.d===1?'Amanha':(t.d+'d');
+      linhas.push('* #' + t.num + (t.listName?' - '+t.listName:'') + ' - ' + dt);
+    });
+  }
+
+  addSecao('[URGENTE]', urgentes);
+  addSecao('[HOJE]', hojeT);
+  addSecao('[AMANHA]', amanha);
+  addSecao('[PROXIMOS DIAS]', proximos);
+
+  linhas.push('');
+  linhas.push('----------------');
+  linhas.push('Total: ' + tarefas.length + ' pedidos');
+  linhas.push('Enviado pelo PCP Label Tag');
+
+  var msg = linhas.join('\n');
+  var encoded = encodeURIComponent(msg);
+  window.open('https://wa.me/?text=' + encoded, '_blank');
+}
+
 setInterval(function(){if(API_KEY&&TOKEN)sincronizar();},3*60*1000);
 
 // Drag scroll no kanban
