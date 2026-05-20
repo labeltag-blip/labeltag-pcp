@@ -371,7 +371,21 @@ function sincronizar(){
   }).catch(function(e){document.getElementById('syncTxt').textContent='Erro - tente novamente';});
 }
 
-function dR(d){if(!d)return 999;var h=new Date();h.setHours(0,0,0,0);return Math.round((new Date(d+'T12:00:00')-h)/86400000);}
+function dR(d){
+  if(!d)return 999;
+  var h=new Date();h.setHours(0,0,0,0);
+  var alvo=new Date(d+'T12:00:00');
+  // Conta dias uteis entre hoje e a data alvo
+  var dias=0;
+  var atual=new Date(h);
+  var sinal=alvo>=h?1:-1;
+  while(atual.toDateString()!==alvo.toDateString()){
+    atual.setDate(atual.getDate()+sinal);
+    var dow=atual.getDay();
+    if(dow!==0&&dow!==6)dias+=sinal; // ignora sab(6) e dom(0)
+  }
+  return dias;
+}
 function fD(d){if(!d)return '-';return new Date(d+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});}
 function fSem(d){if(!d)return '';return['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][new Date(d+'T12:00:00').getDay()];}
 function risco(p){
