@@ -1162,24 +1162,31 @@ function gerarPDFGeral() {
     var cor = cores[r] || '#64748b';
     var d = dR(p.dataEntrega);
     var dt = d===999?'Sem data':d<0?(Math.abs(d)+'d atraso'):d===0?'Hoje':d===1?'Amanha':(d+'d');
-    var sa = setorAtual(p);
-    var setorNome = sa ? sa.nome : '—';
-    var setorEmoji = sa ? sa.emoji : '';
-    var listN = '';
-    p.artes.forEach(function(a) { if(a.listName) listN = a.listName; });
+    var dtFmt = p.dataEntrega ? new Date(p.dataEntrega+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '—';
 
-    return '<tr style="border-bottom:1px solid #eee">' +
-      '<td style="padding:6px 8px;font-family:monospace;color:'+cor+';font-weight:700">#'+p.num+'</td>' +
-      '<td style="padding:6px 8px;font-weight:600">'+p.cliente+'</td>' +
-      '<td style="padding:6px 8px;text-align:center">' + (p.dataEntrega ? new Date(p.dataEntrega+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '—') + '</td>' +
+    // Linha do pedido (cabeçalho)
+    var html = '<tr style="background:#f0f0f0;border-bottom:1px solid #ccc">' +
+      '<td style="padding:6px 8px;font-family:monospace;color:'+cor+';font-weight:800">#'+p.num+'</td>' +
+      '<td style="padding:6px 8px;font-weight:700">'+p.cliente+'</td>' +
+      '<td style="padding:6px 8px;text-align:center">'+dtFmt+'</td>' +
       '<td style="padding:6px 8px;text-align:center;color:'+cor+';font-weight:700">'+dt+'</td>' +
-      '<td style="padding:6px 8px">'+setorEmoji+' '+setorNome+(listN?' · '+listN:'')+'</td>' +
-      '<td style="padding:6px 8px;font-family:monospace;font-size:11px">' + p.artes.map(function(a){
-        var cxM = a.nome.match(/CAIXA\s*(\d+)/i);
-        return cxM ? 'Cx '+cxM[1] : a.nome.split('-')[0].trim();
-      }).join(', ') + '</td>' +
-      '<td style="padding:6px 8px"><span style="background:'+cor+'22;color:'+cor+';border:1px solid '+cor+'44;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">'+r.toUpperCase()+'</span></td>' +
+      '<td colspan="3" style="padding:6px 8px"><span style="background:'+cor+'22;color:'+cor+';border:1px solid '+cor+'44;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">'+r.toUpperCase()+'</span> &nbsp; '+p.artes.length+' caixa(s)</td>' +
       '</tr>';
+
+    // Linha para cada caixa
+    p.artes.forEach(function(a) {
+      var cxM = a.nome.match(/CAIXA\s*(\d+)/i);
+      var cxNum = cxM ? 'Cx ' + cxM[1] : '';
+      var listN = a.listName || '';
+      html += '<tr style="border-bottom:1px solid #eee">' +
+        '<td style="padding:4px 8px 4px 20px;color:#999;font-size:11px">↳</td>' +
+        '<td style="padding:4px 8px;font-family:monospace;font-size:12px;color:#333">'+cxNum+'</td>' +
+        '<td colspan="2" style="padding:4px 8px;font-size:11px;color:#555">'+a.nome+'</td>' +
+        '<td colspan="3" style="padding:4px 8px;font-size:12px">'+a.board.emoji+' '+a.board.nome+(listN?' · <strong>'+listN+'</strong>':'')+'</td>' +
+        '</tr>';
+    });
+
+    return html;
   }).join('');
 
   var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
