@@ -1174,7 +1174,10 @@ function gerarPDFGeral() {
       '<td style="padding:6px 8px;text-align:center">' + (p.dataEntrega ? new Date(p.dataEntrega+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '—') + '</td>' +
       '<td style="padding:6px 8px;text-align:center;color:'+cor+';font-weight:700">'+dt+'</td>' +
       '<td style="padding:6px 8px">'+setorEmoji+' '+setorNome+(listN?' · '+listN:'')+'</td>' +
-      '<td style="padding:6px 8px;text-align:center">' + p.artes.length + '</td>' +
+      '<td style="padding:6px 8px;font-family:monospace;font-size:11px">' + p.artes.map(function(a){
+        var cxM = a.nome.match(/CAIXA\s*(\d+)/i);
+        return cxM ? 'Cx '+cxM[1] : a.nome.split('-')[0].trim();
+      }).join(', ') + '</td>' +
       '<td style="padding:6px 8px"><span style="background:'+cor+'22;color:'+cor+';border:1px solid '+cor+'44;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">'+r.toUpperCase()+'</span></td>' +
       '</tr>';
   }).join('');
