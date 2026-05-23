@@ -515,7 +515,18 @@ function renderSetor(bid){
   function tk(t,tp){
     var cor=tp==='urgente'?'#ef4444':tp==='hoje'?'#f97316':tp==='amanha'?'#eab308':'#3b82f6';
     var dt=t.d===999?'Sem data':t.d<0?(Math.abs(t.d)+'d atraso'):t.d===0?'Hoje':t.d===1?'Amanha':(t.d+'d');
-    return '<div class="tk '+tp+'"><span class="tnum">#'+t.num+'</span><div class="tinfo"><div class="tcli">'+t.cliente+'</div><div class="tdet">'+t.nome+'</div></div><span class="tdias" style="color:'+cor+'">'+dt+'</span><a href="'+t.url+'" target="_blank" class="trl">↗</a></div>';
+    // Monta caminho dos setores restantes
+    var proximosSetores=BOARDS.filter(function(x){return x.ordem>b.ordem;});
+    var caminhoHtml=proximosSetores.length>0?
+      '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">'+
+      proximosSetores.map(function(x){
+        var sla=SLA[x.id]||1;
+        return '<span style="font-size:10px;background:'+x.cor+'18;border:1px solid '+x.cor+'44;color:'+x.cor+';border-radius:4px;padding:1px 6px;white-space:nowrap">'+
+          x.emoji+' '+x.nome+' <span style="opacity:.7">'+sla+'d</span></span>';
+      }).join('<span style="color:var(--muted);font-size:10px;align-self:center">&#8594;</span>')+
+      '</div>':
+      '<div style="font-size:10px;color:#22c55e;margin-top:4px">Ultimo setor</div>';
+    return '<div class="tk '+tp+'"><span class="tnum">#'+t.num+'</span><div class="tinfo"><div class="tcli">'+t.cliente+'</div><div class="tdet">'+t.nome+'</div>'+caminhoHtml+'</div><span class="tdias" style="color:'+cor+'">'+dt+'</span><a href="'+t.url+'" target="_blank" class="trl">&#8599;</a></div>';
   }
   function sec(tit,lista,tp,cor,bg){
     if(!lista.length)return'';
