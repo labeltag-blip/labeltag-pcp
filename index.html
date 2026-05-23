@@ -225,6 +225,10 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
         <button class="fb" id="f-ok" onclick="setFiltro('ok')">Producao</button>
         <button class="fb" id="f-faturado" onclick="setFiltro('faturado')">Faturados</button>
       </div>
+      <div class="tb" id="filtroSetores" style="flex-wrap:wrap">
+        <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;align-self:center;margin-right:4px">Setor:</span>
+        <button class="fb ativo" id="fs-todos" onclick="setFiltroSetor('todos')">Todos</button>
+      </div>
       <div class="kanban" id="kanban"></div>
     </div>
 
