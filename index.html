@@ -535,11 +535,11 @@ function renderSetor(bid){
   document.getElementById('setorEl').innerHTML=
     '<div class="setor-hdr"><div style="font-size:36px">'+b.emoji+'</div><div><div style="font-size:22px;font-weight:700">'+b.nome+'</div><div style="font-size:12px;color:var(--muted);margin-top:2px">'+new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})+' · '+tasks.length+' pedidos</div></div><div style="margin-left:auto;display:flex;align-items:center;gap:16px"><button class="btn-o" onclick="gerarPDFSetor(\''+bid+'\')">PDF</button><div style="text-align:right"><div style="font-size:10px;color:var(--muted)">SLA</div><div style="font-family:\'DM Mono\',monospace;font-size:20px;color:var(--ouro)">'+(SLA[bid]||1)+'d</div></div></div></div>'+
     (!tasks.length?'<div style="text-align:center;color:var(--muted);padding:40px">Nenhum pedido neste setor.</div>':'')+
+    dashboardSetor(b,tasks,urg,hj,am,nm)+
     sec('[URGENTE] URGENTE',urg,'urgente','#ef4444','#ef444422')+
     sec('[HOJE] HOJE',hj,'hoje','#f97316','#f9731622')+
     sec('[AMANHA] AMANHA',am,'amanha','#eab308','#eab30822')+
-    sec('[PROXIMOS] PROXIMOS DIAS',nm,'normal','#3b82f6','#3b82f622') +
-    dashboardSetor(b,tasks,urg,hj,am,nm);
+    sec('[PROXIMOS] PROXIMOS DIAS',nm,'normal','#3b82f6','#3b82f622');
 }
 
 function dashboardSetor(b,tasks,urg,hj,am,nm){
