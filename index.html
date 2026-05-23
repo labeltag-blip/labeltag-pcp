@@ -533,7 +533,7 @@ function renderSetor(bid){
     return'<div style="margin-bottom:20px"><div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 12px;border-radius:6px;background:'+bg+';color:'+cor+';margin-bottom:8px">'+tit+' ('+lista.length+')</div>'+lista.map(function(t){return tk(t,tp);}).join('')+'</div>';
   }
   document.getElementById('setorEl').innerHTML=
-    '<div class="setor-hdr"><div style="font-size:36px">'+b.emoji+'</div><div><div style="font-size:22px;font-weight:700">'+b.nome+'</div><div style="font-size:12px;color:var(--muted);margin-top:2px">'+new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})+' · '+tasks.length+' pedidos</div></div><div style="margin-left:auto;text-align:right"><div style="font-size:10px;color:var(--muted)">SLA</div><div style="font-family:\'DM Mono\',monospace;font-size:20px;color:var(--ouro)">'+(SLA[bid]||1)+'d</div></div></div>'+
+    '<div class="setor-hdr"><div style="font-size:36px">'+b.emoji+'</div><div><div style="font-size:22px;font-weight:700">'+b.nome+'</div><div style="font-size:12px;color:var(--muted);margin-top:2px">'+new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})+' · '+tasks.length+' pedidos</div></div><div style="margin-left:auto;display:flex;align-items:center;gap:16px"><button class="btn-o" onclick="gerarPDFSetor(\''+bid+'\')">PDF</button><div style="text-align:right"><div style="font-size:10px;color:var(--muted)">SLA</div><div style="font-family:\'DM Mono\',monospace;font-size:20px;color:var(--ouro)">'+(SLA[bid]||1)+'d</div></div></div></div>'+
     (!tasks.length?'<div style="text-align:center;color:var(--muted);padding:40px">Nenhum pedido neste setor.</div>':'')+
     sec('[URGENTE] URGENTE',urg,'urgente','#ef4444','#ef444422')+
     sec('[HOJE] HOJE',hj,'hoje','#f97316','#f9731622')+
@@ -1180,6 +1180,80 @@ function toggleRelSetor(el){
   var b=el.nextElementSibling;
   b.style.display=b.style.display==='none'?'block':'none';
 }
+function gerarPDFSetor(bid) {
+  var b = BOARDS.find(function(x){return x.id===bid;});
+  if (!b) return;
+  var cards = (boards[bid] && boards[bid].cards) || [];
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  var slaPost = BOARDS.filter(function(x){return x.ordem>b.ordem;}).reduce(function(a,x){return a+(SLA[x.id]||1);},0);
+  var cores = {urgente:'#ef4444',hoje:'#f97316',amanha:'#eab308',normal:'#3b82f6'};
+
+  var tasks = cards.map(function(card){
+    var m = card.name.match(/^(\d+)[^\s-]*\s*[-–]\s*(.+)/);
+    if (!m) return null;
+    var num = m[1];
+    var ped = pedidos.find(function(p){return p.num===num;});
+    var de = card.due ? card.due.substring(0,10) : (ped ? ped.dataEntrega : null);
+    var d = dR(de);
+    var dl = d - slaPost;
+    var cxM = card.name.match(/CAIXA\s*(\d+)/i);
+    var cxNum = cxM ? 'Cx '+cxM[1] : '';
+    var cliente = ped ? ped.cliente : m[2].split(/\s*-\s*/).pop().trim();
+    var dtFmt = de ? new Date(de+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '--';
+    var tp = dl<0?'urgente':dl===0?'hoje':dl===1?'amanha':'normal';
+    var dtInt = dl===999?'--':dl<0?(Math.abs(dl)+'d atraso'):dl===0?'Hoje!':dl===1?'Amanha':(dl+'d');
+    var dtFinal = d===999?'--':d<0?(Math.abs(d)+'d atraso'):d===0?'Hoje':d===1?'Amanha':(d+'d');
+    // Proximos setores
+    var proxSetores = BOARDS.filter(function(x){return x.ordem>b.ordem;});
+    var caminhoTxt = proxSetores.map(function(x){return x.nome+' ('+( SLA[x.id]||1)+'d)';}).join(' → ');
+    var listN = card.listName || '';
+    return {num:num,nome:card.name,cliente:cliente,cxNum:cxNum,d:d,dl:dl,dtFmt:dtFmt,dtInt:dtInt,dtFinal:dtFinal,tp:tp,caminhoTxt:caminhoTxt,listN:listN,url:card.url};
+  }).filter(Boolean).sort(function(a,b2){return a.dl-b2.dl;});
+
+  var dtHoje = new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+
+  var linhas = tasks.map(function(t){
+    var cor = cores[t.tp]||'#3b82f6';
+    return '<tr style="border-bottom:1px solid #eee">' +
+      '<td style="padding:6px 8px;font-family:monospace;font-size:12px;color:'+cor+';font-weight:700">#'+t.num+'</td>' +
+      '<td style="padding:6px 8px;font-size:12px;font-weight:600">'+t.cliente+'</td>' +
+      '<td style="padding:6px 8px;font-family:monospace;font-size:11px">'+t.cxNum+'</td>' +
+      '<td style="padding:6px 8px;font-size:11px;color:#555">'+t.listN+'</td>' +
+      '<td style="padding:6px 8px;text-align:center;font-size:12px">'+t.dtFmt+'</td>' +
+      '<td style="padding:6px 8px;text-align:center;color:'+cor+';font-weight:700;font-size:12px">'+t.dtInt+'</td>' +
+      '<td style="padding:6px 8px;text-align:center;color:#888;font-size:11px">'+t.dtFinal+'</td>' +
+      '<td style="padding:6px 8px;font-size:10px;color:#666">'+(t.caminhoTxt?'&#8594; '+t.caminhoTxt:'<span style="color:#22c55e">Ultimo setor</span>')+'</td>' +
+      '</tr>';
+  }).join('');
+
+  var win = window.open('', '_blank');
+  var htmlDoc = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>PCP - '+b.nome+'</title>' +
+    '<style>body{font-family:Arial,sans-serif;margin:20px;color:#1a1a2e}' +
+    'h1{color:#c8a96e;margin:0;font-size:20px}' +
+    '.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #c8a96e}' +
+    'table{width:100%;border-collapse:collapse;font-size:12px}' +
+    'th{background:#1a1a2e;color:white;padding:7px 8px;text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase}' +
+    'tr:nth-child(even){background:#f9f9f9}' +
+    '.footer{margin-top:16px;font-size:10px;color:#999;text-align:right}' +
+    '@page{margin:12mm}@media print{@page{margin:10mm}}' +
+    '</style></head><body>' +
+    '<div class="hdr">' +
+    '<div><div style="font-size:10px;color:#c8a96e;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px">Label Tag — PCP</div>' +
+    '<h1>'+b.emoji+' '+b.nome+'</h1>' +
+    '<div style="font-size:12px;color:#666;margin-top:4px">SLA: '+(SLA[bid]||1)+'d | '+dtHoje+'</div></div>' +
+    '<div style="text-align:right"><div style="font-size:32px;font-weight:700;color:#c8a96e">'+tasks.length+'</div><div style="font-size:11px;color:#999">pedidos</div></div>' +
+    '</div>' +
+    '<table><thead><tr>' +
+    '<th>Pedido</th><th>Cliente</th><th>Caixa</th><th>Etapa</th><th>Entrega</th><th>Prazo Interno</th><th>Prazo Final</th><th>Proximos Setores</th>' +
+    '</tr></thead><tbody>'+linhas+'</tbody></table>' +
+    '<div class="footer">Gerado pelo PCP Label Tag em '+new Date().toLocaleString('pt-BR')+'</div>' +
+    '</body></html>';
+
+  win.document.write(htmlDoc);
+  win.document.close();
+  setTimeout(function(){win.print();},600);
+}
+
 function gerarPDFGeral() {
   var dataI = document.getElementById('dataInicio') ? document.getElementById('dataInicio').value : '';
   var dataF = document.getElementById('dataFim') ? document.getElementById('dataFim').value : '';
