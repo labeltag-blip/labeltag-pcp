@@ -407,7 +407,7 @@ function setorAtual(p){for(var i=BOARDS.length-1;i>=0;i--)if(p.setores.has(BOARD
 function scfg(bid){return{YZiyCCIL:{cor:'#6366f1',emoji:'🔷'},kKxRCcjN:{cor:'#ec4899',emoji:'🎨'},dWdRLX04:{cor:'#8b5cf6',emoji:'🖨️'},'2psxSaAN':{cor:'#f59e0b',emoji:'⚡'},JdC3HfIg:{cor:'#f97316',emoji:'✂️'},'8LcFwJ0v':{cor:'#84cc16',emoji:'✅'},V6wt9KT0:{cor:'#22c55e',emoji:'📦'}}[bid]||{cor:'#64748b',emoji:'📋'};}
 
 function renderTudo(){
-  renderStats();renderBrow();
+  renderStats();renderBrow();initFiltroSetores();
   if(aba==='geral')renderGeral();
   else if(aba==='setor')renderSetor(setorId);
   else if(aba==='consolidacao')renderConsol();
