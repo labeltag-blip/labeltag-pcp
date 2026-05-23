@@ -295,7 +295,7 @@ var SLA_DEF={YZiyCCIL:3,kKxRCcjN:3,dWdRLX04:3,'2psxSaAN':3,JdC3HfIg:2,'8LcFwJ0v'
 var API_KEY='',TOKEN='',CLAUDE_KEY='';
 var SLA=JSON.parse(localStorage.getItem('lt_sla')||'null')||SLA_DEF;
 var cache=JSON.parse(localStorage.getItem('lt_ordens')||'{}');
-var pedidos=[],boards={},filtro='todos',aba='geral',setorId=null;
+var pedidos=[],boards={},filtro='todos',aba='geral',setorId=null,filtroSetores=[];
 
 function init(){
   var k=localStorage.getItem('lt_key'),t=localStorage.getItem('lt_token'),c=localStorage.getItem('lt_claude');
@@ -1093,6 +1093,48 @@ function mudarAba(a,bid){
   else if(a==='relatorio'){document.getElementById('page-relatorio').classList.add('ativo');document.getElementById('htit').textContent='Relatório de Prioridades';idx=10;renderRelatorio();}
   else if(a==='config'){document.getElementById('page-config').classList.add('ativo');document.getElementById('htit').textContent='Configurações';idx=BOARDS.length+3;renderConfig();}
   var tabs=document.querySelectorAll('.tab');if(tabs[idx])tabs[idx].classList.add('ativo');
+}
+
+function setFiltroSetor(bid){
+  if(bid==='todos'){
+    filtroSetores=[];
+    document.querySelectorAll('[id^="fs-"]').forEach(function(b){b.classList.remove('ativo');});
+    document.getElementById('fs-todos').classList.add('ativo');
+  } else {
+    // Remove 'todos' da seleção
+    document.getElementById('fs-todos').classList.remove('ativo');
+    var idx=filtroSetores.indexOf(bid);
+    if(idx>=0){
+      filtroSetores.splice(idx,1);
+      document.getElementById('fs-'+bid).classList.remove('ativo');
+    } else {
+      filtroSetores.push(bid);
+      document.getElementById('fs-'+bid).classList.add('ativo');
+    }
+    // Se nenhum selecionado, volta para todos
+    if(!filtroSetores.length){
+      filtroSetores=[];
+      document.getElementById('fs-todos').classList.add('ativo');
+    }
+  }
+  renderGeral();
+}
+
+function initFiltroSetores(){
+  var wrap=document.getElementById('filtroSetores');
+  if(!wrap)return;
+  // Remove botões antigos exceto "Todos"
+  var bts=wrap.querySelectorAll('button:not(#fs-todos)');
+  bts.forEach(function(b){b.remove();});
+  // Adiciona um botão por setor
+  BOARDS.forEach(function(b){
+    var btn=document.createElement('button');
+    btn.className='fb';
+    btn.id='fs-'+b.id;
+    btn.innerHTML=b.emoji+' '+b.nome;
+    btn.onclick=function(){setFiltroSetor(b.id);};
+    wrap.appendChild(btn);
+  });
 }
 
 function setFiltro(f){
