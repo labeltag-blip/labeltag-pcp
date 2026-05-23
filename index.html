@@ -435,9 +435,16 @@ function renderBrow(){
 
 function renderGeral(){
   var busca=(document.getElementById('busca').value||'').toLowerCase();
+  var dataInicio=document.getElementById('dataInicio')?document.getElementById('dataInicio').value:'';
+  var dataFim=document.getElementById('dataFim')?document.getElementById('dataFim').value:'';
   var fil=pedidos.filter(function(p){
-    var numBase=p.num.split('/')[0];var mb=!busca||p.num.includes(busca)||numBase.includes(busca)||p.cliente.toLowerCase().includes(busca);
-    return mb&&(filtro==='todos'||risco(p)===filtro);
+    var numBase=p.num.split('/')[0];
+    var mb=!busca||p.num.includes(busca)||numBase.includes(busca)||p.cliente.toLowerCase().includes(busca);
+    var de=p.dataEntrega||'';
+    var dentroP=(!dataInicio&&!dataFim)||(!dataInicio&&de<=dataFim)||(!dataFim&&de>=dataInicio)||(de>=dataInicio&&de<=dataFim);
+    var sa=setorAtual(p);
+    var ms=!filtroSetores.length||(sa&&filtroSetores.indexOf(sa.id)>=0);
+    return mb&&(filtro==='todos'||risco(p)===filtro)&&dentroP&&ms;
   });
   var fat=fil.filter(function(p){return p.setores.has('V6wt9KT0');});
   var atv=fil.filter(function(p){return!p.setores.has('V6wt9KT0');});
