@@ -1196,12 +1196,30 @@ function gerarPDFGeral() {
   var dataF = document.getElementById('dataFim').value;
   var buscaVal = (busca||'').toLowerCase();
 
+  // Monta descricao dos setores selecionados
+  var setoresSel = '';
+  if (filtroSetores.length) {
+    setoresSel = filtroSetores.map(function(id){
+      var b = BOARDS.find(function(x){return x.id===id;});
+      return b ? b.emoji+' '+b.nome : id;
+    }).join(', ');
+  }
+
+  // Ajusta período para incluir setores
+  if (!periodo || periodo === 'Todos os pedidos') {
+    periodo = setoresSel ? setoresSel : 'Todos os pedidos';
+  } else if (setoresSel) {
+    periodo = periodo + ' | ' + setoresSel;
+  }
+
   var filtrados = pedidos.filter(function(p) {
     var numBase = p.num.split('/')[0];
     var mb = !buscaVal || p.num.includes(buscaVal) || numBase.includes(buscaVal) || p.cliente.toLowerCase().includes(buscaVal);
     var de = p.dataEntrega || '';
     var dentroP = (!dataI && !dataF) || (!dataI && de <= dataF) || (!dataF && de >= dataI) || (de >= dataI && de <= dataF);
-    return mb && (filtro === 'todos' || risco(p) === filtro) && dentroP;
+    var sa = setorAtual(p);
+    var ms = !filtroSetores.length || (sa && filtroSetores.indexOf(sa.id) >= 0);
+    return mb && (filtro === 'todos' || risco(p) === filtro) && dentroP && ms;
   }).sort(function(a,b) {
     if (!a.dataEntrega) return 1;
     if (!b.dataEntrega) return -1;
