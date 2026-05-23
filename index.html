@@ -537,7 +537,7 @@ function renderSetor(bid){
     var num=m[1],ped=pedidos.find(function(p){return p.num===num;});
     var de=card.due?card.due.substring(0,10):(ped?ped.dataEntrega:null);
     var d=dR(de),labels=(ped?ped.artes.filter(function(a){return a.id===card.id;})[0]:null),lblArr=labels?labels.labels||[]:((card.labels||[]).map(function(l){return l.name||'';})),slaP=getSlaPost(b.ordem,lblArr,ped?ped.setores:null);
-    return{num:num,nome:card.name,cliente:ped?ped.cliente:m[2],d:d,dl:d-slaP,url:card.url};
+    return{num:num,nome:card.name,cliente:ped?ped.cliente:m[2],d:d,dl:d-slaP,url:card.url,lblArr:lblArr};
   }).filter(Boolean).sort(function(a,b){return a.d-b.d;});
 
   var urg=tasks.filter(function(t){return t.dl<0;}),hj=tasks.filter(function(t){return t.dl===0;}),am=tasks.filter(function(t){return t.dl===1;}),nm=tasks.filter(function(t){return t.dl>1;});
@@ -545,17 +545,32 @@ function renderSetor(bid){
   function tk(t,tp){
     var cor=tp==='urgente'?'#ef4444':tp==='hoje'?'#f97316':tp==='amanha'?'#eab308':'#3b82f6';
     var dt=t.d===999?'Sem data':t.d<0?(Math.abs(t.d)+'d atraso'):t.d===0?'Hoje':t.d===1?'Amanha':(t.d+'d');
-    // Monta caminho dos setores restantes
-    var proximosSetores=BOARDS.filter(function(x){return x.ordem>b.ordem;});
+    // Monta caminho dos setores restantes — filtra Silk/Impressão por etiqueta e escolhe UM corte
+    var lblStr=(t.lblArr||[]).join(' ').toLowerCase();
+    var temSilk=lblStr.indexOf('silk')>=0;
+    var temImpr=lblStr.indexOf('impress')>=0;
+    var temLaser=lblStr.indexOf('laser')>=0;
+    var temZund=lblStr.indexOf('zund')>=0||lblStr.indexOf('zünd')>=0;
+    var alertaCorte=temLaser&&temZund;
+    var proximosSetores=BOARDS.filter(function(x){
+      if(x.ordem<=b.ordem)return false;
+      if(x.id==='kKxRCcjN')return temSilk;            // Silk só se tiver etiqueta
+      if(x.id==='dWdRLX04')return temImpr;            // Impressão só se tiver etiqueta
+      if(x.id==='2psxSaAN')return temLaser;           // Corte Laser só se tiver etiqueta
+      if(x.id==='JdC3HfIg')return temZund&&!temLaser; // Zund só se NÃO tiver Laser
+      return true;                                    // Acabamento e Faturamento sempre
+    });
+    var alertaHtml=alertaCorte?'<div style="font-size:10px;background:#ef444422;border:1px solid #ef4444;color:#ef4444;border-radius:4px;padding:2px 6px;margin-top:4px;display:inline-block">⚠️ Card com Laser E Zund — escolher apenas um</div>':'';
     var caminhoHtml=proximosSetores.length>0?
-      '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">'+
-      proximosSetores.map(function(x){
+      '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;align-items:center">'+
+      proximosSetores.map(function(x,i){
         var sla=SLA[x.id]||1;
-        return '<span style="font-size:10px;background:'+x.cor+'18;border:1px solid '+x.cor+'44;color:'+x.cor+';border-radius:4px;padding:1px 6px;white-space:nowrap">'+
+        var destaque=i===0?'box-shadow:0 0 0 2px '+x.cor+';font-weight:700;':'';
+        return '<span style="font-size:10px;background:'+x.cor+'18;border:1px solid '+x.cor+'44;color:'+x.cor+';border-radius:4px;padding:1px 6px;white-space:nowrap;'+destaque+'">'+
           x.emoji+' '+x.nome+' <span style="opacity:.7">'+sla+'d</span></span>';
       }).join('<span style="color:var(--muted);font-size:10px;align-self:center">&#8594;</span>')+
-      '</div>':
-      '<div style="font-size:10px;color:#22c55e;margin-top:4px">Ultimo setor</div>';
+      '</div>'+alertaHtml:
+      '<div style="font-size:10px;color:#22c55e;margin-top:4px">Ultimo setor</div>'+alertaHtml;
     return '<div class="tk '+tp+'"><span class="tnum">#'+t.num+'</span><div class="tinfo"><div class="tcli">'+t.cliente+'</div><div class="tdet">'+t.nome+'</div>'+caminhoHtml+'</div><span class="tdias" style="color:'+cor+'">'+dt+'</span><a href="'+t.url+'" target="_blank" class="trl">&#8599;</a></div>';
   }
   function sec(tit,lista,tp,cor,bg){
