@@ -341,6 +341,133 @@ function tGet(path,params){
   return fetch('https://api.trello.com/1'+path+'?'+p).then(function(r){if(!r.ok)throw new Error(r.status);return r.json();});
 }
 
+// ───────────────────────────────────────────────────────────────────────
+// HISTÓRICO DE MOVIMENTAÇÕES (para gráficos de "realizado por setor")
+// ───────────────────────────────────────────────────────────────────────
+function diasUteisEntre(dtIni,dtFim){
+  if(!dtIni||!dtFim)return 0;
+  var ini=new Date(dtIni);ini.setHours(0,0,0,0);
+  var fim=new Date(dtFim);fim.setHours(0,0,0,0);
+  if(fim<ini){var t=ini;ini=fim;fim=t;}
+  var dias=0;var atual=new Date(ini);
+  while(atual<=fim){
+    var dow=atual.getDay();
+    if(dow!==0&&dow!==6)dias++;
+    atual.setDate(atual.getDate()+1);
+  }
+  return Math.max(0,dias-1); // -1 porque conta-se a diferença entre 2 datas
+}
+
+var HIST_KEY='labeltag_historico_v1';
+var historicoSetores={}; // {cardNum: {nome,cliente,dataEntrega,passagens:[{setorId,entrada,saida,dias}]}}
+
+function carregarHistoricoLocal(){
+  try{var raw=localStorage.getItem(HIST_KEY);if(raw)historicoSetores=JSON.parse(raw);}
+  catch(e){historicoSetores={};}
+}
+function salvarHistoricoLocal(){
+  try{localStorage.setItem(HIST_KEY,JSON.stringify(historicoSetores));}catch(e){}
+}
+
+// Coleta actions de TODOS os quadros (últimos 3 meses por default)
+function coletarHistorico(diasAtras){
+  diasAtras=diasAtras||90;
+  var corte=new Date();corte.setDate(corte.getDate()-diasAtras);
+  var corteISO=corte.toISOString();
+  var statusEl=document.getElementById('histStatus');
+  if(statusEl)statusEl.textContent='Coletando histórico...';
+
+  return Promise.all(BOARDS.map(function(b){
+    // Trello: filter=updateCard (movimentação entre listas/quadros) e createCard
+    return tGet('/boards/'+b.id+'/actions',{
+      filter:'updateCard,createCard,copyCard,moveCardToBoard,moveCardFromBoard',
+      limit:1000,
+      since:corteISO,
+      fields:'type,date,data'
+    }).then(function(actions){
+      return {board:b,actions:actions};
+    }).catch(function(){return {board:b,actions:[]};});
+  })).then(function(results){
+    // Mapa: cardId -> [{tipo, data, boardOrigemId, boardDestinoId, cardName}]
+    var eventosPorCard={};
+    results.forEach(function(r){
+      r.actions.forEach(function(a){
+        var card=a.data&&a.data.card;if(!card)return;
+        var cid=card.id;if(!eventosPorCard[cid])eventosPorCard[cid]=[];
+        var evt={tipo:a.type,data:a.date,cardName:card.name,boardAtual:r.board.id};
+        if(a.data.boardSource)evt.boardOrigem=a.data.boardSource.id;
+        if(a.data.board)evt.boardDestino=a.data.board.id;
+        eventosPorCard[cid].push(evt);
+      });
+    });
+
+    // Reconstrói passagens por card
+    var novoHist={};
+    Object.keys(eventosPorCard).forEach(function(cid){
+      var eventos=eventosPorCard[cid].sort(function(a,b){return new Date(a.data)-new Date(b.data);});
+      var nome=eventos[0].cardName||'';
+      var m=nome.match(/^(\d+)[^\s-]*\s*[-–]\s*(.+)/);
+      if(!m)return;
+      var num=m[1];
+      if(!novoHist[num])novoHist[num]={num:num,nome:nome,cliente:m[2].split(/\s*[-–]\s*/).pop().trim(),passagens:[]};
+
+      // Cada evento moveCardToBoard = entrou em um quadro
+      // moveCardFromBoard = saiu de um quadro
+      var setorAtual=null,entradaAtual=null;
+      eventos.forEach(function(e){
+        if(e.tipo==='createCard'||e.tipo==='copyCard'||e.tipo==='moveCardToBoard'){
+          // Entrada em quadro
+          if(setorAtual&&entradaAtual){
+            // Fecha passagem anterior
+            novoHist[num].passagens.push({
+              setorId:setorAtual,entrada:entradaAtual,saida:e.data,
+              dias:diasUteisEntre(entradaAtual,e.data)
+            });
+          }
+          setorAtual=e.boardAtual;entradaAtual=e.data;
+        } else if(e.tipo==='moveCardFromBoard'){
+          if(setorAtual&&entradaAtual){
+            novoHist[num].passagens.push({
+              setorId:setorAtual,entrada:entradaAtual,saida:e.data,
+              dias:diasUteisEntre(entradaAtual,e.data)
+            });
+            setorAtual=null;entradaAtual=null;
+          }
+        }
+      });
+      // Card ainda está num quadro? Não fecha (em andamento)
+      if(setorAtual&&entradaAtual){
+        novoHist[num].setorAtual=setorAtual;
+        novoHist[num].entradaSetorAtual=entradaAtual;
+      }
+    });
+
+    // Merge com histórico existente (cards faturados que já saíram preservam dados)
+    Object.keys(novoHist).forEach(function(num){
+      if(!historicoSetores[num])historicoSetores[num]=novoHist[num];
+      else{
+        // Mantém passagens já registradas, adiciona novas
+        var existentes=historicoSetores[num].passagens||[];
+        var chaves={};
+        existentes.forEach(function(p){chaves[p.setorId+'|'+p.entrada]=true;});
+        novoHist[num].passagens.forEach(function(p){
+          if(!chaves[p.setorId+'|'+p.entrada])existentes.push(p);
+        });
+        historicoSetores[num].passagens=existentes;
+        historicoSetores[num].setorAtual=novoHist[num].setorAtual;
+        historicoSetores[num].entradaSetorAtual=novoHist[num].entradaSetorAtual;
+      }
+      // Atualiza data de entrega vinda dos pedidos atuais
+      var ped=pedidos.find(function(p){return p.num===num;});
+      if(ped&&ped.dataEntrega)historicoSetores[num].dataEntrega=ped.dataEntrega;
+    });
+
+    salvarHistoricoLocal();
+    if(statusEl)statusEl.textContent='Histórico atualizado: '+Object.keys(historicoSetores).length+' pedidos';
+    return historicoSetores;
+  });
+}
+
 function sincronizar(){
   document.getElementById('syncTxt').textContent='Sincronizando...';
   boards={};
@@ -377,6 +504,12 @@ function sincronizar(){
     });
     document.getElementById('syncTxt').textContent='Atualizado '+new Date().toLocaleTimeString('pt-BR');
     renderTudo();
+    // Carrega histórico local e atualiza em background (não bloqueia UI)
+    if(Object.keys(historicoSetores).length===0)carregarHistoricoLocal();
+    setTimeout(function(){coletarHistorico(90).then(function(){
+      // Se o usuário estiver na aba dashboard, re-renderiza
+      if(document.getElementById('page-dashboard').classList.contains('ativo'))renderDashboard();
+    });},800);
   }).catch(function(e){document.getElementById('syncTxt').textContent='Erro - tente novamente';});
 }
 
@@ -1055,12 +1188,205 @@ function renderDashboard() {
   // Data de hoje
   var dtHoje = hoje.toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
 
+  // ─────────────────────────────────────────────────────────────────────
+  // GRÁFICOS DE REALIZADO POR SETOR (baseado em historicoSetores)
+  // ─────────────────────────────────────────────────────────────────────
+  function getFiltroDataHist(){
+    var di=document.getElementById('histDataIni');
+    var df=document.getElementById('histDataFim');
+    var ini=di&&di.value?new Date(di.value+'T00:00:00'):null;
+    var fim=df&&df.value?new Date(df.value+'T23:59:59'):null;
+    if(!ini){ini=new Date();ini.setDate(ini.getDate()-30);}
+    if(!fim)fim=new Date();
+    return {ini:ini,fim:fim};
+  }
+  var filtroH=getFiltroDataHist();
+
+  // Coleta todas passagens dentro do filtro
+  var passagensPorSetor={};
+  BOARDS.forEach(function(b){passagensPorSetor[b.id]=[];});
+  var entregasPedido=[]; // {num,prazo,real,delta}
+  Object.values(historicoSetores).forEach(function(h){
+    (h.passagens||[]).forEach(function(p){
+      var dataRef=new Date(p.saida);
+      if(dataRef<filtroH.ini||dataRef>filtroH.fim)return;
+      if(passagensPorSetor[p.setorId])passagensPorSetor[p.setorId].push(p);
+    });
+    // Entrega final: se chegou no Faturamento (V6wt9KT0) com data dentro do filtro
+    var fat=(h.passagens||[]).find(function(p){return p.setorId==='V6wt9KT0';});
+    if(fat&&h.dataEntrega){
+      var dataFat=new Date(fat.entrada);
+      if(dataFat>=filtroH.ini&&dataFat<=filtroH.fim){
+        var prazo=new Date(h.dataEntrega+'T12:00:00');
+        var delta=diasUteisEntre(prazo,dataFat)*(dataFat>=prazo?1:-1);
+        entregasPedido.push({num:h.num,prazo:h.dataEntrega,real:fat.entrada,delta:delta});
+      }
+    }
+  });
+
+  // GRÁFICO A: Barras empilhadas Antecipado/No prazo/Atrasado por setor
+  var statusSetorHtml=BOARDS.map(function(b){
+    var ps=passagensPorSetor[b.id]||[];
+    if(!ps.length)return '';
+    var sla=SLA[b.id]||1;
+    var ant=0,prazo=0,atr=0;
+    ps.forEach(function(p){
+      if(p.dias<sla)ant++;
+      else if(p.dias===sla)prazo++;
+      else atr++;
+    });
+    var total=ant+prazo+atr;
+    var pctA=Math.round(ant/total*100),pctP=Math.round(prazo/total*100),pctR=100-pctA-pctP;
+    return '<div style="margin-bottom:14px">'+
+      '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">'+
+      '<span>'+b.emoji+' '+b.nome+'</span>'+
+      '<span style="color:var(--muted);font-family:DM Mono,monospace">'+total+' passagens · SLA '+sla+'d</span>'+
+      '</div>'+
+      '<div style="display:flex;height:22px;border-radius:4px;overflow:hidden;background:var(--bg2)">'+
+      (ant>0?'<div style="width:'+pctA+'%;background:#22c55e;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700" title="Antecipado">'+ant+'</div>':'')+
+      (prazo>0?'<div style="width:'+pctP+'%;background:#3b82f6;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700" title="No prazo">'+prazo+'</div>':'')+
+      (atr>0?'<div style="width:'+pctR+'%;background:#ef4444;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700" title="Atrasado">'+atr+'</div>':'')+
+      '</div></div>';
+  }).join('');
+
+  // GRÁFICO B: Média de dias por setor (Real vs SLA)
+  var mediaSetorHtml=BOARDS.map(function(b){
+    var ps=passagensPorSetor[b.id]||[];
+    if(!ps.length)return '';
+    var sla=SLA[b.id]||1;
+    var soma=ps.reduce(function(a,p){return a+p.dias;},0);
+    var media=soma/ps.length;
+    var maxBar=Math.max(media,sla)*1.2;
+    var pctReal=Math.round(media/maxBar*100);
+    var pctSla=Math.round(sla/maxBar*100);
+    var corReal=media>sla*1.2?'#ef4444':media>sla?'#eab308':'#22c55e';
+    return '<div style="margin-bottom:14px">'+
+      '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">'+
+      '<span>'+b.emoji+' '+b.nome+'</span>'+
+      '<span style="color:var(--muted);font-family:DM Mono,monospace">média: '+media.toFixed(1)+'d · SLA: '+sla+'d</span>'+
+      '</div>'+
+      '<div style="background:var(--bg2);border-radius:4px;height:18px;position:relative;margin-bottom:3px">'+
+      '<div style="position:absolute;left:0;top:0;height:100%;width:'+pctReal+'%;background:'+corReal+';border-radius:4px"></div>'+
+      '<div style="position:absolute;left:'+pctSla+'%;top:-2px;height:22px;width:2px;background:#fff;opacity:.6" title="SLA"></div>'+
+      '</div>'+
+      '</div>';
+  }).join('');
+
+  // GRÁFICO C: Heatmap setor x dia da semana
+  var diasSem=['Seg','Ter','Qua','Qui','Sex'];
+  var heatmap={}; // {setorId: {0:soma_atraso, 1:..., ...}}
+  BOARDS.forEach(function(b){
+    heatmap[b.id]={};
+    for(var i=1;i<=5;i++)heatmap[b.id][i]={total:0,atrasos:0,somaAtraso:0};
+  });
+  BOARDS.forEach(function(b){
+    var ps=passagensPorSetor[b.id]||[];
+    var sla=SLA[b.id]||1;
+    ps.forEach(function(p){
+      var dow=new Date(p.entrada).getDay(); // dia que ENTROU no setor
+      if(dow>=1&&dow<=5){
+        heatmap[b.id][dow].total++;
+        if(p.dias>sla){
+          heatmap[b.id][dow].atrasos++;
+          heatmap[b.id][dow].somaAtraso+=(p.dias-sla);
+        }
+      }
+    });
+  });
+  function corHeat(pct){
+    if(pct===null||pct===undefined)return 'var(--bg2)';
+    if(pct<10)return 'rgba(34,197,94,.25)';
+    if(pct<25)return 'rgba(234,179,8,.35)';
+    if(pct<50)return 'rgba(249,115,22,.50)';
+    return 'rgba(239,68,68,.70)';
+  }
+  var heatHtml='<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr>'+
+    '<th style="text-align:left;padding:6px;color:var(--muted);font-weight:600">Setor</th>'+
+    diasSem.map(function(d){return '<th style="text-align:center;padding:6px;color:var(--muted);font-weight:600">'+d+'</th>';}).join('')+
+    '</tr></thead><tbody>';
+  BOARDS.forEach(function(b){
+    var temDados=false;
+    for(var i=1;i<=5;i++)if(heatmap[b.id][i].total>0)temDados=true;
+    if(!temDados)return;
+    heatHtml+='<tr><td style="padding:6px;white-space:nowrap">'+b.emoji+' '+b.nome+'</td>';
+    for(var i=1;i<=5;i++){
+      var c=heatmap[b.id][i];
+      var pct=c.total>0?Math.round(c.atrasos/c.total*100):null;
+      var titulo=c.total>0?c.atrasos+'/'+c.total+' atrasos ('+pct+'%)':'sem dados';
+      heatHtml+='<td style="padding:6px;text-align:center;background:'+corHeat(pct)+';border:1px solid var(--border);font-family:DM Mono,monospace" title="'+titulo+'">'+(c.total>0?pct+'%':'-')+'</td>';
+    }
+    heatHtml+='</tr>';
+  });
+  heatHtml+='</tbody></table>';
+  if(!Object.values(heatmap).some(function(s){var t=0;for(var k in s)t+=s[k].total;return t>0;})){
+    heatHtml='<div style="text-align:center;color:var(--muted);padding:20px;font-size:12px">Sem dados suficientes ainda — aguarde coleta do histórico</div>';
+  }
+
+  // KPI de entrega final
+  var totalEntregas=entregasPedido.length;
+  var antecipadas=entregasPedido.filter(function(e){return e.delta<0;}).length;
+  var noPrazo=entregasPedido.filter(function(e){return e.delta===0;}).length;
+  var atrasadas=entregasPedido.filter(function(e){return e.delta>0;}).length;
+  var mediaAtrasoFinal=atrasadas>0?(entregasPedido.filter(function(e){return e.delta>0;}).reduce(function(a,e){return a+e.delta;},0)/atrasadas).toFixed(1):'0';
+
+  var qtdHistTotal=Object.keys(historicoSetores).length;
+  var diaIniDef=new Date();diaIniDef.setDate(diaIniDef.getDate()-30);
+  var inputIni=document.getElementById('histDataIni');
+  var inputFim=document.getElementById('histDataFim');
+  var valIni=(inputIni&&inputIni.value)||diaIniDef.toISOString().substring(0,10);
+  var valFim=(inputFim&&inputFim.value)||new Date().toISOString().substring(0,10);
+
+  var realizadoHtml=
+    '<div class="dash-card" style="margin-top:24px;margin-bottom:16px">'+
+    '<div class="dash-title" style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;align-items:center">'+
+    '<span>📈 Realizado por Setor — análise de gargalos</span>'+
+    '<span id="histStatus" style="font-size:10px;color:var(--muted);font-weight:400">'+qtdHistTotal+' pedidos no histórico</span>'+
+    '</div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;margin-bottom:6px;align-items:center">'+
+    '<label style="font-size:11px;color:var(--muted)">De:</label>'+
+    '<input type="date" id="histDataIni" value="'+valIni+'" class="inp" onchange="renderDashboard()" style="max-width:140px">'+
+    '<label style="font-size:11px;color:var(--muted)">Até:</label>'+
+    '<input type="date" id="histDataFim" value="'+valFim+'" class="inp" onchange="renderDashboard()" style="max-width:140px">'+
+    '<button class="btn-o" onclick="coletarHistorico(90).then(renderDashboard)" style="padding:4px 10px;font-size:11px">↻ Recalcular</button>'+
+    '</div>'+
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:14px">Período: '+filtroH.ini.toLocaleDateString('pt-BR')+' até '+filtroH.fim.toLocaleDateString('pt-BR')+' · '+totalEntregas+' entregas finais analisadas</div>'+
+
+    // KPIs de entrega final
+    '<div class="kpi-grid" style="margin-bottom:18px">'+
+    '<div class="kpi-item"><div class="kpi-num" style="color:#22c55e">'+antecipadas+'</div><div class="kpi-lbl">Entregas antecipadas</div></div>'+
+    '<div class="kpi-item"><div class="kpi-num" style="color:#3b82f6">'+noPrazo+'</div><div class="kpi-lbl">Entregas no prazo</div></div>'+
+    '<div class="kpi-item"><div class="kpi-num" style="color:#ef4444">'+atrasadas+'</div><div class="kpi-lbl">Entregas atrasadas</div></div>'+
+    '<div class="kpi-item"><div class="kpi-num" style="color:#f97316">'+mediaAtrasoFinal+'d</div><div class="kpi-lbl">Atraso médio (atrasadas)</div></div>'+
+    '</div>'+
+    '</div>'+
+
+    // Gráfico A
+    '<div class="dash-card" style="margin-bottom:16px">'+
+    '<div class="dash-title">🎯 Performance por Setor</div>'+
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:14px">Verde = antecipado · Azul = no prazo · Vermelho = atrasado vs SLA do setor</div>'+
+    (statusSetorHtml||'<div style="text-align:center;color:var(--muted);padding:20px;font-size:12px">Sem dados suficientes ainda — aguarde coleta do histórico</div>')+
+    '</div>'+
+
+    // Gráfico B
+    '<div class="dash-card" style="margin-bottom:16px">'+
+    '<div class="dash-title">⏱️ Tempo Médio Real vs SLA</div>'+
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:14px">Barra colorida = tempo real médio · Linha branca = SLA configurado · Setor amarelo/vermelho indica gargalo</div>'+
+    (mediaSetorHtml||'<div style="text-align:center;color:var(--muted);padding:20px;font-size:12px">Sem dados suficientes ainda — aguarde coleta do histórico</div>')+
+    '</div>'+
+
+    // Gráfico C
+    '<div class="dash-card" style="margin-bottom:16px">'+
+    '<div class="dash-title">🗓️ Heatmap de Atrasos por Dia da Semana</div>'+
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:14px">Por dia em que o card ENTROU no setor · % indica quantos passaram acima do SLA · Mais vermelho = mais atrasos</div>'+
+    heatHtml+
+    '</div>';
+
   document.getElementById('dashEl').innerHTML =
     '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">' + dtHoje + '</div>' +
 
     // KPIs
     '<div class="dash-card" style="margin-bottom:16px">' +
-    '<div class="dash-title">📊 Visão Geral - KPIs</div>' +
+    '<div class="dash-title">📊 Visão Geral - KPIs (situação atual)</div>' +
     '<div class="kpi-grid">' +
     '<div class="kpi-item"><div class="kpi-num" style="color:#3b82f6">' + totalPedidos + '</div><div class="kpi-lbl">Total Pedidos</div></div>' +
     '<div class="kpi-item"><div class="kpi-num" style="color:#ef4444">' + totalAtrasados + '</div><div class="kpi-lbl">Atrasados</div></div>' +
@@ -1076,7 +1402,9 @@ function renderDashboard() {
     barChart('[HOJE] Pedidos Urgentes por Setor (vence hoje/amanhã)', urgDados, maxUrg) +
     barChart('[AMANHA] Pedidos em Atenção por Setor (2-5 dias)', atDados, maxAt) +
     barChart('[PROXIMOS] Pedidos em Dia por Setor', okDados, maxOk) +
-    '</div>';
+    '</div>' +
+
+    realizadoHtml;
 }
 
 function renderRelatorio() {
