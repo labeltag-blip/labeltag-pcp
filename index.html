@@ -1321,9 +1321,23 @@ function gerarPDFSetor(bid) {
     var tp = dl<0?'urgente':dl===0?'hoje':dl===1?'amanha':'normal';
     var dtInt = dl===999?'--':dl<0?(Math.abs(dl)+'d atraso'):dl===0?'Hoje!':dl===1?'Amanha':(dl+'d');
     var dtFinal = d===999?'--':d<0?(Math.abs(d)+'d atraso'):d===0?'Hoje':d===1?'Amanha':(d+'d');
-    // Proximos setores
-    var proxSetores = BOARDS.filter(function(x){return x.ordem>b.ordem;});
+    // Proximos setores — filtra Silk/Impressão por etiqueta e escolhe UM corte
+    var lblStr=cardLabels.join(' ').toLowerCase();
+    var temSilk=lblStr.indexOf('silk')>=0;
+    var temImpr=lblStr.indexOf('impress')>=0;
+    var temLaser=lblStr.indexOf('laser')>=0;
+    var temZund=lblStr.indexOf('zund')>=0||lblStr.indexOf('zünd')>=0;
+    var alertaCorte=temLaser&&temZund;
+    var proxSetores = BOARDS.filter(function(x){
+      if(x.ordem<=b.ordem)return false;
+      if(x.id==='kKxRCcjN')return temSilk;
+      if(x.id==='dWdRLX04')return temImpr;
+      if(x.id==='2psxSaAN')return temLaser;
+      if(x.id==='JdC3HfIg')return temZund&&!temLaser;
+      return true;
+    });
     var caminhoTxt = proxSetores.map(function(x){return x.nome+' ('+( SLA[x.id]||1)+'d)';}).join(' → ');
+    if(alertaCorte)caminhoTxt='⚠ LASER+ZUND — '+caminhoTxt;
     var listN = card.listName || '';
     return {num:num,nome:card.name,cliente:cliente,cxNum:cxNum,d:d,dl:dl,dtFmt:dtFmt,dtInt:dtInt,dtFinal:dtFinal,tp:tp,caminhoTxt:caminhoTxt,listN:listN,url:card.url};
   }).filter(Boolean).sort(function(a,b2){return a.dl-b2.dl;});
@@ -1448,17 +1462,31 @@ function gerarPDFGeral() {
       '<td colspan="2" style="padding:6px 8px"><span style="background:'+cor+'22;color:'+cor+';border:1px solid '+cor+'44;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">'+r.toUpperCase()+'</span> &nbsp;'+p.artes.length+' caixa(s)</td>' +
       '</tr>';
 
-    // Monta caminho dos setores restantes para o PDF
-    var proxSetores = sa ? BOARDS.filter(function(b2){return b2.ordem > sa.ordem;}) : [];
-    var caminhoTxt = proxSetores.map(function(x){
-      var sla = SLA[x.id]||1;
-      return x.nome+' ('+sla+'d)';
-    }).join(' → ');
-
+    // Caminho dos setores restantes — calculado por arte (cada caixa tem suas etiquetas)
     p.artes.forEach(function(a) {
       var cxM = a.nome.match(/CAIXA\s*(\d+)/i);
       var cxNum = cxM ? 'Cx '+cxM[1] : '';
       var lN = a.listName || '';
+      // Filtra próximos setores pelas etiquetas DESTA arte
+      var lblStr=(a.labels||[]).join(' ').toLowerCase();
+      var temSilk=lblStr.indexOf('silk')>=0;
+      var temImpr=lblStr.indexOf('impress')>=0;
+      var temLaser=lblStr.indexOf('laser')>=0;
+      var temZund=lblStr.indexOf('zund')>=0||lblStr.indexOf('zünd')>=0;
+      var alertaCorte=temLaser&&temZund;
+      var proxSetoresA = sa ? BOARDS.filter(function(b2){
+        if(b2.ordem<=sa.ordem)return false;
+        if(b2.id==='kKxRCcjN')return temSilk;
+        if(b2.id==='dWdRLX04')return temImpr;
+        if(b2.id==='2psxSaAN')return temLaser;
+        if(b2.id==='JdC3HfIg')return temZund&&!temLaser;
+        return true;
+      }) : [];
+      var caminhoTxt = proxSetoresA.map(function(x){
+        var sla = SLA[x.id]||1;
+        return x.nome+' ('+sla+'d)';
+      }).join(' → ');
+      if(alertaCorte)caminhoTxt='⚠ LASER+ZUND — '+caminhoTxt;
       html += '<tr style="border-bottom:1px solid #eee">' +
         '<td style="padding:4px 8px 4px 20px;color:#999;font-size:11px">-</td>' +
         '<td style="padding:4px 8px;font-family:monospace;font-size:12px;color:#333">'+cxNum+'</td>' +
