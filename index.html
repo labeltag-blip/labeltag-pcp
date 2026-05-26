@@ -1672,100 +1672,74 @@ function gerarPDFSetor(bid) {
 
   var dtHoje = new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
 
-  // ── DASHBOARD DO SETOR (topo do PDF) ─────────────────────────────────
-  // KPIs da situação atual
-  var qtdAtrasados = tasks.filter(function(t){return t.dl<0;}).length;
-  var qtdHoje = tasks.filter(function(t){return t.dl===0;}).length;
-  var qtdAmanha = tasks.filter(function(t){return t.dl===1;}).length;
-  var qtdEmDia = tasks.filter(function(t){return t.dl>1&&t.dl!==999;}).length;
-  var slaSetor = SLA[bid]||1;
+  // ── DASHBOARD DO SETOR (topo do PDF) — mesma estrutura do painel, em tema claro
+  var total = tasks.length;
+  var urgArr = tasks.filter(function(t){return t.dl<0;});
+  var hjArr  = tasks.filter(function(t){return t.dl===0;});
+  var amArr  = tasks.filter(function(t){return t.dl===1;});
+  var nmArr  = tasks.filter(function(t){return t.dl>1&&t.dl!==999;});
+  var mediaD = total>0?Math.round(tasks.reduce(function(a,t){return a+(t.dl===999?0:t.dl);},0)/total):0;
 
-  // Histórico do setor (últimos 30 dias)
-  var corte30 = new Date(); corte30.setDate(corte30.getDate()-30);
-  var passagensSetor=[];
-  Object.values(historicoSetores||{}).forEach(function(h){
-    (h.passagens||[]).forEach(function(p){
-      if(p.setorId===bid && new Date(p.saida)>=corte30) passagensSetor.push(p);
-    });
+  // Por etapa (lista do Trello)
+  var porLista={};
+  (boards[bid]&&boards[bid].cards||[]).forEach(function(c){
+    var l=c.listName||'Sem lista';
+    porLista[l]=(porLista[l]||0)+1;
   });
-  var temHist = passagensSetor.length>0;
-  var antH=0,prazoH=0,atrH=0,somaH=0;
-  passagensSetor.forEach(function(p){
-    if(p.dias<slaSetor)antH++;
-    else if(p.dias===slaSetor)prazoH++;
-    else atrH++;
-    somaH+=p.dias;
-  });
-  var mediaH = temHist?(somaH/passagensSetor.length):0;
-  var pctAntH = temHist?Math.round(antH/passagensSetor.length*100):0;
-  var pctPrazoH = temHist?Math.round(prazoH/passagensSetor.length*100):0;
-  var pctAtrH = temHist?100-pctAntH-pctPrazoH:0;
-  var corMedia = mediaH>slaSetor*1.2?'#ef4444':mediaH>slaSetor?'#eab308':'#22c55e';
+  var maxLista=Math.max.apply(null,Object.values(porLista).concat([1]));
+  var listasHtml=Object.keys(porLista).map(function(l){
+    var n=porLista[l];
+    var pct=Math.round(n/maxLista*100);
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
+      '<div style="font-size:10px;color:#555;min-width:110px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+l+'</div>'+
+      '<div style="flex:1;background:#e5e7eb;border-radius:3px;height:16px;overflow:hidden">'+
+      '<div style="width:'+pct+'%;height:100%;background:'+b.cor+';border-radius:3px;display:flex;align-items:center;padding-left:6px">'+
+      '<span style="font-size:9px;font-weight:700;color:white">'+n+'</span>'+
+      '</div></div></div>';
+  }).join('');
 
-  // KPI cards (4 caixinhas em linha)
-  var kpiBoxes =
-    '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">'+
-      '<div style="flex:1;min-width:120px;background:#fef2f2;border-left:4px solid #ef4444;padding:8px 12px;border-radius:4px">'+
-        '<div style="font-size:22px;font-weight:700;color:#ef4444;line-height:1">'+qtdAtrasados+'</div>'+
-        '<div style="font-size:10px;color:#666;text-transform:uppercase;letter-spacing:.05em">Atrasados</div>'+
+  // Por prioridade
+  var statuses=[
+    {l:'Urgente',n:urgArr.length,c:'#ef4444'},
+    {l:'Hoje',n:hjArr.length,c:'#f97316'},
+    {l:'Amanha',n:amArr.length,c:'#eab308'},
+    {l:'Proximos',n:nmArr.length,c:'#3b82f6'}
+  ];
+  var maxSt=Math.max.apply(null,statuses.map(function(s){return s.n;}).concat([1]));
+  var statusHtml=statuses.map(function(s){
+    var pct=Math.round(s.n/maxSt*100);
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
+      '<div style="font-size:10px;color:#555;min-width:60px;text-align:right">'+s.l+'</div>'+
+      '<div style="flex:1;background:#e5e7eb;border-radius:3px;height:16px;overflow:hidden">'+
+      '<div style="width:'+pct+'%;height:100%;background:'+s.c+';border-radius:3px;display:flex;align-items:center;padding-left:6px">'+
+      '<span style="font-size:9px;font-weight:700;color:white">'+(s.n||'')+'</span>'+
+      '</div></div></div>';
+  }).join('');
+
+  var dashboardSetorHtml =
+    '<div style="margin-bottom:16px;padding:12px 14px;border:1px solid #e5e7eb;border-radius:8px;background:#fafafa">'+
+      '<div style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#c8a96e;margin-bottom:10px">Dashboard — '+b.nome+'</div>'+
+      // KPIs
+      '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:14px">'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px"><div style="font-size:20px;font-weight:700;color:'+b.cor+';font-family:monospace;line-height:1">'+total+'</div><div style="font-size:9px;color:#888;margin-top:2px">Total pedidos</div></div>'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px"><div style="font-size:20px;font-weight:700;color:#ef4444;font-family:monospace;line-height:1">'+urgArr.length+'</div><div style="font-size:9px;color:#888;margin-top:2px">Urgentes</div></div>'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px"><div style="font-size:20px;font-weight:700;color:#f97316;font-family:monospace;line-height:1">'+hjArr.length+'</div><div style="font-size:9px;color:#888;margin-top:2px">Saem hoje</div></div>'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px"><div style="font-size:20px;font-weight:700;color:#a16207;font-family:monospace;line-height:1">'+amArr.length+'</div><div style="font-size:9px;color:#888;margin-top:2px">Amanha</div></div>'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px"><div style="font-size:20px;font-weight:700;color:#3b82f6;font-family:monospace;line-height:1">'+nmArr.length+'</div><div style="font-size:9px;color:#888;margin-top:2px">Proximos dias</div></div>'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px"><div style="font-size:20px;font-weight:700;color:#c8a96e;font-family:monospace;line-height:1">'+mediaD+'d</div><div style="font-size:9px;color:#888;margin-top:2px">Media prazo</div></div>'+
       '</div>'+
-      '<div style="flex:1;min-width:120px;background:#fff7ed;border-left:4px solid #f97316;padding:8px 12px;border-radius:4px">'+
-        '<div style="font-size:22px;font-weight:700;color:#f97316;line-height:1">'+qtdHoje+'</div>'+
-        '<div style="font-size:10px;color:#666;text-transform:uppercase;letter-spacing:.05em">Vence Hoje</div>'+
-      '</div>'+
-      '<div style="flex:1;min-width:120px;background:#fefce8;border-left:4px solid #eab308;padding:8px 12px;border-radius:4px">'+
-        '<div style="font-size:22px;font-weight:700;color:#a16207;line-height:1">'+qtdAmanha+'</div>'+
-        '<div style="font-size:10px;color:#666;text-transform:uppercase;letter-spacing:.05em">Vence Amanhã</div>'+
-      '</div>'+
-      '<div style="flex:1;min-width:120px;background:#eff6ff;border-left:4px solid #3b82f6;padding:8px 12px;border-radius:4px">'+
-        '<div style="font-size:22px;font-weight:700;color:#3b82f6;line-height:1">'+qtdEmDia+'</div>'+
-        '<div style="font-size:10px;color:#666;text-transform:uppercase;letter-spacing:.05em">Em Dia</div>'+
+      // Gráficos lado a lado
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px">'+
+          '<div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#888;margin-bottom:10px">Por Etapa (lista)</div>'+
+          listasHtml+
+        '</div>'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px">'+
+          '<div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#888;margin-bottom:10px">Por Prioridade</div>'+
+          statusHtml+
+        '</div>'+
       '</div>'+
     '</div>';
-
-  // Gráficos do histórico (só se tiver dados)
-  var graficosHist = '';
-  if(temHist){
-    var maxBar = Math.max(mediaH, slaSetor)*1.3;
-    var pctMedia = Math.round(mediaH/maxBar*100);
-    var pctSlaPos = Math.round(slaSetor/maxBar*100);
-    graficosHist =
-      '<div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">'+
-        // Performance (barra empilhada)
-        '<div style="flex:1;min-width:240px;border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px">'+
-          '<div style="font-size:10px;color:#666;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;font-weight:700">📈 Performance últimos 30d ('+passagensSetor.length+' passagens)</div>'+
-          '<div style="display:flex;height:18px;border-radius:3px;overflow:hidden;background:#f3f4f6;margin-bottom:6px">'+
-            (antH>0?'<div style="width:'+pctAntH+'%;background:#22c55e;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-weight:700">'+antH+'</div>':'')+
-            (prazoH>0?'<div style="width:'+pctPrazoH+'%;background:#3b82f6;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-weight:700">'+prazoH+'</div>':'')+
-            (atrH>0?'<div style="width:'+pctAtrH+'%;background:#ef4444;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-weight:700">'+atrH+'</div>':'')+
-          '</div>'+
-          '<div style="display:flex;justify-content:space-between;font-size:9px;color:#666">'+
-            '<span><span style="display:inline-block;width:8px;height:8px;background:#22c55e;border-radius:2px"></span> Antecipado '+pctAntH+'%</span>'+
-            '<span><span style="display:inline-block;width:8px;height:8px;background:#3b82f6;border-radius:2px"></span> No prazo '+pctPrazoH+'%</span>'+
-            '<span><span style="display:inline-block;width:8px;height:8px;background:#ef4444;border-radius:2px"></span> Atrasado '+pctAtrH+'%</span>'+
-          '</div>'+
-        '</div>'+
-        // Tempo médio vs SLA
-        '<div style="flex:1;min-width:240px;border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px">'+
-          '<div style="font-size:10px;color:#666;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;font-weight:700">⏱️ Tempo Médio Real vs SLA</div>'+
-          '<div style="background:#f3f4f6;border-radius:3px;height:18px;position:relative;margin-bottom:6px">'+
-            '<div style="position:absolute;left:0;top:0;height:100%;width:'+pctMedia+'%;background:'+corMedia+';border-radius:3px"></div>'+
-            '<div style="position:absolute;left:'+pctSlaPos+'%;top:-2px;height:22px;width:2px;background:#1a1a2e" title="SLA"></div>'+
-          '</div>'+
-          '<div style="display:flex;justify-content:space-between;font-size:10px;color:#666">'+
-            '<span>Real médio: <b style="color:'+corMedia+'">'+mediaH.toFixed(1)+'d</b></span>'+
-            '<span>SLA configurado: <b>'+slaSetor+'d</b></span>'+
-          '</div>'+
-        '</div>'+
-      '</div>';
-  } else {
-    graficosHist =
-      '<div style="border:1px dashed #d1d5db;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:11px;color:#888;text-align:center">'+
-      'Histórico ainda em coleta — aguarde algumas sincronizações para ver performance dos últimos 30 dias'+
-      '</div>';
-  }
-
-  var dashboardSetorHtml = kpiBoxes + graficosHist;
 
   var linhas = tasks.map(function(t){
     var cor = cores[t.tp]||'#3b82f6';
