@@ -1672,6 +1672,101 @@ function gerarPDFSetor(bid) {
 
   var dtHoje = new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
 
+  // ── DASHBOARD DO SETOR (topo do PDF) ─────────────────────────────────
+  // KPIs da situação atual
+  var qtdAtrasados = tasks.filter(function(t){return t.dl<0;}).length;
+  var qtdHoje = tasks.filter(function(t){return t.dl===0;}).length;
+  var qtdAmanha = tasks.filter(function(t){return t.dl===1;}).length;
+  var qtdEmDia = tasks.filter(function(t){return t.dl>1&&t.dl!==999;}).length;
+  var slaSetor = SLA[bid]||1;
+
+  // Histórico do setor (últimos 30 dias)
+  var corte30 = new Date(); corte30.setDate(corte30.getDate()-30);
+  var passagensSetor=[];
+  Object.values(historicoSetores||{}).forEach(function(h){
+    (h.passagens||[]).forEach(function(p){
+      if(p.setorId===bid && new Date(p.saida)>=corte30) passagensSetor.push(p);
+    });
+  });
+  var temHist = passagensSetor.length>0;
+  var antH=0,prazoH=0,atrH=0,somaH=0;
+  passagensSetor.forEach(function(p){
+    if(p.dias<slaSetor)antH++;
+    else if(p.dias===slaSetor)prazoH++;
+    else atrH++;
+    somaH+=p.dias;
+  });
+  var mediaH = temHist?(somaH/passagensSetor.length):0;
+  var pctAntH = temHist?Math.round(antH/passagensSetor.length*100):0;
+  var pctPrazoH = temHist?Math.round(prazoH/passagensSetor.length*100):0;
+  var pctAtrH = temHist?100-pctAntH-pctPrazoH:0;
+  var corMedia = mediaH>slaSetor*1.2?'#ef4444':mediaH>slaSetor?'#eab308':'#22c55e';
+
+  // KPI cards (4 caixinhas em linha)
+  var kpiBoxes =
+    '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">'+
+      '<div style="flex:1;min-width:120px;background:#fef2f2;border-left:4px solid #ef4444;padding:8px 12px;border-radius:4px">'+
+        '<div style="font-size:22px;font-weight:700;color:#ef4444;line-height:1">'+qtdAtrasados+'</div>'+
+        '<div style="font-size:10px;color:#666;text-transform:uppercase;letter-spacing:.05em">Atrasados</div>'+
+      '</div>'+
+      '<div style="flex:1;min-width:120px;background:#fff7ed;border-left:4px solid #f97316;padding:8px 12px;border-radius:4px">'+
+        '<div style="font-size:22px;font-weight:700;color:#f97316;line-height:1">'+qtdHoje+'</div>'+
+        '<div style="font-size:10px;color:#666;text-transform:uppercase;letter-spacing:.05em">Vence Hoje</div>'+
+      '</div>'+
+      '<div style="flex:1;min-width:120px;background:#fefce8;border-left:4px solid #eab308;padding:8px 12px;border-radius:4px">'+
+        '<div style="font-size:22px;font-weight:700;color:#a16207;line-height:1">'+qtdAmanha+'</div>'+
+        '<div style="font-size:10px;color:#666;text-transform:uppercase;letter-spacing:.05em">Vence Amanhã</div>'+
+      '</div>'+
+      '<div style="flex:1;min-width:120px;background:#eff6ff;border-left:4px solid #3b82f6;padding:8px 12px;border-radius:4px">'+
+        '<div style="font-size:22px;font-weight:700;color:#3b82f6;line-height:1">'+qtdEmDia+'</div>'+
+        '<div style="font-size:10px;color:#666;text-transform:uppercase;letter-spacing:.05em">Em Dia</div>'+
+      '</div>'+
+    '</div>';
+
+  // Gráficos do histórico (só se tiver dados)
+  var graficosHist = '';
+  if(temHist){
+    var maxBar = Math.max(mediaH, slaSetor)*1.3;
+    var pctMedia = Math.round(mediaH/maxBar*100);
+    var pctSlaPos = Math.round(slaSetor/maxBar*100);
+    graficosHist =
+      '<div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">'+
+        // Performance (barra empilhada)
+        '<div style="flex:1;min-width:240px;border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px">'+
+          '<div style="font-size:10px;color:#666;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;font-weight:700">📈 Performance últimos 30d ('+passagensSetor.length+' passagens)</div>'+
+          '<div style="display:flex;height:18px;border-radius:3px;overflow:hidden;background:#f3f4f6;margin-bottom:6px">'+
+            (antH>0?'<div style="width:'+pctAntH+'%;background:#22c55e;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-weight:700">'+antH+'</div>':'')+
+            (prazoH>0?'<div style="width:'+pctPrazoH+'%;background:#3b82f6;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-weight:700">'+prazoH+'</div>':'')+
+            (atrH>0?'<div style="width:'+pctAtrH+'%;background:#ef4444;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-weight:700">'+atrH+'</div>':'')+
+          '</div>'+
+          '<div style="display:flex;justify-content:space-between;font-size:9px;color:#666">'+
+            '<span><span style="display:inline-block;width:8px;height:8px;background:#22c55e;border-radius:2px"></span> Antecipado '+pctAntH+'%</span>'+
+            '<span><span style="display:inline-block;width:8px;height:8px;background:#3b82f6;border-radius:2px"></span> No prazo '+pctPrazoH+'%</span>'+
+            '<span><span style="display:inline-block;width:8px;height:8px;background:#ef4444;border-radius:2px"></span> Atrasado '+pctAtrH+'%</span>'+
+          '</div>'+
+        '</div>'+
+        // Tempo médio vs SLA
+        '<div style="flex:1;min-width:240px;border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px">'+
+          '<div style="font-size:10px;color:#666;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;font-weight:700">⏱️ Tempo Médio Real vs SLA</div>'+
+          '<div style="background:#f3f4f6;border-radius:3px;height:18px;position:relative;margin-bottom:6px">'+
+            '<div style="position:absolute;left:0;top:0;height:100%;width:'+pctMedia+'%;background:'+corMedia+';border-radius:3px"></div>'+
+            '<div style="position:absolute;left:'+pctSlaPos+'%;top:-2px;height:22px;width:2px;background:#1a1a2e" title="SLA"></div>'+
+          '</div>'+
+          '<div style="display:flex;justify-content:space-between;font-size:10px;color:#666">'+
+            '<span>Real médio: <b style="color:'+corMedia+'">'+mediaH.toFixed(1)+'d</b></span>'+
+            '<span>SLA configurado: <b>'+slaSetor+'d</b></span>'+
+          '</div>'+
+        '</div>'+
+      '</div>';
+  } else {
+    graficosHist =
+      '<div style="border:1px dashed #d1d5db;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:11px;color:#888;text-align:center">'+
+      'Histórico ainda em coleta — aguarde algumas sincronizações para ver performance dos últimos 30 dias'+
+      '</div>';
+  }
+
+  var dashboardSetorHtml = kpiBoxes + graficosHist;
+
   var linhas = tasks.map(function(t){
     var cor = cores[t.tp]||'#3b82f6';
     return '<tr style="border-bottom:1px solid #eee">' +
@@ -1703,6 +1798,7 @@ function gerarPDFSetor(bid) {
     '<div style="font-size:12px;color:#666;margin-top:4px">SLA: '+(SLA[bid]||1)+'d | '+dtHoje+'</div></div>' +
     '<div style="text-align:right"><div style="font-size:32px;font-weight:700;color:#c8a96e">'+tasks.length+'</div><div style="font-size:11px;color:#999">pedidos</div></div>' +
     '</div>' +
+    dashboardSetorHtml +
     '<table><thead><tr>' +
     '<th>Pedido</th><th>Cliente</th><th>Caixa</th><th>Etapa</th><th>Entrega</th><th>Prazo Interno</th><th>Prazo Final</th><th>Proximos Setores</th>' +
     '</tr></thead><tbody>'+linhas+'</tbody></table>' +
