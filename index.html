@@ -1117,12 +1117,17 @@ function remArte(cid,idx){
 
 function renderProducao(){
   var cfg=JSON.parse(localStorage.getItem('lt_prod_cfg')||'{}');
-  var html='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">'+
-    '<div style="font-size:12px;color:var(--muted)">Mostra o primeiro card de cada lista monitorada - o que esta em producao agora</div>'+
-    '<button class="btn-o" onclick="configProducao()" style="font-size:11px;padding:6px 14px">Configurar listas</button>'+
-    '</div>';
 
-  html+=BOARDS.map(function(b){
+  // Toolbar
+  var toolbar='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">'+
+    '<div style="font-size:12px;color:var(--muted)">Primeiro card de cada lista = em producao agora</div>'+
+    '<div style="display:flex;gap:8px">'+
+    '<button class="btn-o" onclick="gerarPDFProducao()" style="font-size:11px;padding:6px 14px">PDF</button>'+
+    '<button class="btn-g" onclick="configProducao()" style="font-size:11px;padding:6px 14px">Configurar</button>'+
+    '</div></div>';
+
+  // Kanban horizontal: cada setor = coluna
+  var colunas=BOARDS.map(function(b){
     var bCards=(boards[b.id]&&boards[b.id].cards)||[];
     var bLists=(boards[b.id]&&boards[b.id].lists)||[];
     if(!bLists.length&&!bCards.length)return'';
@@ -1130,53 +1135,168 @@ function renderProducao(){
     var listasUsar=listasMonit.length>0?bLists.filter(function(l){return listasMonit.indexOf(l.id)>=0;}):bLists;
     if(!listasUsar.length)return'';
 
-    var maquinasHtml=listasUsar.map(function(lista){
+    var cardsHtml=listasUsar.map(function(lista){
       var cardsLista=bCards.filter(function(c){return c.listName===lista.name;});
       var primeiro=cardsLista[0];
       var fila=cardsLista.length-1;
-      var cardHtml='';
-      if(primeiro){
-        var m=primeiro.name.match(/^(\d+[^\s-]*)\s*[-–]\s*(.+)/);
-        var num=m?m[1]:primeiro.name;
-        var cxM=primeiro.name.match(/CAIXA\s*(\d+)/i);
-        var cx=cxM?'Cx '+cxM[1]:'';
-        var ped=pedidos.find(function(p){return p.num===num.split('/')[0];});
-        var de=primeiro.due?primeiro.due.substring(0,10):(ped?ped.dataEntrega:null);
-        var d=dR(de);
-        var dc=d<0?'#ef4444':d<=2?'#f97316':d<=5?'#eab308':'#22c55e';
-        var dt=d===999?'Sem data':d<0?(Math.abs(d)+'d atraso'):d===0?'Hoje':d===1?'Amanha':(d+'d');
-        var cli=ped?ped.cliente:(m?m[2].split(/\s*-\s*/).pop().trim():'');
-        cardHtml='<div class="prod-card">'+
-          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
-          '<span style="font-family:monospace;font-size:12px;color:var(--ouro);font-weight:700">#'+num+'</span>'+
-          (cx?'<span style="font-size:11px;color:var(--muted2)">'+cx+'</span>':'')+
-          '<span style="margin-left:auto;font-size:11px;font-weight:700;color:'+dc+'">'+dt+'</span>'+
-          '</div>'+
-          '<div style="font-size:13px;font-weight:700;margin-bottom:2px">'+cli+'</div>'+
-          '<div style="font-size:11px;color:var(--muted2)">'+primeiro.name+'</div>'+
-          (fila>0?'<div style="font-size:10px;color:var(--muted);margin-top:6px">+'+fila+' na fila</div>':'')+
-          '<a href="'+primeiro.url+'" target="_blank" style="font-size:10px;color:var(--ouro);text-decoration:none;margin-top:4px;display:inline-block">Ver no Trello &#8599;</a>'+
-          '</div>';
-      }else{
-        cardHtml='<div class="prod-vazia">Livre / Vazia</div>';
-      }
-      return'<div class="prod-maquina">'+
-        '<div class="prod-maq-hdr">'+
+
+      // Header da lista (maquina)
+      var lhdr='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:'+b.cor+';background:'+b.cor+'18;border:1px solid '+b.cor+'33;border-radius:6px;padding:4px 10px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">'+
         '<span>'+lista.name+'</span>'+
-        (cardsLista.length>0?'<span style="background:'+b.cor+'22;color:'+b.cor+';border:1px solid '+b.cor+'44;border-radius:10px;padding:1px 8px;font-size:10px">'+cardsLista.length+' card(s)</span>':'')+
-        '</div>'+cardHtml+'</div>';
-    }).join('');
+        (cardsLista.length>0?'<span style="background:'+b.cor+'33;border-radius:10px;padding:1px 7px">'+cardsLista.length+'</span>':
+        '<span style="opacity:.5">0</span>')+
+        '</div>';
 
-    return'<div class="prod-setor">'+
-      '<div class="prod-setor-hdr">'+
-      '<span style="font-size:20px">'+b.emoji+'</span>'+
-      '<span style="font-weight:700;font-size:14px">'+b.nome+'</span>'+
-      '<span style="font-size:11px;color:var(--muted);margin-left:auto">'+bCards.length+' pedidos</span>'+
-      '</div>'+maquinasHtml+'</div>';
-  }).filter(Boolean).join('');
+      if(!primeiro){
+        return lhdr+'<div style="background:var(--bg3);border:1px dashed var(--border);border-radius:8px;padding:14px;text-align:center;color:var(--muted);font-size:11px">Livre</div>';
+      }
 
-  document.getElementById('producaoEl').innerHTML=html||
-    '<div style="text-align:center;color:var(--muted);padding:40px">Nenhum dado carregado. Clique em Atualizar.</div>';
+      var m=primeiro.name.match(/^(\d+[^\s-]*)\s*[-–]\s*(.+)/);
+      var num=m?m[1]:primeiro.name;
+      var cxM=primeiro.name.match(/CAIXA\s*(\d+)/i);
+      var cx=cxM?'Cx '+cxM[1]:'';
+      var ped=pedidos.find(function(p){return p.num===num.split('/')[0];});
+      var de=primeiro.due?primeiro.due.substring(0,10):(ped?ped.dataEntrega:null);
+      var d=dR(de);
+      var dc=d<0?'#ef4444':d<=2?'#f97316':d<=5?'#eab308':'#22c55e';
+      var dt=d===999?'':d<0?(Math.abs(d)+'d atraso'):d===0?'Hoje':d===1?'Amanha':(d+'d');
+      var cli=ped?ped.cliente:(m?m[2].split(/\s*-\s*/).pop().trim():'');
+      var r=d<0?'atrasado':d<=2?'critico':d<=5?'atencao':'ok';
+      var borda=r==='atrasado'?'#ef4444':r==='critico'?'#f97316':r==='atencao'?'#eab308':'var(--border)';
+
+      var cardHtml='<div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid '+borda+';border-radius:8px;padding:12px;margin-bottom:6px">'+
+        // Número e caixa
+        '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">'+
+        '<span style="font-family:monospace;font-size:11px;color:var(--ouro);font-weight:700">#'+num+'</span>'+
+        (cx?'<span style="font-size:10px;color:var(--muted2);background:var(--bg3);border-radius:4px;padding:1px 6px">'+cx+'</span>':'')+
+        (dt?'<span style="margin-left:auto;font-size:10px;font-weight:700;color:'+dc+'">'+dt+'</span>':'')+
+        '</div>'+
+        // Cliente
+        '<div style="font-size:13px;font-weight:700;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+cli+'</div>'+
+        // Nome do card
+        '<div style="font-size:10px;color:var(--muted);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+primeiro.name+'</div>'+
+        // Rodapé
+        '<div style="display:flex;align-items:center;justify-content:space-between">'+
+        (de?'<span style="font-size:10px;color:var(--muted)">'+fD(de)+'</span>':'<span></span>')+
+        '<a href="'+primeiro.url+'" target="_blank" style="font-size:11px;color:var(--ouro);text-decoration:none;opacity:.7">&#8599;</a>'+
+        '</div>'+
+        '</div>';
+
+      // Cards na fila (resumido)
+      var filaHtml='';
+      if(fila>0){
+        filaHtml='<div style="font-size:10px;color:var(--muted);text-align:center;padding:4px;border:1px dashed var(--border);border-radius:6px">'+fila+' na fila</div>';
+      }
+
+      return lhdr+cardHtml+filaHtml;
+    }).join('<div style="height:12px"></div>');
+
+    return'<div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;min-width:220px;max-width:240px;flex-shrink:0">'+
+      // Header do setor
+      '<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">'+
+      '<span style="font-size:18px">'+b.emoji+'</span>'+
+      '<div>'+
+      '<div style="font-size:12px;font-weight:700">'+b.nome+'</div>'+
+      '<div style="font-size:10px;color:var(--muted)">'+bCards.length+' pedidos</div>'+
+      '</div>'+
+      '<div style="margin-left:auto;width:8px;height:8px;border-radius:50%;background:'+(bCards.length>0?b.cor:'var(--muted)')+'"></div>'+
+      '</div>'+
+      // Cards
+      '<div style="padding:10px;max-height:75vh;overflow-y:auto">'+cardsHtml+'</div>'+
+      '</div>';
+  }).filter(Boolean);
+
+  var kanbanHtml='<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:16px;align-items:flex-start;cursor:grab;user-select:none" id="prodKanban">'+
+    colunas.join('')+
+    '</div>';
+
+  document.getElementById('producaoEl').innerHTML=toolbar+kanbanHtml;
+
+  // Drag scroll
+  (function(){
+    var el=document.getElementById('prodKanban');
+    if(!el)return;
+    var isDown=false,startX=0,scrollLeft=0;
+    el.addEventListener('mousedown',function(e){
+      if(e.button!==0)return;
+      var t=e.target;
+      while(t&&t!==el){if(t.tagName==='BUTTON'||t.tagName==='A')return;t=t.parentElement;}
+      isDown=true;startX=e.clientX;scrollLeft=el.scrollLeft;el.style.cursor='grabbing';
+    });
+    document.addEventListener('mouseup',function(){if(isDown){isDown=false;if(el)el.style.cursor='grab';}});
+    document.addEventListener('mousemove',function(e){if(!isDown)return;el.scrollLeft=scrollLeft-(e.clientX-startX);});
+  })();
+}
+
+function gerarPDFProducao(){
+  var cfg=JSON.parse(localStorage.getItem('lt_prod_cfg')||'{}');
+  var dtHoje=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+  var linhas='';
+
+  BOARDS.forEach(function(b){
+    var bCards=(boards[b.id]&&boards[b.id].cards)||[];
+    var bLists=(boards[b.id]&&boards[b.id].lists)||[];
+    if(!bLists.length&&!bCards.length)return;
+    var listasMonit=cfg[b.id]||[];
+    var listasUsar=listasMonit.length>0?bLists.filter(function(l){return listasMonit.indexOf(l.id)>=0;}):bLists;
+    if(!listasUsar.length)return;
+
+    linhas+='<tr><td colspan="6" style="background:#1a1a2e;color:#c8a96e;padding:8px 12px;font-weight:700;font-size:13px">'+b.emoji+' '+b.nome+'</td></tr>';
+
+    listasUsar.forEach(function(lista){
+      var cardsLista=bCards.filter(function(c){return c.listName===lista.name;});
+      var primeiro=cardsLista[0];
+      var fila=cardsLista.length-1;
+
+      if(!primeiro){
+        linhas+='<tr style="background:#f9f9f9"><td style="padding:6px 12px;font-size:11px;color:#999;font-style:italic">'+lista.name+'</td><td colspan="5" style="padding:6px 12px;font-size:11px;color:#999">Livre / Vazia</td></tr>';
+        return;
+      }
+
+      var m=primeiro.name.match(/^(\d+[^\s-]*)\s*[-–]\s*(.+)/);
+      var num=m?m[1]:primeiro.name;
+      var cxM=primeiro.name.match(/CAIXA\s*(\d+)/i);
+      var cx=cxM?'Cx '+cxM[1]:'';
+      var ped=pedidos.find(function(p){return p.num===num.split('/')[0];});
+      var de=primeiro.due?primeiro.due.substring(0,10):(ped?ped.dataEntrega:null);
+      var d=dR(de);
+      var dc=d<0?'#ef4444':d<=2?'#f97316':d<=5?'#a16207':'#1a6b1a';
+      var dt=d===999?'':d<0?(Math.abs(d)+'d atraso'):d===0?'Hoje':d===1?'Amanha':(d+'d');
+      var cli=ped?ped.cliente:(m?m[2].split(/\s*-\s*/).pop().trim():'');
+      var dtFmt=de?new Date(de+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'';
+
+      linhas+='<tr style="border-bottom:1px solid #eee">'+
+        '<td style="padding:6px 12px;font-size:11px;color:#666">'+lista.name+'</td>'+
+        '<td style="padding:6px 12px;font-family:monospace;font-size:12px;color:'+dc+';font-weight:700">#'+num+'</td>'+
+        '<td style="padding:6px 12px;font-size:11px;font-family:monospace">'+cx+'</td>'+
+        '<td style="padding:6px 12px;font-size:12px;font-weight:600">'+cli+'</td>'+
+        '<td style="padding:6px 12px;text-align:center;font-size:11px">'+dtFmt+'</td>'+
+        '<td style="padding:6px 12px;text-align:center;color:'+dc+';font-weight:700;font-size:11px">'+dt+
+        (fila>0?'<div style="font-size:9px;color:#999;font-weight:normal">+'+fila+' fila</div>':'')+'</td>'+
+        '</tr>';
+    });
+  });
+
+  var win=window.open('','_blank');
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Em Producao - Label Tag</title>'+
+    '<style>body{font-family:Arial,sans-serif;margin:20px;color:#1a1a2e}'+
+    'table{width:100%;border-collapse:collapse}'+
+    'th{background:#1a1a2e;color:white;padding:7px 12px;text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase}'+
+    'tr:nth-child(even){background:#f9f9f9}'+
+    '.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:12px;border-bottom:2px solid #c8a96e}'+
+    '@page{margin:12mm}</style></head><body>'+
+    '<div class="hdr"><div>'+
+    '<div style="font-size:10px;color:#c8a96e;letter-spacing:2px;text-transform:uppercase">Label Tag</div>'+
+    '<div style="font-size:20px;font-weight:700">Em Producao Agora</div>'+
+    '<div style="font-size:12px;color:#666;margin-top:4px">'+dtHoje+'</div>'+
+    '</div></div>'+
+    '<table><thead><tr>'+
+    '<th>Maquina/Lista</th><th>Pedido</th><th>Caixa</th><th>Cliente</th><th>Entrega</th><th>Prazo</th>'+
+    '</tr></thead><tbody>'+linhas+'</tbody></table>'+
+    '<div style="margin-top:16px;font-size:10px;color:#999;text-align:right">Gerado pelo PCP Label Tag em '+new Date().toLocaleString('pt-BR')+'</div>'+
+    '</body></html>');
+  win.document.close();
+  setTimeout(function(){win.print();},600);
 }
 
 function configProducao(){
