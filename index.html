@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PCP Label Tag v3</title>
+<title>PCP Label Tag v6-PDFGERAL</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
@@ -16,7 +16,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .ll{font-size:10px;color:var(--ouro);letter-spacing:.18em;text-transform:uppercase;margin-bottom:6px}
 .lt{font-size:22px;font-weight:700;margin-bottom:6px}
 .ls{font-size:13px;color:var(--muted);margin-bottom:28px;line-height:1.6}
-.linp{background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:'DM Mono',monospace;border-radius:6px;padding:10px 14px;width:100%;font-size:12px;outline:none;transition:border-color .2s;margin-top:6px;display:block}
+.linp{background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:DM Mono,monospace;border-radius:6px;padding:10px 14px;width:100%;font-size:12px;outline:none;transition:border-color .2s;margin-top:6px;display:block}
 .linp:focus{border-color:var(--ouro)}
 .llbl{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;display:block;margin-top:16px}
 .lbtn{background:var(--ouro);color:#1a1209;border:none;border-radius:8px;padding:12px;width:100%;font-family:'DM Sans',sans-serif;font-weight:700;font-size:14px;cursor:pointer;margin-top:24px;transition:all .15s}
@@ -146,6 +146,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .print-only { display:none; }
 .print-header { display:none; }
 
+.prod-setor{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px}
+.prod-setor-hdr{padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
+.prod-maquina{padding:12px 16px;border-bottom:1px solid var(--border)}
+.prod-maquina:last-child{border-bottom:none}
+.prod-maq-hdr{font-size:11px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+.prod-card{background:var(--bg3);border-radius:7px;padding:10px 12px}
+.prod-vazia{font-size:11px;color:var(--muted);padding:8px 0;font-style:italic}
 .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#22c55e;margin-right:4px;animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 .loading{text-align:center;padding:50px;color:var(--muted)}
@@ -201,6 +208,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div class="tab" onclick="mudarAba('setor','JdC3HfIg')">✂️ Corte Zund</div>
     <div class="tab" onclick="mudarAba('setor','8LcFwJ0v')">✅ Acabamento</div>
     <div class="tab" onclick="mudarAba('setor','V6wt9KT0')">📦 Faturamento</div>
+    <div class="tab" onclick="mudarAba('producao')">▶ Em Producao</div>
     <div class="tab" onclick="mudarAba('consolidacao')">🔗 Consolidação</div>
     <div class="tab" onclick="mudarAba('dashboard')">📈 Dashboard</div>
     <div class="tab" onclick="mudarAba('relatorio')">📊 Relatório</div>
@@ -233,6 +241,8 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     </div>
 
     <div class="page" id="page-setor"><div id="setorEl"></div></div>
+    <div class="page" id="page-producao"><div id="producaoEl"><div class="loading"><span class="spin">&#8635;</span>Carregando...</div></div></div>
+
     <div class="page" id="page-consolidacao"><div id="consolEl"><div class="loading"><span class="spin">⟳</span>Carregando...</div></div></div>
 
     <div class="page" id="page-dashboard"><div id="dashEl"><div class="loading"><span class="spin">⟳</span>Carregando...</div></div></div>
@@ -341,6 +351,133 @@ function tGet(path,params){
   return fetch('https://api.trello.com/1'+path+'?'+p).then(function(r){if(!r.ok)throw new Error(r.status);return r.json();});
 }
 
+// ───────────────────────────────────────────────────────────────────────
+// HISTÓRICO DE MOVIMENTAÇÕES (para gráficos de "realizado por setor")
+// ───────────────────────────────────────────────────────────────────────
+function diasUteisEntre(dtIni,dtFim){
+  if(!dtIni||!dtFim)return 0;
+  var ini=new Date(dtIni);ini.setHours(0,0,0,0);
+  var fim=new Date(dtFim);fim.setHours(0,0,0,0);
+  if(fim<ini){var t=ini;ini=fim;fim=t;}
+  var dias=0;var atual=new Date(ini);
+  while(atual<=fim){
+    var dow=atual.getDay();
+    if(dow!==0&&dow!==6)dias++;
+    atual.setDate(atual.getDate()+1);
+  }
+  return Math.max(0,dias-1); // -1 porque conta-se a diferença entre 2 datas
+}
+
+var HIST_KEY='labeltag_historico_v1';
+var historicoSetores={}; // {cardNum: {nome,cliente,dataEntrega,passagens:[{setorId,entrada,saida,dias}]}}
+
+function carregarHistoricoLocal(){
+  try{var raw=localStorage.getItem(HIST_KEY);if(raw)historicoSetores=JSON.parse(raw);}
+  catch(e){historicoSetores={};}
+}
+function salvarHistoricoLocal(){
+  try{localStorage.setItem(HIST_KEY,JSON.stringify(historicoSetores));}catch(e){}
+}
+
+// Coleta actions de TODOS os quadros (últimos 3 meses por default)
+function coletarHistorico(diasAtras){
+  diasAtras=diasAtras||90;
+  var corte=new Date();corte.setDate(corte.getDate()-diasAtras);
+  var corteISO=corte.toISOString();
+  var statusEl=document.getElementById('histStatus');
+  if(statusEl)statusEl.textContent='Coletando histórico...';
+
+  return Promise.all(BOARDS.map(function(b){
+    // Trello: filter=updateCard (movimentação entre listas/quadros) e createCard
+    return tGet('/boards/'+b.id+'/actions',{
+      filter:'updateCard,createCard,copyCard,moveCardToBoard,moveCardFromBoard',
+      limit:1000,
+      since:corteISO,
+      fields:'type,date,data'
+    }).then(function(actions){
+      return {board:b,actions:actions};
+    }).catch(function(){return {board:b,actions:[]};});
+  })).then(function(results){
+    // Mapa: cardId -> [{tipo, data, boardOrigemId, boardDestinoId, cardName}]
+    var eventosPorCard={};
+    results.forEach(function(r){
+      r.actions.forEach(function(a){
+        var card=a.data&&a.data.card;if(!card)return;
+        var cid=card.id;if(!eventosPorCard[cid])eventosPorCard[cid]=[];
+        var evt={tipo:a.type,data:a.date,cardName:card.name,boardAtual:r.board.id};
+        if(a.data.boardSource)evt.boardOrigem=a.data.boardSource.id;
+        if(a.data.board)evt.boardDestino=a.data.board.id;
+        eventosPorCard[cid].push(evt);
+      });
+    });
+
+    // Reconstrói passagens por card
+    var novoHist={};
+    Object.keys(eventosPorCard).forEach(function(cid){
+      var eventos=eventosPorCard[cid].sort(function(a,b){return new Date(a.data)-new Date(b.data);});
+      var nome=eventos[0].cardName||'';
+      var m=nome.match(/^(\d+)[^\s-]*\s*[-–]\s*(.+)/);
+      if(!m)return;
+      var num=m[1];
+      if(!novoHist[num])novoHist[num]={num:num,nome:nome,cliente:m[2].split(/\s*[-–]\s*/).pop().trim(),passagens:[]};
+
+      // Cada evento moveCardToBoard = entrou em um quadro
+      // moveCardFromBoard = saiu de um quadro
+      var setorAtual=null,entradaAtual=null;
+      eventos.forEach(function(e){
+        if(e.tipo==='createCard'||e.tipo==='copyCard'||e.tipo==='moveCardToBoard'){
+          // Entrada em quadro
+          if(setorAtual&&entradaAtual){
+            // Fecha passagem anterior
+            novoHist[num].passagens.push({
+              setorId:setorAtual,entrada:entradaAtual,saida:e.data,
+              dias:diasUteisEntre(entradaAtual,e.data)
+            });
+          }
+          setorAtual=e.boardAtual;entradaAtual=e.data;
+        } else if(e.tipo==='moveCardFromBoard'){
+          if(setorAtual&&entradaAtual){
+            novoHist[num].passagens.push({
+              setorId:setorAtual,entrada:entradaAtual,saida:e.data,
+              dias:diasUteisEntre(entradaAtual,e.data)
+            });
+            setorAtual=null;entradaAtual=null;
+          }
+        }
+      });
+      // Card ainda está num quadro? Não fecha (em andamento)
+      if(setorAtual&&entradaAtual){
+        novoHist[num].setorAtual=setorAtual;
+        novoHist[num].entradaSetorAtual=entradaAtual;
+      }
+    });
+
+    // Merge com histórico existente (cards faturados que já saíram preservam dados)
+    Object.keys(novoHist).forEach(function(num){
+      if(!historicoSetores[num])historicoSetores[num]=novoHist[num];
+      else{
+        // Mantém passagens já registradas, adiciona novas
+        var existentes=historicoSetores[num].passagens||[];
+        var chaves={};
+        existentes.forEach(function(p){chaves[p.setorId+'|'+p.entrada]=true;});
+        novoHist[num].passagens.forEach(function(p){
+          if(!chaves[p.setorId+'|'+p.entrada])existentes.push(p);
+        });
+        historicoSetores[num].passagens=existentes;
+        historicoSetores[num].setorAtual=novoHist[num].setorAtual;
+        historicoSetores[num].entradaSetorAtual=novoHist[num].entradaSetorAtual;
+      }
+      // Atualiza data de entrega vinda dos pedidos atuais
+      var ped=pedidos.find(function(p){return p.num===num;});
+      if(ped&&ped.dataEntrega)historicoSetores[num].dataEntrega=ped.dataEntrega;
+    });
+
+    salvarHistoricoLocal();
+    if(statusEl)statusEl.textContent='Histórico atualizado: '+Object.keys(historicoSetores).length+' pedidos';
+    return historicoSetores;
+  });
+}
+
 function sincronizar(){
   document.getElementById('syncTxt').textContent='Sincronizando...';
   boards={};
@@ -377,6 +514,12 @@ function sincronizar(){
     });
     document.getElementById('syncTxt').textContent='Atualizado '+new Date().toLocaleTimeString('pt-BR');
     renderTudo();
+    // Carrega histórico local e atualiza em background (não bloqueia UI)
+    if(Object.keys(historicoSetores).length===0)carregarHistoricoLocal();
+    setTimeout(function(){coletarHistorico(90).then(function(){
+      // Se o usuário estiver na aba dashboard, re-renderiza
+      if(document.getElementById('page-dashboard').classList.contains('ativo'))renderDashboard();
+    });},800);
   }).catch(function(e){document.getElementById('syncTxt').textContent='Erro - tente novamente';});
 }
 
@@ -410,6 +553,7 @@ function renderTudo(){
   renderStats();renderBrow();initFiltroSetores();
   if(aba==='geral')renderGeral();
   else if(aba==='setor')renderSetor(setorId);
+  else if(aba==='producao')renderProducao();
   else if(aba==='consolidacao')renderConsol();
   else if(aba==='dashboard')renderDashboard();
   else if(aba==='relatorio')renderRelatorio();
@@ -537,7 +681,7 @@ function renderSetor(bid){
     var num=m[1],ped=pedidos.find(function(p){return p.num===num;});
     var de=card.due?card.due.substring(0,10):(ped?ped.dataEntrega:null);
     var d=dR(de),labels=(ped?ped.artes.filter(function(a){return a.id===card.id;})[0]:null),lblArr=labels?labels.labels||[]:((card.labels||[]).map(function(l){return l.name||'';})),slaP=getSlaPost(b.ordem,lblArr,ped?ped.setores:null);
-    return{num:num,nome:card.name,cliente:ped?ped.cliente:m[2],d:d,dl:d-slaP,url:card.url};
+    return{num:num,nome:card.name,cliente:ped?ped.cliente:m[2],d:d,dl:d-slaP,url:card.url,lblArr:lblArr};
   }).filter(Boolean).sort(function(a,b){return a.d-b.d;});
 
   var urg=tasks.filter(function(t){return t.dl<0;}),hj=tasks.filter(function(t){return t.dl===0;}),am=tasks.filter(function(t){return t.dl===1;}),nm=tasks.filter(function(t){return t.dl>1;});
@@ -545,17 +689,32 @@ function renderSetor(bid){
   function tk(t,tp){
     var cor=tp==='urgente'?'#ef4444':tp==='hoje'?'#f97316':tp==='amanha'?'#eab308':'#3b82f6';
     var dt=t.d===999?'Sem data':t.d<0?(Math.abs(t.d)+'d atraso'):t.d===0?'Hoje':t.d===1?'Amanha':(t.d+'d');
-    // Monta caminho dos setores restantes
-    var proximosSetores=BOARDS.filter(function(x){return x.ordem>b.ordem;});
+    // Monta caminho dos setores restantes — filtra Silk/Impressão por etiqueta e escolhe UM corte
+    var lblStr=(t.lblArr||[]).join(' ').toLowerCase();
+    var temSilk=lblStr.indexOf('silk')>=0;
+    var temImpr=lblStr.indexOf('impress')>=0;
+    var temLaser=lblStr.indexOf('laser')>=0;
+    var temZund=lblStr.indexOf('zund')>=0||lblStr.indexOf('zünd')>=0;
+    var alertaCorte=temLaser&&temZund;
+    var proximosSetores=BOARDS.filter(function(x){
+      if(x.ordem<=b.ordem)return false;
+      if(x.id==='kKxRCcjN')return temSilk;            // Silk só se tiver etiqueta
+      if(x.id==='dWdRLX04')return temImpr;            // Impressão só se tiver etiqueta
+      if(x.id==='2psxSaAN')return temLaser;           // Corte Laser só se tiver etiqueta
+      if(x.id==='JdC3HfIg')return temZund&&!temLaser; // Zund só se NÃO tiver Laser
+      return true;                                    // Acabamento e Faturamento sempre
+    });
+    var alertaHtml=alertaCorte?'<div style="font-size:10px;background:#ef444422;border:1px solid #ef4444;color:#ef4444;border-radius:4px;padding:2px 6px;margin-top:4px;display:inline-block">⚠️ Card com Laser E Zund — escolher apenas um</div>':'';
     var caminhoHtml=proximosSetores.length>0?
-      '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">'+
-      proximosSetores.map(function(x){
+      '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;align-items:center">'+
+      proximosSetores.map(function(x,i){
         var sla=SLA[x.id]||1;
-        return '<span style="font-size:10px;background:'+x.cor+'18;border:1px solid '+x.cor+'44;color:'+x.cor+';border-radius:4px;padding:1px 6px;white-space:nowrap">'+
+        var destaque=i===0?'box-shadow:0 0 0 2px '+x.cor+';font-weight:700;':'';
+        return '<span style="font-size:10px;background:'+x.cor+'18;border:1px solid '+x.cor+'44;color:'+x.cor+';border-radius:4px;padding:1px 6px;white-space:nowrap;'+destaque+'">'+
           x.emoji+' '+x.nome+' <span style="opacity:.7">'+sla+'d</span></span>';
       }).join('<span style="color:var(--muted);font-size:10px;align-self:center">&#8594;</span>')+
-      '</div>':
-      '<div style="font-size:10px;color:#22c55e;margin-top:4px">Ultimo setor</div>';
+      '</div>'+alertaHtml:
+      '<div style="font-size:10px;color:#22c55e;margin-top:4px">Ultimo setor</div>'+alertaHtml;
     return '<div class="tk '+tp+'"><span class="tnum">#'+t.num+'</span><div class="tinfo"><div class="tcli">'+t.cliente+'</div><div class="tdet">'+t.nome+'</div>'+caminhoHtml+'</div><span class="tdias" style="color:'+cor+'">'+dt+'</span><a href="'+t.url+'" target="_blank" class="trl">&#8599;</a></div>';
   }
   function sec(tit,lista,tp,cor,bg){
@@ -583,31 +742,22 @@ function dashboardSetor(b,tasks,urg,hj,am,nm){
   var mediaD=tasks.length>0?Math.round(tasks.reduce(function(a,t){return a+(t.dl===999?0:t.dl);},0)/tasks.length):0;
 
   // Barras por lista
-  // Conta cards por lista
   var porLista={};
   (boards[b.id]&&boards[b.id].cards||[]).forEach(function(c){
     var l=c.listName||'Sem lista';
     porLista[l]=(porLista[l]||0)+1;
   });
-  // Adiciona listas vazias do board
-  var todasListas=(boards[b.id]&&boards[b.id].lists)||[];
-  todasListas.forEach(function(l){
-    if(!porLista.hasOwnProperty(l.name)) porLista[l.name]=0;
-  });
   var maxLista=Math.max.apply(null,Object.values(porLista).concat([1]));
 
   var listasHtml=Object.keys(porLista).map(function(l){
     var n=porLista[l];
-    var pct=n>0?Math.round(n/maxLista*100):0;
-    var vazia=n===0;
+    var pct=Math.round(n/maxLista*100);
     return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
-      '<div style="font-size:11px;color:'+(vazia?'var(--muted)':'var(--muted2)')+';min-width:130px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+l+'</div>'+
-      '<div style="flex:1;background:var(--border);border-radius:3px;height:18px;overflow:hidden;position:relative">'+
-      (n>0?'<div style="width:'+pct+'%;height:100%;background:'+b.cor+';border-radius:3px;display:flex;align-items:center;padding-left:6px">'+
+      '<div style="font-size:11px;color:var(--muted2);min-width:130px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+l+'</div>'+
+      '<div style="flex:1;background:var(--border);border-radius:3px;height:18px;overflow:hidden">'+
+      '<div style="width:'+pct+'%;height:100%;background:'+b.cor+';border-radius:3px;display:flex;align-items:center;padding-left:6px">'+
       '<span style="font-size:10px;font-weight:700;color:white">'+n+'</span>'+
-      '</div>':'')+
-      (vazia?'<span style="font-size:10px;color:var(--muted);position:absolute;left:8px;top:50%;transform:translateY(-50%)">0 — vazia</span>':'')+
-      '</div></div>';
+      '</div></div></div>';
   }).join('');
 
   // Grafico de status
@@ -965,6 +1115,106 @@ function remArte(cid,idx){
   renderArtesModal(cid);
 }
 
+function renderProducao(){
+  var cfg=JSON.parse(localStorage.getItem('lt_prod_cfg')||'{}');
+  var html='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">'+
+    '<div style="font-size:12px;color:var(--muted)">Mostra o primeiro card de cada lista monitorada - o que esta em producao agora</div>'+
+    '<button class="btn-o" onclick="configProducao()" style="font-size:11px;padding:6px 14px">Configurar listas</button>'+
+    '</div>';
+
+  html+=BOARDS.map(function(b){
+    var bCards=(boards[b.id]&&boards[b.id].cards)||[];
+    var bLists=(boards[b.id]&&boards[b.id].lists)||[];
+    if(!bLists.length&&!bCards.length)return'';
+    var listasMonit=cfg[b.id]||[];
+    var listasUsar=listasMonit.length>0?bLists.filter(function(l){return listasMonit.indexOf(l.id)>=0;}):bLists;
+    if(!listasUsar.length)return'';
+
+    var maquinasHtml=listasUsar.map(function(lista){
+      var cardsLista=bCards.filter(function(c){return c.listName===lista.name;});
+      var primeiro=cardsLista[0];
+      var fila=cardsLista.length-1;
+      var cardHtml='';
+      if(primeiro){
+        var m=primeiro.name.match(/^(\d+[^\s-]*)\s*[-–]\s*(.+)/);
+        var num=m?m[1]:primeiro.name;
+        var cxM=primeiro.name.match(/CAIXA\s*(\d+)/i);
+        var cx=cxM?'Cx '+cxM[1]:'';
+        var ped=pedidos.find(function(p){return p.num===num.split('/')[0];});
+        var de=primeiro.due?primeiro.due.substring(0,10):(ped?ped.dataEntrega:null);
+        var d=dR(de);
+        var dc=d<0?'#ef4444':d<=2?'#f97316':d<=5?'#eab308':'#22c55e';
+        var dt=d===999?'Sem data':d<0?(Math.abs(d)+'d atraso'):d===0?'Hoje':d===1?'Amanha':(d+'d');
+        var cli=ped?ped.cliente:(m?m[2].split(/\s*-\s*/).pop().trim():'');
+        cardHtml='<div class="prod-card">'+
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
+          '<span style="font-family:monospace;font-size:12px;color:var(--ouro);font-weight:700">#'+num+'</span>'+
+          (cx?'<span style="font-size:11px;color:var(--muted2)">'+cx+'</span>':'')+
+          '<span style="margin-left:auto;font-size:11px;font-weight:700;color:'+dc+'">'+dt+'</span>'+
+          '</div>'+
+          '<div style="font-size:13px;font-weight:700;margin-bottom:2px">'+cli+'</div>'+
+          '<div style="font-size:11px;color:var(--muted2)">'+primeiro.name+'</div>'+
+          (fila>0?'<div style="font-size:10px;color:var(--muted);margin-top:6px">+'+fila+' na fila</div>':'')+
+          '<a href="'+primeiro.url+'" target="_blank" style="font-size:10px;color:var(--ouro);text-decoration:none;margin-top:4px;display:inline-block">Ver no Trello &#8599;</a>'+
+          '</div>';
+      }else{
+        cardHtml='<div class="prod-vazia">Livre / Vazia</div>';
+      }
+      return'<div class="prod-maquina">'+
+        '<div class="prod-maq-hdr">'+
+        '<span>'+lista.name+'</span>'+
+        (cardsLista.length>0?'<span style="background:'+b.cor+'22;color:'+b.cor+';border:1px solid '+b.cor+'44;border-radius:10px;padding:1px 8px;font-size:10px">'+cardsLista.length+' card(s)</span>':'')+
+        '</div>'+cardHtml+'</div>';
+    }).join('');
+
+    return'<div class="prod-setor">'+
+      '<div class="prod-setor-hdr">'+
+      '<span style="font-size:20px">'+b.emoji+'</span>'+
+      '<span style="font-weight:700;font-size:14px">'+b.nome+'</span>'+
+      '<span style="font-size:11px;color:var(--muted);margin-left:auto">'+bCards.length+' pedidos</span>'+
+      '</div>'+maquinasHtml+'</div>';
+  }).filter(Boolean).join('');
+
+  document.getElementById('producaoEl').innerHTML=html||
+    '<div style="text-align:center;color:var(--muted);padding:40px">Nenhum dado carregado. Clique em Atualizar.</div>';
+}
+
+function configProducao(){
+  var cfg=JSON.parse(localStorage.getItem('lt_prod_cfg')||'{}');
+  var html='<div style="max-width:600px">'+
+    '<div style="font-size:14px;font-weight:700;margin-bottom:12px;color:var(--ouro)">Configurar listas monitoradas</div>'+
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">Selecione quais listas aparecem na aba Em Producao. Deixe tudo desmarcado para mostrar todas.</div>';
+  BOARDS.forEach(function(b){
+    var bLists=(boards[b.id]&&boards[b.id].lists)||[];
+    if(!bLists.length)return;
+    var listasMonit=cfg[b.id]||[];
+    html+='<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px">'+
+      '<div style="font-weight:700;font-size:13px;margin-bottom:10px">'+b.emoji+' '+b.nome+'</div>'+
+      bLists.map(function(l){
+        var checked=listasMonit.length===0||listasMonit.indexOf(l.id)>=0;
+        return'<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer;font-size:12px">'+
+          '<input type="checkbox" id="prod-'+l.id+'"'+(checked?' checked':'')+' style="accent-color:var(--ouro);width:14px;height:14px">'+
+          l.name+'</label>';
+      }).join('')+'</div>';
+  });
+  html+='<button class="btn-o" onclick="salvarConfigProducao()" style="margin-top:8px">Salvar configuracao</button></div>';
+  document.getElementById('producaoEl').innerHTML=html;
+}
+
+function salvarConfigProducao(){
+  var cfg={};
+  BOARDS.forEach(function(b){
+    var bLists=(boards[b.id]&&boards[b.id].lists)||[];
+    var sel=bLists.filter(function(l){
+      var el=document.getElementById('prod-'+l.id);
+      return el&&el.checked;
+    }).map(function(l){return l.id;});
+    if(sel.length<bLists.length)cfg[b.id]=sel;
+  });
+  localStorage.setItem('lt_prod_cfg',JSON.stringify(cfg));
+  renderProducao();
+}
+
 function renderDashboard() {
   if (!pedidos.length) {
     document.getElementById('dashEl').innerHTML = '<div style="text-align:center;color:var(--muted);padding:40px">Carregando dados... Clique em Atualizar se demorar.</div>';
@@ -1049,12 +1299,205 @@ function renderDashboard() {
   // Data de hoje
   var dtHoje = hoje.toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
 
+  // ─────────────────────────────────────────────────────────────────────
+  // GRÁFICOS DE REALIZADO POR SETOR (baseado em historicoSetores)
+  // ─────────────────────────────────────────────────────────────────────
+  function getFiltroDataHist(){
+    var di=document.getElementById('histDataIni');
+    var df=document.getElementById('histDataFim');
+    var ini=di&&di.value?new Date(di.value+'T00:00:00'):null;
+    var fim=df&&df.value?new Date(df.value+'T23:59:59'):null;
+    if(!ini){ini=new Date();ini.setDate(ini.getDate()-30);}
+    if(!fim)fim=new Date();
+    return {ini:ini,fim:fim};
+  }
+  var filtroH=getFiltroDataHist();
+
+  // Coleta todas passagens dentro do filtro
+  var passagensPorSetor={};
+  BOARDS.forEach(function(b){passagensPorSetor[b.id]=[];});
+  var entregasPedido=[]; // {num,prazo,real,delta}
+  Object.values(historicoSetores).forEach(function(h){
+    (h.passagens||[]).forEach(function(p){
+      var dataRef=new Date(p.saida);
+      if(dataRef<filtroH.ini||dataRef>filtroH.fim)return;
+      if(passagensPorSetor[p.setorId])passagensPorSetor[p.setorId].push(p);
+    });
+    // Entrega final: se chegou no Faturamento (V6wt9KT0) com data dentro do filtro
+    var fat=(h.passagens||[]).find(function(p){return p.setorId==='V6wt9KT0';});
+    if(fat&&h.dataEntrega){
+      var dataFat=new Date(fat.entrada);
+      if(dataFat>=filtroH.ini&&dataFat<=filtroH.fim){
+        var prazo=new Date(h.dataEntrega+'T12:00:00');
+        var delta=diasUteisEntre(prazo,dataFat)*(dataFat>=prazo?1:-1);
+        entregasPedido.push({num:h.num,prazo:h.dataEntrega,real:fat.entrada,delta:delta});
+      }
+    }
+  });
+
+  // GRÁFICO A: Barras empilhadas Antecipado/No prazo/Atrasado por setor
+  var statusSetorHtml=BOARDS.map(function(b){
+    var ps=passagensPorSetor[b.id]||[];
+    if(!ps.length)return '';
+    var sla=SLA[b.id]||1;
+    var ant=0,prazo=0,atr=0;
+    ps.forEach(function(p){
+      if(p.dias<sla)ant++;
+      else if(p.dias===sla)prazo++;
+      else atr++;
+    });
+    var total=ant+prazo+atr;
+    var pctA=Math.round(ant/total*100),pctP=Math.round(prazo/total*100),pctR=100-pctA-pctP;
+    return '<div style="margin-bottom:14px">'+
+      '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">'+
+      '<span>'+b.emoji+' '+b.nome+'</span>'+
+      '<span style="color:var(--muted);font-family:DM Mono,monospace">'+total+' passagens · SLA '+sla+'d</span>'+
+      '</div>'+
+      '<div style="display:flex;height:22px;border-radius:4px;overflow:hidden;background:var(--bg2)">'+
+      (ant>0?'<div style="width:'+pctA+'%;background:#22c55e;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700" title="Antecipado">'+ant+'</div>':'')+
+      (prazo>0?'<div style="width:'+pctP+'%;background:#3b82f6;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700" title="No prazo">'+prazo+'</div>':'')+
+      (atr>0?'<div style="width:'+pctR+'%;background:#ef4444;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700" title="Atrasado">'+atr+'</div>':'')+
+      '</div></div>';
+  }).join('');
+
+  // GRÁFICO B: Média de dias por setor (Real vs SLA)
+  var mediaSetorHtml=BOARDS.map(function(b){
+    var ps=passagensPorSetor[b.id]||[];
+    if(!ps.length)return '';
+    var sla=SLA[b.id]||1;
+    var soma=ps.reduce(function(a,p){return a+p.dias;},0);
+    var media=soma/ps.length;
+    var maxBar=Math.max(media,sla)*1.2;
+    var pctReal=Math.round(media/maxBar*100);
+    var pctSla=Math.round(sla/maxBar*100);
+    var corReal=media>sla*1.2?'#ef4444':media>sla?'#eab308':'#22c55e';
+    return '<div style="margin-bottom:14px">'+
+      '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">'+
+      '<span>'+b.emoji+' '+b.nome+'</span>'+
+      '<span style="color:var(--muted);font-family:DM Mono,monospace">média: '+media.toFixed(1)+'d · SLA: '+sla+'d</span>'+
+      '</div>'+
+      '<div style="background:var(--bg2);border-radius:4px;height:18px;position:relative;margin-bottom:3px">'+
+      '<div style="position:absolute;left:0;top:0;height:100%;width:'+pctReal+'%;background:'+corReal+';border-radius:4px"></div>'+
+      '<div style="position:absolute;left:'+pctSla+'%;top:-2px;height:22px;width:2px;background:#fff;opacity:.6" title="SLA"></div>'+
+      '</div>'+
+      '</div>';
+  }).join('');
+
+  // GRÁFICO C: Heatmap setor x dia da semana
+  var diasSem=['Seg','Ter','Qua','Qui','Sex'];
+  var heatmap={}; // {setorId: {0:soma_atraso, 1:..., ...}}
+  BOARDS.forEach(function(b){
+    heatmap[b.id]={};
+    for(var i=1;i<=5;i++)heatmap[b.id][i]={total:0,atrasos:0,somaAtraso:0};
+  });
+  BOARDS.forEach(function(b){
+    var ps=passagensPorSetor[b.id]||[];
+    var sla=SLA[b.id]||1;
+    ps.forEach(function(p){
+      var dow=new Date(p.entrada).getDay(); // dia que ENTROU no setor
+      if(dow>=1&&dow<=5){
+        heatmap[b.id][dow].total++;
+        if(p.dias>sla){
+          heatmap[b.id][dow].atrasos++;
+          heatmap[b.id][dow].somaAtraso+=(p.dias-sla);
+        }
+      }
+    });
+  });
+  function corHeat(pct){
+    if(pct===null||pct===undefined)return 'var(--bg2)';
+    if(pct<10)return 'rgba(34,197,94,.25)';
+    if(pct<25)return 'rgba(234,179,8,.35)';
+    if(pct<50)return 'rgba(249,115,22,.50)';
+    return 'rgba(239,68,68,.70)';
+  }
+  var heatHtml='<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr>'+
+    '<th style="text-align:left;padding:6px;color:var(--muted);font-weight:600">Setor</th>'+
+    diasSem.map(function(d){return '<th style="text-align:center;padding:6px;color:var(--muted);font-weight:600">'+d+'</th>';}).join('')+
+    '</tr></thead><tbody>';
+  BOARDS.forEach(function(b){
+    var temDados=false;
+    for(var i=1;i<=5;i++)if(heatmap[b.id][i].total>0)temDados=true;
+    if(!temDados)return;
+    heatHtml+='<tr><td style="padding:6px;white-space:nowrap">'+b.emoji+' '+b.nome+'</td>';
+    for(var i=1;i<=5;i++){
+      var c=heatmap[b.id][i];
+      var pct=c.total>0?Math.round(c.atrasos/c.total*100):null;
+      var titulo=c.total>0?c.atrasos+'/'+c.total+' atrasos ('+pct+'%)':'sem dados';
+      heatHtml+='<td style="padding:6px;text-align:center;background:'+corHeat(pct)+';border:1px solid var(--border);font-family:DM Mono,monospace" title="'+titulo+'">'+(c.total>0?pct+'%':'-')+'</td>';
+    }
+    heatHtml+='</tr>';
+  });
+  heatHtml+='</tbody></table>';
+  if(!Object.values(heatmap).some(function(s){var t=0;for(var k in s)t+=s[k].total;return t>0;})){
+    heatHtml='<div style="text-align:center;color:var(--muted);padding:20px;font-size:12px">Sem dados suficientes ainda — aguarde coleta do histórico</div>';
+  }
+
+  // KPI de entrega final
+  var totalEntregas=entregasPedido.length;
+  var antecipadas=entregasPedido.filter(function(e){return e.delta<0;}).length;
+  var noPrazo=entregasPedido.filter(function(e){return e.delta===0;}).length;
+  var atrasadas=entregasPedido.filter(function(e){return e.delta>0;}).length;
+  var mediaAtrasoFinal=atrasadas>0?(entregasPedido.filter(function(e){return e.delta>0;}).reduce(function(a,e){return a+e.delta;},0)/atrasadas).toFixed(1):'0';
+
+  var qtdHistTotal=Object.keys(historicoSetores).length;
+  var diaIniDef=new Date();diaIniDef.setDate(diaIniDef.getDate()-30);
+  var inputIni=document.getElementById('histDataIni');
+  var inputFim=document.getElementById('histDataFim');
+  var valIni=(inputIni&&inputIni.value)||diaIniDef.toISOString().substring(0,10);
+  var valFim=(inputFim&&inputFim.value)||new Date().toISOString().substring(0,10);
+
+  var realizadoHtml=
+    '<div class="dash-card" style="margin-top:24px;margin-bottom:16px">'+
+    '<div class="dash-title" style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;align-items:center">'+
+    '<span>📈 Realizado por Setor — análise de gargalos</span>'+
+    '<span id="histStatus" style="font-size:10px;color:var(--muted);font-weight:400">'+qtdHistTotal+' pedidos no histórico</span>'+
+    '</div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;margin-bottom:6px;align-items:center">'+
+    '<label style="font-size:11px;color:var(--muted)">De:</label>'+
+    '<input type="date" id="histDataIni" value="'+valIni+'" class="inp" onchange="renderDashboard()" style="max-width:140px">'+
+    '<label style="font-size:11px;color:var(--muted)">Até:</label>'+
+    '<input type="date" id="histDataFim" value="'+valFim+'" class="inp" onchange="renderDashboard()" style="max-width:140px">'+
+    '<button class="btn-o" onclick="coletarHistorico(90).then(renderDashboard)" style="padding:4px 10px;font-size:11px">↻ Recalcular</button>'+
+    '</div>'+
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:14px">Período: '+filtroH.ini.toLocaleDateString('pt-BR')+' até '+filtroH.fim.toLocaleDateString('pt-BR')+' · '+totalEntregas+' entregas finais analisadas</div>'+
+
+    // KPIs de entrega final
+    '<div class="kpi-grid" style="margin-bottom:18px">'+
+    '<div class="kpi-item"><div class="kpi-num" style="color:#22c55e">'+antecipadas+'</div><div class="kpi-lbl">Entregas antecipadas</div></div>'+
+    '<div class="kpi-item"><div class="kpi-num" style="color:#3b82f6">'+noPrazo+'</div><div class="kpi-lbl">Entregas no prazo</div></div>'+
+    '<div class="kpi-item"><div class="kpi-num" style="color:#ef4444">'+atrasadas+'</div><div class="kpi-lbl">Entregas atrasadas</div></div>'+
+    '<div class="kpi-item"><div class="kpi-num" style="color:#f97316">'+mediaAtrasoFinal+'d</div><div class="kpi-lbl">Atraso médio (atrasadas)</div></div>'+
+    '</div>'+
+    '</div>'+
+
+    // Gráfico A
+    '<div class="dash-card" style="margin-bottom:16px">'+
+    '<div class="dash-title">🎯 Performance por Setor</div>'+
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:14px">Verde = antecipado · Azul = no prazo · Vermelho = atrasado vs SLA do setor</div>'+
+    (statusSetorHtml||'<div style="text-align:center;color:var(--muted);padding:20px;font-size:12px">Sem dados suficientes ainda — aguarde coleta do histórico</div>')+
+    '</div>'+
+
+    // Gráfico B
+    '<div class="dash-card" style="margin-bottom:16px">'+
+    '<div class="dash-title">⏱️ Tempo Médio Real vs SLA</div>'+
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:14px">Barra colorida = tempo real médio · Linha branca = SLA configurado · Setor amarelo/vermelho indica gargalo</div>'+
+    (mediaSetorHtml||'<div style="text-align:center;color:var(--muted);padding:20px;font-size:12px">Sem dados suficientes ainda — aguarde coleta do histórico</div>')+
+    '</div>'+
+
+    // Gráfico C
+    '<div class="dash-card" style="margin-bottom:16px">'+
+    '<div class="dash-title">🗓️ Heatmap de Atrasos por Dia da Semana</div>'+
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:14px">Por dia em que o card ENTROU no setor · % indica quantos passaram acima do SLA · Mais vermelho = mais atrasos</div>'+
+    heatHtml+
+    '</div>';
+
   document.getElementById('dashEl').innerHTML =
     '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">' + dtHoje + '</div>' +
 
     // KPIs
     '<div class="dash-card" style="margin-bottom:16px">' +
-    '<div class="dash-title">📊 Visão Geral - KPIs</div>' +
+    '<div class="dash-title">📊 Visão Geral - KPIs (situação atual)</div>' +
     '<div class="kpi-grid">' +
     '<div class="kpi-item"><div class="kpi-num" style="color:#3b82f6">' + totalPedidos + '</div><div class="kpi-lbl">Total Pedidos</div></div>' +
     '<div class="kpi-item"><div class="kpi-num" style="color:#ef4444">' + totalAtrasados + '</div><div class="kpi-lbl">Atrasados</div></div>' +
@@ -1070,7 +1513,9 @@ function renderDashboard() {
     barChart('[HOJE] Pedidos Urgentes por Setor (vence hoje/amanhã)', urgDados, maxUrg) +
     barChart('[AMANHA] Pedidos em Atenção por Setor (2-5 dias)', atDados, maxAt) +
     barChart('[PROXIMOS] Pedidos em Dia por Setor', okDados, maxOk) +
-    '</div>';
+    '</div>' +
+
+    realizadoHtml;
 }
 
 function renderRelatorio() {
@@ -1222,9 +1667,10 @@ function mudarAba(a,bid){
   var idx=0;
   if(a==='geral'){document.getElementById('page-geral').classList.add('ativo');document.getElementById('htit').textContent='PCP Label Tag - Visão Geral';idx=0;renderGeral();}
   else if(a==='setor'){document.getElementById('page-setor').classList.add('ativo');var b=BOARDS.find(function(x){return x.id===bid;});document.getElementById('htit').textContent=(b?b.emoji+' '+b.nome:'')+' - Painel';idx=BOARDS.findIndex(function(x){return x.id===bid;})+1;renderSetor(bid);}
-  else if(a==='consolidacao'){document.getElementById('page-consolidacao').classList.add('ativo');document.getElementById('htit').textContent='Consolidação de Pedidos';idx=8;renderConsol();}
-  else if(a==='dashboard'){document.getElementById('page-dashboard').classList.add('ativo');document.getElementById('htit').textContent='Dashboard';idx=9;renderDashboard();}
-  else if(a==='relatorio'){document.getElementById('page-relatorio').classList.add('ativo');document.getElementById('htit').textContent='Relatório de Prioridades';idx=10;renderRelatorio();}
+  else if(a==='producao'){document.getElementById('page-producao').classList.add('ativo');document.getElementById('htit').textContent='Em Producao';idx=8;renderProducao();}
+  else if(a==='consolidacao'){document.getElementById('page-consolidacao').classList.add('ativo');document.getElementById('htit').textContent='Consolidação de Pedidos';idx=9;renderConsol();}
+  else if(a==='dashboard'){document.getElementById('page-dashboard').classList.add('ativo');document.getElementById('htit').textContent='Dashboard';idx=10;renderDashboard();}
+  else if(a==='relatorio'){document.getElementById('page-relatorio').classList.add('ativo');document.getElementById('htit').textContent='Relatório de Prioridades';idx=11;renderRelatorio();}
   else if(a==='config'){document.getElementById('page-config').classList.add('ativo');document.getElementById('htit').textContent='Configurações';idx=BOARDS.length+3;renderConfig();}
   var tabs=document.querySelectorAll('.tab');if(tabs[idx])tabs[idx].classList.add('ativo');
 }
@@ -1315,14 +1761,97 @@ function gerarPDFSetor(bid) {
     var tp = dl<0?'urgente':dl===0?'hoje':dl===1?'amanha':'normal';
     var dtInt = dl===999?'--':dl<0?(Math.abs(dl)+'d atraso'):dl===0?'Hoje!':dl===1?'Amanha':(dl+'d');
     var dtFinal = d===999?'--':d<0?(Math.abs(d)+'d atraso'):d===0?'Hoje':d===1?'Amanha':(d+'d');
-    // Proximos setores
-    var proxSetores = BOARDS.filter(function(x){return x.ordem>b.ordem;});
+    // Proximos setores — filtra Silk/Impressão por etiqueta e escolhe UM corte
+    var lblStr=cardLabels.join(' ').toLowerCase();
+    var temSilk=lblStr.indexOf('silk')>=0;
+    var temImpr=lblStr.indexOf('impress')>=0;
+    var temLaser=lblStr.indexOf('laser')>=0;
+    var temZund=lblStr.indexOf('zund')>=0||lblStr.indexOf('zünd')>=0;
+    var alertaCorte=temLaser&&temZund;
+    var proxSetores = BOARDS.filter(function(x){
+      if(x.ordem<=b.ordem)return false;
+      if(x.id==='kKxRCcjN')return temSilk;
+      if(x.id==='dWdRLX04')return temImpr;
+      if(x.id==='2psxSaAN')return temLaser;
+      if(x.id==='JdC3HfIg')return temZund&&!temLaser;
+      return true;
+    });
     var caminhoTxt = proxSetores.map(function(x){return x.nome+' ('+( SLA[x.id]||1)+'d)';}).join(' → ');
+    if(alertaCorte)caminhoTxt='⚠ LASER+ZUND — '+caminhoTxt;
     var listN = card.listName || '';
     return {num:num,nome:card.name,cliente:cliente,cxNum:cxNum,d:d,dl:dl,dtFmt:dtFmt,dtInt:dtInt,dtFinal:dtFinal,tp:tp,caminhoTxt:caminhoTxt,listN:listN,url:card.url};
   }).filter(Boolean).sort(function(a,b2){return a.dl-b2.dl;});
 
   var dtHoje = new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+
+  // ── DASHBOARD DO SETOR (topo do PDF) — mesma estrutura do painel, em tema claro
+  var total = tasks.length;
+  var urgArr = tasks.filter(function(t){return t.dl<0;});
+  var hjArr  = tasks.filter(function(t){return t.dl===0;});
+  var amArr  = tasks.filter(function(t){return t.dl===1;});
+  var nmArr  = tasks.filter(function(t){return t.dl>1&&t.dl!==999;});
+  var mediaD = total>0?Math.round(tasks.reduce(function(a,t){return a+(t.dl===999?0:t.dl);},0)/total):0;
+
+  // Por etapa (lista do Trello)
+  var porLista={};
+  (boards[bid]&&boards[bid].cards||[]).forEach(function(c){
+    var l=c.listName||'Sem lista';
+    porLista[l]=(porLista[l]||0)+1;
+  });
+  var maxLista=Math.max.apply(null,Object.values(porLista).concat([1]));
+  var listasHtml=Object.keys(porLista).map(function(l){
+    var n=porLista[l];
+    var pct=Math.round(n/maxLista*100);
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
+      '<div style="font-size:10px;color:#555;min-width:110px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+l+'</div>'+
+      '<div style="flex:1;background:#e5e7eb;border-radius:3px;height:16px;overflow:hidden">'+
+      '<div style="width:'+pct+'%;height:100%;background:'+b.cor+';border-radius:3px;display:flex;align-items:center;padding-left:6px">'+
+      '<span style="font-size:9px;font-weight:700;color:white">'+n+'</span>'+
+      '</div></div></div>';
+  }).join('');
+
+  // Por prioridade
+  var statuses=[
+    {l:'Urgente',n:urgArr.length,c:'#ef4444'},
+    {l:'Hoje',n:hjArr.length,c:'#f97316'},
+    {l:'Amanha',n:amArr.length,c:'#eab308'},
+    {l:'Proximos',n:nmArr.length,c:'#3b82f6'}
+  ];
+  var maxSt=Math.max.apply(null,statuses.map(function(s){return s.n;}).concat([1]));
+  var statusHtml=statuses.map(function(s){
+    var pct=Math.round(s.n/maxSt*100);
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
+      '<div style="font-size:10px;color:#555;min-width:60px;text-align:right">'+s.l+'</div>'+
+      '<div style="flex:1;background:#e5e7eb;border-radius:3px;height:16px;overflow:hidden">'+
+      '<div style="width:'+pct+'%;height:100%;background:'+s.c+';border-radius:3px;display:flex;align-items:center;padding-left:6px">'+
+      '<span style="font-size:9px;font-weight:700;color:white">'+(s.n||'')+'</span>'+
+      '</div></div></div>';
+  }).join('');
+
+  var dashboardSetorHtml =
+    '<div style="margin-bottom:16px;padding:12px 14px;border:1px solid #e5e7eb;border-radius:8px;background:#fafafa">'+
+      '<div style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#c8a96e;margin-bottom:10px">Dashboard — '+b.nome+'</div>'+
+      // KPIs
+      '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:14px">'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px"><div style="font-size:20px;font-weight:700;color:'+b.cor+';font-family:monospace;line-height:1">'+total+'</div><div style="font-size:9px;color:#888;margin-top:2px">Total pedidos</div></div>'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px"><div style="font-size:20px;font-weight:700;color:#ef4444;font-family:monospace;line-height:1">'+urgArr.length+'</div><div style="font-size:9px;color:#888;margin-top:2px">Urgentes</div></div>'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px"><div style="font-size:20px;font-weight:700;color:#f97316;font-family:monospace;line-height:1">'+hjArr.length+'</div><div style="font-size:9px;color:#888;margin-top:2px">Saem hoje</div></div>'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px"><div style="font-size:20px;font-weight:700;color:#a16207;font-family:monospace;line-height:1">'+amArr.length+'</div><div style="font-size:9px;color:#888;margin-top:2px">Amanha</div></div>'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px"><div style="font-size:20px;font-weight:700;color:#3b82f6;font-family:monospace;line-height:1">'+nmArr.length+'</div><div style="font-size:9px;color:#888;margin-top:2px">Proximos dias</div></div>'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px"><div style="font-size:20px;font-weight:700;color:#c8a96e;font-family:monospace;line-height:1">'+mediaD+'d</div><div style="font-size:9px;color:#888;margin-top:2px">Media prazo</div></div>'+
+      '</div>'+
+      // Gráficos lado a lado
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px">'+
+          '<div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#888;margin-bottom:10px">Por Etapa (lista)</div>'+
+          listasHtml+
+        '</div>'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px">'+
+          '<div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#888;margin-bottom:10px">Por Prioridade</div>'+
+          statusHtml+
+        '</div>'+
+      '</div>'+
+    '</div>';
 
   var linhas = tasks.map(function(t){
     var cor = cores[t.tp]||'#3b82f6';
@@ -1355,6 +1884,7 @@ function gerarPDFSetor(bid) {
     '<div style="font-size:12px;color:#666;margin-top:4px">SLA: '+(SLA[bid]||1)+'d | '+dtHoje+'</div></div>' +
     '<div style="text-align:right"><div style="font-size:32px;font-weight:700;color:#c8a96e">'+tasks.length+'</div><div style="font-size:11px;color:#999">pedidos</div></div>' +
     '</div>' +
+    dashboardSetorHtml +
     '<table><thead><tr>' +
     '<th>Pedido</th><th>Cliente</th><th>Caixa</th><th>Etapa</th><th>Entrega</th><th>Prazo Interno</th><th>Prazo Final</th><th>Proximos Setores</th>' +
     '</tr></thead><tbody>'+linhas+'</tbody></table>' +
@@ -1410,6 +1940,104 @@ function gerarPDFGeral() {
   var hoje = new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
   var cores = {atrasado:'#ef4444',critico:'#f97316',atencao:'#eab308',ok:'#3b82f6',faturado:'#22c55e'};
 
+  // ── DASHBOARD POR SETOR (topo do PDF) ──────────────────────────────────
+  // Decide quais setores mostrar no topo
+  var setoresParaDash = filtroSetores.length ? filtroSetores : BOARDS.map(function(b){return b.id;});
+  // Filtra só setores que têm cards
+  setoresParaDash = setoresParaDash.filter(function(bid){
+    return boards[bid] && boards[bid].cards && boards[bid].cards.length>0;
+  });
+
+  function montarDashSetorPDF(bid){
+    var b = BOARDS.find(function(x){return x.id===bid;});
+    if(!b) return '';
+    var cards = (boards[bid] && boards[bid].cards) || [];
+    if(!cards.length) return '';
+    var hojeD = new Date(); hojeD.setHours(0,0,0,0);
+
+    // Calcula stats por card (igual gerarPDFSetor)
+    var stats = cards.map(function(card){
+      var m = card.name.match(/^(\d+)[^\s-]*\s*[-–]\s*(.+)/);
+      if (!m) return null;
+      var ped = pedidos.find(function(p){return p.num===m[1];});
+      var de = card.due ? card.due.substring(0,10) : (ped ? ped.dataEntrega : null);
+      var d = dR(de);
+      var cardLabels = (card.labels||[]).map(function(l){return l.name||'';});
+      var slaPostCard = getSlaPost(b.ordem,cardLabels,ped?ped.setores:null);
+      var dl = d - slaPostCard;
+      return {dl:dl,d:d};
+    }).filter(Boolean);
+
+    var totalS = stats.length;
+    var urgArr = stats.filter(function(t){return t.dl<0;});
+    var hjArr  = stats.filter(function(t){return t.dl===0;});
+    var amArr  = stats.filter(function(t){return t.dl===1;});
+    var nmArr  = stats.filter(function(t){return t.dl>1&&t.dl!==999;});
+    var mediaD = totalS>0?Math.round(stats.reduce(function(a,t){return a+(t.dl===999?0:t.dl);},0)/totalS):0;
+
+    // Por etapa
+    var porLista={};
+    cards.forEach(function(c){
+      var l=c.listName||'Sem lista';
+      porLista[l]=(porLista[l]||0)+1;
+    });
+    var maxLista=Math.max.apply(null,Object.values(porLista).concat([1]));
+    var listasHtml=Object.keys(porLista).map(function(l){
+      var n=porLista[l];
+      var pct=Math.round(n/maxLista*100);
+      return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'+
+        '<div style="font-size:10px;color:#555;min-width:100px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+l+'</div>'+
+        '<div style="flex:1;background:#e5e7eb;border-radius:3px;height:14px;overflow:hidden">'+
+        '<div style="width:'+pct+'%;height:100%;background:'+b.cor+';border-radius:3px;display:flex;align-items:center;padding-left:5px">'+
+        '<span style="font-size:9px;font-weight:700;color:white">'+n+'</span>'+
+        '</div></div></div>';
+    }).join('');
+
+    // Por prioridade
+    var statuses=[
+      {l:'Urgente',n:urgArr.length,c:'#ef4444'},
+      {l:'Hoje',n:hjArr.length,c:'#f97316'},
+      {l:'Amanha',n:amArr.length,c:'#eab308'},
+      {l:'Proximos',n:nmArr.length,c:'#3b82f6'}
+    ];
+    var maxSt=Math.max.apply(null,statuses.map(function(s){return s.n;}).concat([1]));
+    var statusHtml=statuses.map(function(s){
+      var pct=Math.round(s.n/maxSt*100);
+      return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'+
+        '<div style="font-size:10px;color:#555;min-width:55px;text-align:right">'+s.l+'</div>'+
+        '<div style="flex:1;background:#e5e7eb;border-radius:3px;height:14px;overflow:hidden">'+
+        '<div style="width:'+pct+'%;height:100%;background:'+s.c+';border-radius:3px;display:flex;align-items:center;padding-left:5px">'+
+        '<span style="font-size:9px;font-weight:700;color:white">'+(s.n||'')+'</span>'+
+        '</div></div></div>';
+    }).join('');
+
+    return '<div style="margin-bottom:14px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;background:#fafafa;page-break-inside:avoid">'+
+      '<div style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#c8a96e;margin-bottom:8px">'+b.emoji+' '+b.nome+' (SLA '+(SLA[bid]||1)+'d)</div>'+
+      // KPIs em uma linha
+      '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin-bottom:10px">'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px 8px"><div style="font-size:16px;font-weight:700;color:'+b.cor+';font-family:monospace;line-height:1">'+totalS+'</div><div style="font-size:8px;color:#888;margin-top:1px">Total</div></div>'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px 8px"><div style="font-size:16px;font-weight:700;color:#ef4444;font-family:monospace;line-height:1">'+urgArr.length+'</div><div style="font-size:8px;color:#888;margin-top:1px">Urgentes</div></div>'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px 8px"><div style="font-size:16px;font-weight:700;color:#f97316;font-family:monospace;line-height:1">'+hjArr.length+'</div><div style="font-size:8px;color:#888;margin-top:1px">Saem hoje</div></div>'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px 8px"><div style="font-size:16px;font-weight:700;color:#a16207;font-family:monospace;line-height:1">'+amArr.length+'</div><div style="font-size:8px;color:#888;margin-top:1px">Amanha</div></div>'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px 8px"><div style="font-size:16px;font-weight:700;color:#3b82f6;font-family:monospace;line-height:1">'+nmArr.length+'</div><div style="font-size:8px;color:#888;margin-top:1px">Proximos</div></div>'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px 8px"><div style="font-size:16px;font-weight:700;color:#c8a96e;font-family:monospace;line-height:1">'+mediaD+'d</div><div style="font-size:8px;color:#888;margin-top:1px">Media</div></div>'+
+      '</div>'+
+      // Gráficos
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:8px 10px">'+
+          '<div style="font-size:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#888;margin-bottom:8px">Por Etapa (lista)</div>'+
+          listasHtml+
+        '</div>'+
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:8px 10px">'+
+          '<div style="font-size:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#888;margin-bottom:8px">Por Prioridade</div>'+
+          statusHtml+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }
+
+  var dashboardsHtml = setoresParaDash.map(montarDashSetorPDF).join('');
+
   // Monta linhas
   var linhas = filtrados.map(function(p) {
     var r = risco(p);
@@ -1442,17 +2070,31 @@ function gerarPDFGeral() {
       '<td colspan="2" style="padding:6px 8px"><span style="background:'+cor+'22;color:'+cor+';border:1px solid '+cor+'44;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">'+r.toUpperCase()+'</span> &nbsp;'+p.artes.length+' caixa(s)</td>' +
       '</tr>';
 
-    // Monta caminho dos setores restantes para o PDF
-    var proxSetores = sa ? BOARDS.filter(function(b2){return b2.ordem > sa.ordem;}) : [];
-    var caminhoTxt = proxSetores.map(function(x){
-      var sla = SLA[x.id]||1;
-      return x.nome+' ('+sla+'d)';
-    }).join(' → ');
-
+    // Caminho dos setores restantes — calculado por arte (cada caixa tem suas etiquetas)
     p.artes.forEach(function(a) {
       var cxM = a.nome.match(/CAIXA\s*(\d+)/i);
       var cxNum = cxM ? 'Cx '+cxM[1] : '';
       var lN = a.listName || '';
+      // Filtra próximos setores pelas etiquetas DESTA arte
+      var lblStr=(a.labels||[]).join(' ').toLowerCase();
+      var temSilk=lblStr.indexOf('silk')>=0;
+      var temImpr=lblStr.indexOf('impress')>=0;
+      var temLaser=lblStr.indexOf('laser')>=0;
+      var temZund=lblStr.indexOf('zund')>=0||lblStr.indexOf('zünd')>=0;
+      var alertaCorte=temLaser&&temZund;
+      var proxSetoresA = sa ? BOARDS.filter(function(b2){
+        if(b2.ordem<=sa.ordem)return false;
+        if(b2.id==='kKxRCcjN')return temSilk;
+        if(b2.id==='dWdRLX04')return temImpr;
+        if(b2.id==='2psxSaAN')return temLaser;
+        if(b2.id==='JdC3HfIg')return temZund&&!temLaser;
+        return true;
+      }) : [];
+      var caminhoTxt = proxSetoresA.map(function(x){
+        var sla = SLA[x.id]||1;
+        return x.nome+' ('+sla+'d)';
+      }).join(' → ');
+      if(alertaCorte)caminhoTxt='⚠ LASER+ZUND — '+caminhoTxt;
       html += '<tr style="border-bottom:1px solid #eee">' +
         '<td style="padding:4px 8px 4px 20px;color:#999;font-size:11px">-</td>' +
         '<td style="padding:4px 8px;font-family:monospace;font-size:12px;color:#333">'+cxNum+'</td>' +
@@ -1481,6 +2123,7 @@ function gerarPDFGeral() {
     '<div style="font-size:13px;color:#666;margin-top:4px">'+titulo+' &nbsp;|&nbsp; '+hoje+'</div></div>' +
     '<div style="text-align:right"><div style="font-size:28px;font-weight:700;color:#c8a96e">'+filtrados.length+'</div><div style="font-size:11px;color:#999">pedidos</div></div>' +
     '</div>' +
+    dashboardsHtml +
     '<table><thead><tr>' +
     '<th>Pedido</th><th>Cliente</th><th>Entrega</th><th>Prazo Final</th><th>Prazo Interno</th><th colspan="2">Detalhes</th>' +
     '</tr></thead><tbody>'+linhas+'</tbody></table>' +
