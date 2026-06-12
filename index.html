@@ -1175,6 +1175,7 @@ function renderProducao(){
         '<div style="font-size:13px;font-weight:700;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+cli+'</div>'+
         // Nome do card
         '<div style="font-size:10px;color:var(--muted);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+primeiro.name+'</div>'+
+        (primeiro.desc&&primeiro.desc.trim()?'<div style="font-size:11px;color:var(--muted2);margin:6px 0;padding:6px 8px;background:var(--bg3);border-left:2px solid '+b.cor+';border-radius:0 4px 4px 0;white-space:pre-line">'+primeiro.desc.trim()+'</div>':'')+
         // Rodapé
         '<div style="display:flex;align-items:center;justify-content:space-between">'+
         (de?'<span style="font-size:10px;color:var(--muted)">'+fD(de)+'</span>':'<span></span>')+
