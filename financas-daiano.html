@@ -293,13 +293,26 @@ function erro(msg){
   document.getElementById("erro").innerHTML = msg ? `<div class="err">${msg}</div>` : "";
 }
 
+/* ---------- JSONP (passa por baixo do CORS do Apps Script) ---------- */
+function jsonp(params){
+  return new Promise((resolve,reject)=>{
+    const cb="cb_"+Date.now()+"_"+Math.floor(Math.random()*100000);
+    const s=document.createElement("script");
+    const timer=setTimeout(()=>{cleanup();reject(new Error("tempo esgotado"));},25000);
+    function cleanup(){ try{delete window[cb];}catch(_){} if(s.parentNode) s.parentNode.removeChild(s); clearTimeout(timer); }
+    window[cb]=function(data){ cleanup(); resolve(data); };
+    const qs=Object.keys(params).map(k=>encodeURIComponent(k)+"="+encodeURIComponent(params[k])).join("&");
+    s.src=CFG.url+(CFG.url.includes("?")?"&":"?")+qs+"&callback="+cb;
+    s.onerror=function(){ cleanup(); reject(new Error("falha de rede/script")); };
+    document.head.appendChild(s);
+  });
+}
+
 async function carregar(){
   if(!CFG.url){ setConn(false,"configure a conexão"); return; }
   setConn(false,"carregando…"); erro("");
   try{
-    const u = CFG.url + (CFG.url.includes("?")?"&":"?") + "token=" + encodeURIComponent(CFG.token);
-    const r = await fetch(u, {method:"GET"});
-    const j = await r.json();
+    const j = await jsonp({token:CFG.token});
     if(!j.ok){ throw new Error(j.erro||"resposta inválida"); }
     DADOS = {lancamentos:j.lancamentos||[], metas:j.metas||[], reserva:j.reserva||[], categorias:j.categorias||[], config:j.config||[]};
     setConn(true, (DADOS.lancamentos.length)+" lançamentos");
@@ -321,8 +334,12 @@ async function acao(payload){
   }
   payload.token = CFG.token;
   try{
-    const r = await fetch(CFG.url, {method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:JSON.stringify(payload)});
-    const j = await r.json();
+    const params={token:CFG.token, acao:payload.acao};
+    if(payload.id) params.id=payload.id;
+    if(payload.dataPagamento) params.dataPagamento=payload.dataPagamento;
+    if(payload.comprovante) params.comprovante=payload.comprovante;
+    if(payload.dados) params.dados=JSON.stringify(payload.dados);
+    const j = await jsonp(params);
     if(!j.ok) throw new Error(j.erro||"erro");
     await carregar();
     return j;
