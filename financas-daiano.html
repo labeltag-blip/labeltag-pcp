@@ -136,6 +136,7 @@
     <button data-tab="metas" onclick="setTab('metas')">Metas</button>
     <button data-tab="reserva" onclick="setTab('reserva')">Reserva</button>
     <button data-tab="relatorios" onclick="setTab('relatorios')">Relatórios</button>
+    <button data-tab="importar" onclick="setTab('importar')">Importar cartão</button>
   </nav>
 
   <div class="filtros no-print">
@@ -392,6 +393,7 @@ function render(){
   else if(TAB==="metas") renderMetas(v);
   else if(TAB==="reserva") renderReserva(v);
   else if(TAB==="relatorios") renderRelatorios(v);
+  else if(TAB==="importar") renderImportar(v);
 }
 
 function lancNoPeriodo(){ return DADOS.lancamentos.filter(l=>noPeriodo(l["Vencimento"]||l["Data Lançamento"])); }
@@ -729,6 +731,117 @@ async function salvarEditar(id){
   };
   fecharModal();
   await acao({acao:"editar", id, dados});
+}
+
+/* ---------- importar fatura do cartão (Sicredi CSV) ---------- */
+let IMP=null;
+const REGRAS_PADRAO={
+  "APPLE":"Assinaturas","NETFLIX":"Assinaturas","SPOTIFY":"Assinaturas","GOOGLE":"Assinaturas","PRIME VIDEO":"Assinaturas","HBO":"Assinaturas","DISNEY":"Assinaturas","YOUTUBE":"Assinaturas",
+  "POSTO":"Transporte","IPIRANGA":"Transporte","SHELL":"Transporte","COMBUSTIVEL":"Transporte","BR DISTRIB":"Transporte","UBER":"Transporte","ESTACIONAMENTO":"Transporte",
+  "ORTAFRUTTI":"Alimentação","HORTI":"Alimentação","SUPER":"Alimentação","MERCADO":"Alimentação","ATACAD":"Alimentação","RESTAURANTE":"Alimentação","IFOOD":"Alimentação","PADARIA":"Alimentação","SIM FARROUPILHA":"Alimentação","ZAFFARI":"Alimentação",
+  "BIER":"Lazer","TEBEX":"Lazer","STEAM":"Lazer","CINEMA":"Lazer","PLAYSTATION":"Lazer","XBOX":"Lazer",
+  "PRIME FITNES":"Saúde","ACADEMIA":"Saúde","FARMACIA":"Saúde","DROGARIA":"Saúde","DROGA":"Saúde","HOSPITAL":"Saúde","CLINICA":"Saúde","LABORATORIO":"Saúde",
+  "IOF":"Impostos/Taxas","ANUIDADE":"Impostos/Taxas","TARIFA":"Impostos/Taxas",
+  "CONFECCOES":"Outros","MAGAZINE":"Outros","AMAZON":"Outros","MERCADO LIVRE":"Outros"
+};
+function regrasLearn(){ try{return JSON.parse(localStorage.getItem("cartao_regras")||"{}");}catch(_){return{};} }
+function regrasSave(r){ try{localStorage.setItem("cartao_regras",JSON.stringify(r));}catch(_){} }
+function normDesc(d){ return String(d||"").replace(/\(\d+\/\d+\)/g,"").replace(/\s+/g," ").trim().toUpperCase(); }
+function sugereCategoria(desc){
+  const aprend=regrasLearn(); const nd=normDesc(desc);
+  if(aprend[nd]) return aprend[nd];
+  for(const k in REGRAS_PADRAO){ if(nd.indexOf(k)>=0) return REGRAS_PADRAO[k]; }
+  return "Outros";
+}
+function parseBRL(s){ s=String(s).replace(/"/g,"").replace(/R\$/gi,"").replace(/\s/g,"").replace(/\./g,"").replace(",","."); const n=parseFloat(s); return isNaN(n)?0:n; }
+function brToIso(d){ const p=String(d||"").trim().split("/"); return p.length===3?(p[2]+"-"+p[1].padStart(2,"0")+"-"+p[0].padStart(2,"0")):""; }
+
+function parseSicredi(text){
+  text=text.replace(/^\uFEFF/,"");
+  const linhas=text.split(/\r?\n/);
+  let venc="", idxHeader=-1;
+  for(let i=0;i<linhas.length;i++){
+    const l=linhas[i];
+    if(/Data de Vencimento/i.test(l)){ const m=(l.split(";")[1]||"").replace(/"/g,"").trim(); if(m) venc=brToIso(m); }
+    if(/^\s*Data\s*;\s*Descri/i.test(l)){ idxHeader=i; break; }
+  }
+  const trans=[];
+  if(idxHeader>=0){
+    for(let i=idxHeader+1;i<linhas.length;i++){
+      const l=linhas[i]; if(!l.trim()) continue;
+      const c=l.split(";");
+      const dataBr=(c[0]||"").trim(); if(!/^\d{2}\/\d{2}\/\d{4}$/.test(dataBr)) continue;
+      const descRaw=(c[1]||"").replace(/\s+/g," ").trim();
+      const parcela=(c[2]||"").replace(/"/g,"").trim();
+      const valor=parseBRL(c[3]||"");
+      const iso=brToIso(dataBr);
+      const desc=parcela?descRaw+" "+parcela:descRaw;
+      trans.push({data:iso, dataBr, desc, valor, key:iso+"|"+valor+"|"+descRaw, categoria:sugereCategoria(descRaw), incluir: valor>0});
+    }
+  }
+  return {vencimento:venc, transacoes:trans};
+}
+function arquivoImport(input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  const reader=new FileReader();
+  reader.onload=e=>{ IMP=parseSicredi(e.target.result); render(); };
+  reader.readAsText(f,"UTF-8");
+}
+function renderImportar(v){
+  const cats=DADOS.categorias.filter(c=>c["Tipo"]==="Despesa").map(c=>c["Categoria"]);
+  if(!IMP){
+    v.innerHTML=`<div class="panel"><h3>Importar fatura do cartão</h3>
+      <p class="small muted" style="margin-bottom:12px">Suba o CSV exportado do Sicredi. Eu leio as compras, sugiro categorias (e aprendo com suas correções) e você confere antes de gravar. Estornos/devoluções ficam de fora — ajuste manualmente se precisar.</p>
+      <input type="file" accept=".csv,text/csv" onchange="arquivoImport(this)">
+    </div>`;
+    return;
+  }
+  const refs={}; DADOS.lancamentos.forEach(l=>{ if(l["Ref"]) refs[String(l["Ref"])]=true; });
+  const linhas=IMP.transacoes.map((t,i)=>{
+    const dup=refs[t.key]; const estorno=t.valor<0;
+    const opts=cats.map(c=>`<option ${c===t.categoria?'selected':''}>${c}</option>`).join("");
+    return `<tr style="${dup?'opacity:.45':''}">
+      <td><input type="checkbox" ${t.incluir&&!dup&&!estorno?'checked':''} ${dup||estorno?'disabled':''} onchange="IMP.transacoes[${i}].incluir=this.checked"></td>
+      <td class="small">${t.dataBr}</td>
+      <td>${t.desc}${estorno?' <span class="small" style="color:var(--amber)">(estorno)</span>':''}${dup?' <span class="small muted">(já importado)</span>':''}</td>
+      <td class="num" style="color:${estorno?'var(--green)':'var(--red)'}">${fmt(t.valor)}</td>
+      <td><select onchange="IMP.transacoes[${i}].categoria=this.value">${opts}</select></td></tr>`;
+  }).join("");
+  const totalSel=IMP.transacoes.filter(t=>t.incluir && !refs[t.key] && t.valor>0).reduce((s,t)=>s+t.valor,0);
+  v.innerHTML=`<div class="panel"><h3>Conferir importação · ${IMP.transacoes.length} compras</h3>
+    <div class="filtros no-print">
+      <div class="field"><label>Vencimento da fatura</label><input type="date" id="impVenc" value="${IMP.vencimento||hojeStr()}"></div>
+      <div class="spacer" style="flex:1"></div>
+      <button class="btn ghost sm" onclick="IMP=null;render()">Cancelar</button>
+      <button class="btn sm" onclick="importarFatura()">Importar selecionados</button>
+    </div>
+    <p class="small muted">Forma: Cartão de crédito · cada compra guarda o mês dela como competência · o vencimento acima vale pra todas. Total selecionado: <b>${fmt(totalSel)}</b></p>
+    <table><thead><tr><th></th><th>Data</th><th>Descrição</th><th class="num">Valor</th><th>Categoria</th></tr></thead><tbody>${linhas}</tbody></table>
+  </div>`;
+}
+async function importarFatura(){
+  const venc=document.getElementById("impVenc").value;
+  const refs={}; DADOS.lancamentos.forEach(l=>{ if(l["Ref"]) refs[String(l["Ref"])]=true; });
+  const aprend=regrasLearn();
+  const itens=IMP.transacoes.filter(t=>t.incluir && !refs[t.key] && t.valor>0).map(t=>{
+    aprend[normDesc(t.desc)]=t.categoria;
+    return {"Tipo":"Despesa","Descrição":t.desc,"Categoria":t.categoria,"Classe":"Variável","Valor (R$)":t.valor,"Vencimento":venc,"Status":"Aberto","Forma":"Cartão de crédito","Recorrente":"Não","Competência (AAAA-MM)":t.data.slice(0,7),"Ref":t.key};
+  });
+  regrasSave(aprend);
+  if(!itens.length){ erro("Nada novo pra importar (ou tudo já importado)."); return; }
+  if(!confirm("Importar "+itens.length+" compra(s) do cartão, vencendo em "+venc+"?")) return;
+  if(DEMO){
+    itens.forEach(d=>{ const id="L"+("000"+(DADOS.lancamentos.length+1)).slice(-4); DADOS.lancamentos.push(Object.assign({"ID":id,"Data Lançamento":hojeStr()},d)); });
+    IMP=null; render(); infoMsg(itens.length+" compra(s) importada(s) (modo exemplo)."); return;
+  }
+  let total=0;
+  for(let i=0;i<itens.length;i+=6){
+    const chunk=itens.slice(i,i+6);
+    try{ const j=await jsonp({token:CFG.token, acao:"novoLote", dados:JSON.stringify(chunk)}); if(j&&j.ok) total+=(j.criados||0); }
+    catch(e){ erro("Falha num lote: "+e.message); }
+  }
+  IMP=null; await carregar();
+  infoMsg(total+" compra(s) do cartão importada(s) e categorizada(s). Veja nas abas Contas/Relatórios.");
 }
 
 /* ---------- init ---------- */
