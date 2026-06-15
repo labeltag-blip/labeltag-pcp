@@ -147,6 +147,7 @@
       <button data-q="ano" onclick="quick('ano')">Ano</button>
     </div>
     <div class="spacer" style="flex:1"></div>
+    <button class="btn ghost sm" onclick="gerarMes()">Gerar contas do mês</button>
     <button class="btn sm" onclick="abrirNovo()">+ Lançamento</button>
   </div>
 
@@ -330,12 +331,21 @@ async function acao(payload){
     else if(payload.acao==="reabrir"){ const l=ls.find(x=>x["ID"]===payload.id); if(l){l["Status"]="Aberto"; l["Data Pagamento"]="";} }
     else if(payload.acao==="excluir"){ DADOS.lancamentos=ls.filter(x=>x["ID"]!==payload.id); }
     else if(payload.acao==="novo"){ const id="L"+("000"+(ls.length+1)).slice(-4); DADOS.lancamentos.push(Object.assign({"ID":id,"Data Lançamento":hojeStr()},payload.dados)); }
+    else if(payload.acao==="gerarMes"){
+      const alvo=payload.mes;
+      const existentes={}; DADOS.lancamentos.forEach(l=>{ if(String(l["Vencimento"]||"").slice(0,7)===alvo) existentes[String(l["Descrição"]).trim()]=true; });
+      const recs={}; DADOS.lancamentos.forEach(l=>{ if(String(l["Recorrente"]).trim()!=="Sim")return; const d=String(l["Descrição"]).trim(); const v=String(l["Vencimento"]||"").slice(0,10); if(!recs[d]||v>recs[d]._v) recs[d]={s:l,_v:v}; });
+      let n=0;
+      Object.keys(recs).forEach(d=>{ if(existentes[d])return; const s=recs[d].s; const dia=parseInt(String(s["Vencimento"]||"").slice(8,10))||1; const [y,m]=alvo.split("-").map(Number); const ult=new Date(y,m,0).getDate(); const dd=Math.min(dia,ult); const venc=alvo+"-"+pad(dd); const id="L"+("000"+(DADOS.lancamentos.length+1)).slice(-4); DADOS.lancamentos.push(Object.assign({},s,{"ID":id,"Vencimento":venc,"Status":"Aberto","Data Pagamento":"","Competência (AAAA-MM)":alvo,"Data Lançamento":hojeStr()})); n++; });
+      render(); return {ok:true,criados:n,mes:alvo};
+    }
     render(); return {ok:true};
   }
   payload.token = CFG.token;
   try{
     const params={token:CFG.token, acao:payload.acao};
     if(payload.id) params.id=payload.id;
+    if(payload.mes) params.mes=payload.mes;
     if(payload.dataPagamento) params.dataPagamento=payload.dataPagamento;
     if(payload.comprovante) params.comprovante=payload.comprovante;
     if(payload.dados) params.dados=JSON.stringify(payload.dados);
@@ -348,6 +358,14 @@ async function acao(payload){
 const quitar = id => { if(confirm("Dar baixa nesta conta como paga?")) acao({acao:"quitar", id}); };
 const reabrir = id => acao({acao:"reabrir", id});
 const excluir = id => { if(confirm("Excluir este lançamento? Não tem volta.")) acao({acao:"excluir", id}); };
+function infoMsg(msg){ document.getElementById("erro").innerHTML = msg ? `<div class="info">${msg}</div>` : ""; }
+async function gerarMes(){
+  if(!CFG.url && !DEMO){ erro("Conecte a planilha primeiro."); return; }
+  const now=new Date(); const mes=now.getFullYear()+"-"+pad(now.getMonth()+1);
+  if(!confirm("Gerar as contas recorrentes do mês "+mes+"?\nAs que já existem no mês não duplicam. Depois você ajusta os valores que mudam (água, luz) e dá baixa quando pagar.")) return;
+  const j = await acao({acao:"gerarMes", mes});
+  if(j && j.ok) infoMsg((j.criados||0)+" conta(s) recorrente(s) gerada(s) para "+mes+". Ajuste os valores que mudaram e dê baixa conforme for pagando.");
+}
 
 /* ---------- filtros ---------- */
 function quick(q){
