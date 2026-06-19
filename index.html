@@ -224,6 +224,8 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
         <input class="inp" id="busca" placeholder="Buscar cliente, pedido, caixa, setor..." oninput="renderGeral()" style="max-width:200px">
         <input class="inp" type="date" id="dataInicio" onchange="renderGeral()" onclick="this.showPicker&&this.showPicker()" style="max-width:140px" title="Data inicio">
         <input class="inp" type="date" id="dataFim" onchange="renderGeral()" onclick="this.showPicker&&this.showPicker()" style="max-width:140px" title="Data fim">
+        <input class="inp" type="number" id="valorMin" placeholder="Valor mín R$" oninput="renderGeral()" style="max-width:120px" title="Valor mínimo (R$)">
+        <button class="fb" id="btnOrdValor" onclick="toggleOrdenarValor()" style="white-space:nowrap">💰 Maior valor</button>
         <button class="btn-o" onclick="gerarPDFGeral()" style="white-space:nowrap;padding:7px 12px">PDF</button>
       </div>
       <div class="tb">
@@ -313,6 +315,8 @@ var API_KEY='',TOKEN='',CLAUDE_KEY='';
 var SLA=JSON.parse(localStorage.getItem('lt_sla')||'null')||SLA_DEF;
 var cache=JSON.parse(localStorage.getItem('lt_ordens')||'{}');
 var pedidos=[],boards={},filtro='todos',aba='geral',setorId=null,filtroSetores=[];
+var ordenarValor=false;
+var VALOR_ALTO=5000; // limite (R$) p/ destacar pedido de "alto valor" atrasado — ajuste conforme sua realidade
 
 function init(){
   var k=localStorage.getItem('lt_key'),t=localStorage.getItem('lt_token'),c=localStorage.getItem('lt_claude');
@@ -564,6 +568,25 @@ function renderTudo(){
   else if(aba==='config')renderConfig();
 }
 
+// ===== VALOR DE FATURAMENTO (lido da descrição do card) =====
+function parseValorStr(s){
+  if(!s)return 0;
+  var m=s.match(/R\$\s*([\d.]+(?:,\d{1,2})?)/i); // formato BR: R$ 3.000,00
+  if(!m)return 0;
+  var n=m[1].replace(/\./g,'').replace(',','.');
+  var v=parseFloat(n);
+  return isNaN(v)?0:v;
+}
+function valorPedido(p){
+  if(p._valor!=null)return p._valor;
+  var v=0;
+  for(var i=0;i<p.artes.length;i++){ var x=parseValorStr(p.artes[i].desc); if(x>v)v=x; }
+  p._valor=v; return v;
+}
+function fmtBRL(v){return 'R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtBRL0(v){return 'R$ '+Math.round(v||0).toLocaleString('pt-BR');}
+function toggleOrdenarValor(){ ordenarValor=!ordenarValor; var b=document.getElementById('btnOrdValor'); if(b)b.classList.toggle('ativo',ordenarValor); renderGeral(); }
+
 function renderStats(){
   var tot=pedidos.length,fat=pedidos.filter(function(p){return p.setores.has('V6wt9KT0');}).length;
   var crit=pedidos.filter(function(p){return risco(p)==='critico';}).length;
@@ -575,9 +598,12 @@ function renderStats(){
 }
 
 function renderBrow(){
+  var valSetor={};
+  pedidos.forEach(function(p){ var sa=setorAtual(p); if(sa){ valSetor[sa.id]=(valSetor[sa.id]||0)+valorPedido(p); } });
   document.getElementById('brow').innerHTML=BOARDS.map(function(b){
     var st=boards[b.id]||{};
-    return '<div class="bp"><div class="bdot" style="background:'+(st.ok?b.cor:'#ef4444')+'"></div><span>'+b.emoji+' '+b.nome+'</span><span style="color:var(--ouro);font-family:\'DM Mono\',monospace">'+(st.qtd||0)+'</span></div>';
+    var rs=valSetor[b.id]||0;
+    return '<div class="bp"><div class="bdot" style="background:'+(st.ok?b.cor:'#ef4444')+'"></div><span>'+b.emoji+' '+b.nome+'</span><span style="color:var(--ouro);font-family:\'DM Mono\',monospace">'+(st.qtd||0)+'</span>'+(rs>0?'<span style="color:#22c55e;font-size:10px;font-weight:700;margin-left:5px">'+fmtBRL0(rs)+'</span>':'')+'</div>';
   }).join('');
 }
 
@@ -585,16 +611,27 @@ function renderGeral(){
   var busca=(document.getElementById('busca').value||'').toLowerCase();
   var dataInicio=document.getElementById('dataInicio')?document.getElementById('dataInicio').value:'';
   var dataFim=document.getElementById('dataFim')?document.getElementById('dataFim').value:'';
+  var valMin=parseFloat((document.getElementById('valorMin')||{}).value)||0;
   var fil=pedidos.filter(function(p){
     var sa=setorAtual(p);
-    var cx=p.artes.map(function(a){var mm=a.nome.match(/CAIXA[\s ]+(\d+)/i);return mm?mm[1]:'';}).join(' ');
-    var hay=_normLbl(p.num+' '+p.cliente+' '+cx+' '+(sa?sa.nome:''));
+    var nomes=p.artes.map(function(a){return a.nome;}).join(' ');
+    var hay=_normLbl(p.num+' '+p.cliente+' '+nomes+' '+(sa?sa.nome:''));
     var mb=!busca||hay.indexOf(_normLbl(busca))>=0;
     var de=p.dataEntrega||'';
     var dentroP=(!dataInicio&&!dataFim)||(!dataInicio&&de<=dataFim)||(!dataFim&&de>=dataInicio)||(de>=dataInicio&&de<=dataFim);
     var ms=!filtroSetores.length||(sa&&filtroSetores.indexOf(sa.id)>=0);
-    return mb&&(filtro==='todos'||risco(p)===filtro)&&dentroP&&ms;
+    var mv=!valMin||valorPedido(p)>=valMin;
+    return mb&&(filtro==='todos'||risco(p)===filtro)&&dentroP&&ms&&mv;
   });
+  // Modo "ordenar por valor" — lista única ranqueada (maior → menor)
+  if(ordenarValor){
+    var ord=fil.slice().sort(function(a,b){return valorPedido(b)-valorPedido(a);});
+    var totVal=ord.reduce(function(s,p){return s+valorPedido(p);},0);
+    var hv='<div class="kcol"><div class="chdr"><div><div style="font-family:\'DM Mono\',monospace;font-size:13px;font-weight:700">💰 Por valor (maior → menor)</div><div style="font-size:10px;color:#22c55e;margin-top:1px">Total: '+fmtBRL0(totVal)+'</div></div><span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:12px;background:#c8a96e22;color:var(--ouro)">'+ord.length+'</span></div>';
+    hv+='<div class="cbody">'+ord.map(miniCard).join('')+'</div></div>';
+    document.getElementById('kanban').innerHTML=hv;
+    return;
+  }
   var fat=fil.filter(function(p){return p.setores.has('V6wt9KT0');});
   var atv=fil.filter(function(p){return!p.setores.has('V6wt9KT0');});
   var grp={};
@@ -620,9 +657,11 @@ function renderGeral(){
 
 function miniCard(p){
   var r=risco(p),sa=setorAtual(p);
+  var valor=valorPedido(p);
+  var ehAltoAtr=(r==='atrasado'&&valor>=VALOR_ALTO);
   var emojis=p.artes.map(function(a){return a.board.emoji;}).filter(function(v,i,arr){return arr.indexOf(v)===i;}).join(' ');
   var al=p.artes.reduce(function(acc,a){return acc+((cache[a.id]&&cache[a.id].artes)?cache[a.id].artes.length:0);},0);
-  var h='<div class="mc '+r+'">';
+  var h='<div class="mc '+r+'"'+(ehAltoAtr?' style="box-shadow:inset 4px 0 0 #fbbf24"':'')+'>';
   h+='<div style="cursor:pointer" onclick="irPara(\''+p.num+'\')">';
   // Extrai números de caixas de todas as artes
 var caixas = p.artes.map(function(a){
@@ -630,9 +669,10 @@ var caixas = p.artes.map(function(a){
   return m ? m[1] : null;
 }).filter(Boolean);
 var caixaInfo = caixas.length ? ' · Cx ' + caixas.join(', ') : '';
-  // Tipo de transporte / frete (descrição do card)
+  // Tipo de transporte / frete (descrição do card, sem o valor R$ que tem badge próprio)
   var frete='';
   for(var fi=0;fi<p.artes.length;fi++){ if(p.artes[fi].desc&&p.artes[fi].desc.trim()){ frete=p.artes[fi].desc.trim().replace(/\s+/g,' '); break; } }
+  frete=frete.replace(/R\$\s*[\d.]+(?:,\d{1,2})?/ig,'').replace(/\s{2,}/g,' ').replace(/^[\s,;|.\-]+|[\s,;|.\-]+$/g,'').trim();
   if(frete.length>90)frete=frete.substring(0,90)+'\u2026';
 h+='<div class="mn">#'+p.num+'</div><div class="mcliente">'+p.cliente+caixaInfo+'</div>';
   h+='<div class="mset"><span>'+emojis+'</span>';
@@ -645,6 +685,7 @@ h+='<div class="mn">#'+p.num+'</div><div class="mcliente">'+p.cliente+caixaInfo+
   if(al>0)h+='<span class="chip" style="color:#22c55e">'+al+' artes</span>';
   h+='</div>';
   if(frete)h+='<div style="font-size:10px;color:var(--muted2);margin-top:5px;display:flex;gap:4px;align-items:flex-start;line-height:1.35"><span>🚚</span><span>'+frete+'</span></div>';
+  if(valor>0)h+='<div style="font-size:11px;font-weight:700;margin-top:5px;color:'+(ehAltoAtr?'#fbbf24':'#22c55e')+'">💰 '+fmtBRL(valor)+(ehAltoAtr?' · ⚠ alto valor atrasado':'')+'</div>';
   h+='</div>';
   if(p.artes.length===1){
     var c0=cache[p.artes[0].id],bt=c0?('✅ '+(c0.artes?c0.artes.length:0)+' arte(s)'):'📝 Artes';
@@ -2311,16 +2352,19 @@ function gerarPDFGeral() {
   var titulo = [periodo, setoresSel].filter(Boolean).join(' | ') || 'Todos os pedidos';
 
   // Filtra pedidos
+  var valMinPdf = parseFloat((document.getElementById('valorMin')||{}).value)||0;
   var filtrados = pedidos.filter(function(p) {
     var sa = setorAtual(p);
-    var cx = p.artes.map(function(a){var mm=a.nome.match(/CAIXA[\s ]+(\d+)/i);return mm?mm[1]:'';}).join(' ');
-    var hay = _normLbl(p.num+' '+p.cliente+' '+cx+' '+(sa?sa.nome:''));
+    var nomes = p.artes.map(function(a){return a.nome;}).join(' ');
+    var hay = _normLbl(p.num+' '+p.cliente+' '+nomes+' '+(sa?sa.nome:''));
     var mb = !buscaVal || hay.indexOf(_normLbl(buscaVal)) >= 0;
     var de = p.dataEntrega || '';
     var dentroP = (!dataI && !dataF) || (!dataI && de <= dataF) || (!dataF && de >= dataI) || (de >= dataI && de <= dataF);
     var ms = !filtroSetores.length || (sa && filtroSetores.indexOf(sa.id) >= 0);
-    return mb && (filtro === 'todos' || risco(p) === filtro) && dentroP && ms;
+    var mv = !valMinPdf || valorPedido(p) >= valMinPdf;
+    return mb && (filtro === 'todos' || risco(p) === filtro) && dentroP && ms && mv;
   }).sort(function(a,b) {
+    if (ordenarValor) return valorPedido(b) - valorPedido(a);
     if (!a.dataEntrega) return 1;
     if (!b.dataEntrega) return -1;
     return new Date(a.dataEntrega) - new Date(b.dataEntrega);
@@ -2451,10 +2495,12 @@ function gerarPDFGeral() {
     p.artes.forEach(function(a){if(a.listName)listN=a.listName;});
     var frete='';
     for(var fi=0;fi<p.artes.length;fi++){ if(p.artes[fi].desc&&p.artes[fi].desc.trim()){ frete=p.artes[fi].desc.trim().replace(/\s+/g,' '); break; } }
+    frete=frete.replace(/R\$\s*[\d.]+(?:,\d{1,2})?/ig,'').replace(/\s{2,}/g,' ').replace(/^[\s,;|.\-]+|[\s,;|.\-]+$/g,'').trim();
+    var valorP=valorPedido(p);
 
     var html = '<tr style="background:#f5f5f5;border-bottom:2px solid #ddd">' +
       '<td style="padding:6px 8px;font-family:monospace;color:'+cor+';font-weight:800">#'+p.num+'</td>' +
-      '<td style="padding:6px 8px;font-weight:700">'+p.cliente+(frete?'<div style="font-size:10px;font-weight:400;color:#666;margin-top:2px">🚚 '+frete+'</div>':'')+'</td>' +
+      '<td style="padding:6px 8px;font-weight:700">'+p.cliente+(frete?'<div style="font-size:10px;font-weight:400;color:#666;margin-top:2px">🚚 '+frete+'</div>':'')+(valorP>0?'<div style="font-size:11px;font-weight:700;color:#15803d;margin-top:2px">💰 '+fmtBRL(valorP)+'</div>':'')+'</td>' +
       '<td style="padding:6px 8px;text-align:center">'+dtFmt+'</td>' +
       '<td style="padding:6px 8px;text-align:center;color:'+cor+';font-weight:700">'+dtFinal+'</td>' +
       '<td style="padding:6px 8px;text-align:center;color:'+corInt+';font-weight:700">'+dtInt+'</td>' +
