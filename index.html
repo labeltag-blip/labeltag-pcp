@@ -439,7 +439,7 @@ function coletarHistorico(diasAtras){
     Object.keys(eventosPorCard).forEach(function(cid){
       var eventos=eventosPorCard[cid].sort(function(a,b){return new Date(a.data)-new Date(b.data);});
       var nome=eventos[0].cardName||'';
-      var m=nome.match(/^(\d+)[^\s-]*\s*[-–]\s*(.+)/);
+      var m=nome.match(/^(\d+)(?:\/\d+)?[^-–]*[-–]\s*(.+)/);
       if(!m)return;
       var num=m[1];
       if(!novoHist[num])novoHist[num]={num:num,nome:nome,cliente:m[2].split(/\s*[-–]\s*/).pop().trim(),passagens:[]};
@@ -508,7 +508,7 @@ function sincronizar(){
     return tGet('/boards/'+b.id+'/lists',{fields:'id,name'}).then(function(lists){
           var listMap={};
           lists.forEach(function(l){listMap[l.id]=l.name;});
-          return tGet('/boards/'+b.id+'/cards/open',{fields:'name,due,labels,url,desc,idList,dateLastActivity'}).then(function(cards){
+          return tGet('/boards/'+b.id+'/cards/open',{fields:'name,due,labels,url,desc,idList'}).then(function(cards){
             cards.forEach(function(c){c.listName=listMap[c.idList]||''; if(c.name)c.name=c.name.replace(/(\d)\s*\/\s*(\d)/g,'$1/$2');});
             return{board:b,cards:cards,lists:lists};
           });
@@ -520,7 +520,7 @@ function sincronizar(){
       if(r.status==='fulfilled'){
         boards[b.id]={ok:true,qtd:r.value.cards.length,cards:r.value.cards,lists:r.value.lists||[]};
         r.value.cards.forEach(function(card){
-          var m=card.name.match(/^(\d+)[^\s-]*\s*[-\u2013]\s*(.+)/);
+          var m=card.name.match(/^(\d+)(?:\/\d+)?[^-\u2013]*[-\u2013]\s*(.+)/);
           if(!m)return;
           var num=m[1],cli=m[2].split(/\s*[-\u2013]\s*/).pop().trim();
           if(!grupos[num])grupos[num]={num:num,cliente:cli,dataEntrega:card.due?card.due.substring(0,10):null,artes:[],setores:new Set()};
@@ -728,7 +728,7 @@ function renderSetor(bid){
   var b=BOARDS.find(function(x){return x.id===bid;});if(!b)return;
   var cards=(boards[bid]&&boards[bid].cards)||[];
   var tasks=cards.map(function(card){
-    var m=card.name.match(/^(\d+)[^\s-]*\s*[-\u2013]\s*(.+)/);if(!m)return null;
+    var m=card.name.match(/^(\d+)(?:\/\d+)?[^-\u2013]*[-\u2013]\s*(.+)/);if(!m)return null;
     var num=m[1],ped=pedidos.find(function(p){return p.num===num;});
     var de=card.due?card.due.substring(0,10):(ped?ped.dataEntrega:null);
     var d=dR(de),labels=(ped?ped.artes.filter(function(a){return a.id===card.id;})[0]:null),lblArr=labels?labels.labels||[]:((card.labels||[]).map(function(l){return l.name||'';})),slaP=getSlaPost(b.ordem,lblArr,ped?ped.setores:null);
@@ -938,7 +938,7 @@ function agruparConsol(){
     if (!grpPedido[num]) grpPedido[num] = {num:num, cliente:cli, dataEntrega:de, caixas:[], rota:(ped?rotaPedido(ped):'')};
     if (!grpPedido[num].dataEntrega && de) grpPedido[num].dataEntrega = de;
     var c0 = cache[card.id];
-    grpPedido[num].caixas.push({ id: card.id, nome: card.name, caixaNum: caixaNum, numCompleto: numCompleto, sufixo: sufixo, board: b, url: card.url, listName: card.listName||'', pronta: b.id === 'V6wt9KT0' || b.id === '8LcFwJ0v', dla: card.dateLastActivity||null, artes: c0 && c0.artes ? c0.artes : [] });
+    grpPedido[num].caixas.push({ id: card.id, nome: card.name, caixaNum: caixaNum, numCompleto: numCompleto, sufixo: sufixo, board: b, url: card.url, listName: card.listName||'', pronta: b.id === 'V6wt9KT0' || b.id === '8LcFwJ0v', artes: c0 && c0.artes ? c0.artes : [] });
   });
   var grpCliente = {};
   Object.values(grpPedido).forEach(function(p) {
@@ -991,79 +991,6 @@ function toggleConsolData(){ consolOrdData=!consolOrdData; renderConsol(); }
 // "Libera pedido": pedido quase fechado — ≥1 caixa pronta e faltam no máx 2
 function liberaPedido(g){ var ready=g.caixas.filter(function(c){return c.pronta;}).length, total=g.caixas.length; return total>1 && ready>=1 && (total-ready)<=2; }
 
-// ----- DASHBOARD DE REPRESAMENTO (caixas prontas presas por irmã atrasada) -----
-// "dias parado" da retardatária: fonte 2 (histórico de setor) quando o setor registrado
-// coincide com o setor atual da caixa; senão fallback em dateLastActivity (aproximado).
-// LIMITAÇÃO: o histórico é chaveado por nº de pedido, não por card, então a fonte
-// precisa do fallback com frequência. A DISPERSÃO (nº de pedidos/caixas presas) é exata.
-function diasParadoCx(c, num){
-  var hoje=new Date().toISOString();
-  var h=historicoSetores[num];
-  if(h && h.setorAtual===c.board.id && h.entradaSetorAtual){
-    return {dias:diasUteisEntre(h.entradaSetorAtual,hoje), fonte:'hist'};
-  }
-  if(c.dla){ return {dias:diasUteisEntre(c.dla,hoje), fonte:'aprox'}; }
-  return {dias:null, fonte:null};
-}
-function analisarRepresamento(grpPedido){
-  var itens=[];
-  Object.values(grpPedido).forEach(function(g){
-    if(!g.caixas || g.caixas.length<2) return;
-    var prontas=g.caixas.filter(function(c){return c.pronta;});
-    var naoProntas=g.caixas.filter(function(c){return !c.pronta;});
-    if(naoProntas.length===0) return;   // pedido completo, pode faturar
-    if(prontas.length===0) return;      // nada adiantado preso ainda
-    var lag=naoProntas.slice().sort(function(a,b){return stageOf(a.board)-stageOf(b.board);})[0];
-    var dp=diasParadoCx(lag,g.num);
-    itens.push({ g:g, num:g.num, cliente:g.cliente, prontasPresas:prontas.length,
-      retardatarias:naoProntas, lag:lag, dias:dp.dias, fonteDias:dp.fonte, entrega:dR(g.dataEntrega) });
-  });
-  itens.sort(function(a,b){
-    if(b.prontasPresas!==a.prontasPresas) return b.prontasPresas-a.prontasPresas;
-    var da=a.dias==null?-1:a.dias, db=b.dias==null?-1:b.dias; if(db!==da) return db-da;
-    var ea=a.entrega==null?999:a.entrega, eb=b.entrega==null?999:b.entrega; return ea-eb;
-  });
-  var totPresas=itens.reduce(function(s,i){return s+i.prontasPresas;},0);
-  var piorDias=itens.reduce(function(m,i){return (i.dias!=null&&i.dias>m)?i.dias:m;},0);
-  return {itens:itens, pedidos:itens.length, prontasPresas:totPresas, piorDias:piorDias};
-}
-function _repKpi(n,l,cor){
-  return '<div style="flex:1;min-width:110px;background:var(--bg3);border-radius:8px;padding:10px 14px;text-align:center">'+
-    '<div style="font-family:\'DM Mono\',monospace;font-size:24px;font-weight:700;color:'+cor+'">'+n+'</div>'+
-    '<div style="font-size:10px;color:var(--muted);margin-top:2px">'+l+'</div></div>';
-}
-function renderDashRepresamento(grpPedido){
-  var r=analisarRepresamento(grpPedido);
-  if(r.pedidos===0){
-    return '<div style="background:var(--bg2);border:1px solid rgba(34,197,94,.3);border-radius:10px;padding:14px 18px;margin-bottom:14px;display:flex;align-items:center;gap:10px">'+
-      '<span style="font-size:18px">✅</span><span style="font-size:13px;color:#22c55e;font-weight:600">Nenhum pedido represado — nenhuma caixa pronta está presa esperando irmã atrasada.</span></div>';
-  }
-  var kpis='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">'+
-    _repKpi(r.pedidos,'Pedidos represados','#f97316')+
-    _repKpi(r.prontasPresas,'Caixas prontas presas','#ef4444')+
-    _repKpi(r.piorDias?r.piorDias+'d':'—','Caixa mais parada','#eab308')+'</div>';
-  var linhas=r.itens.slice(0,10).map(function(i){
-    var lagTxt='Cx '+(i.lag.caixaNum||i.lag.numCompleto||'?')+' · '+i.lag.board.emoji+' '+i.lag.board.nome;
-    var nLag=i.retardatarias.length;
-    var diasTxt=i.dias!=null?(i.dias+'d'+(i.fonteDias==='aprox'?'~':'')):'';
-    var entTxt=i.entrega===999?'':(i.entrega<0?Math.abs(i.entrega)+'d atraso':i.entrega===0?'hoje':i.entrega+'d');
-    var entCor=i.entrega<0?'#ef4444':i.entrega<=2?'#f97316':'#94a3b8';
-    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--border)">'+
-      '<span style="font-family:\'DM Mono\',monospace;color:var(--ouro);font-size:12px;font-weight:700;min-width:50px">#'+i.num+'</span>'+
-      '<span style="font-size:12px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+i.cliente+'</span>'+
-      '<span style="font-size:11px;color:#ef4444;font-weight:700;white-space:nowrap">'+i.prontasPresas+' presa(s)</span>'+
-      '<span style="font-size:11px;color:var(--muted2);white-space:nowrap" title="'+(nLag>1?nLag+' caixas seguram o pedido':'')+'">➜ '+lagTxt+(nLag>1?' +'+(nLag-1):'')+'</span>'+
-      (diasTxt?'<span style="font-size:10px;color:#eab308;white-space:nowrap">'+diasTxt+'</span>':'')+
-      (entTxt?'<span style="font-size:10px;color:'+entCor+';white-space:nowrap">'+entTxt+'</span>':'')+
-      '<a href="'+i.lag.url+'" target="_blank" class="trl">↗</a></div>';
-  }).join('');
-  var maisTxt=r.itens.length>10?'<div style="font-size:10px;color:var(--muted);padding:6px 10px">+'+(r.itens.length-10)+' outros pedidos represados</div>':'';
-  return '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:14px">'+
-    '<div style="font-size:13px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px"><span>🔒</span>Caixas presas — prontas esperando irmã atrasada</div>'+
-    '<div style="font-size:10px;color:var(--muted);margin-bottom:10px">Dispersão exata · tempo parado da retardatária (~ = aproximado, sem histórico de setor)</div>'+
-    kpis+
-    '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">'+linhas+maisTxt+'</div></div>';
-}
 function renderConsol(){
   var busca = (document.getElementById('consolB') ? document.getElementById('consolB').value : '').toLowerCase();
   var fData = document.getElementById('consolD') ? document.getElementById('consolD').value : '';
@@ -1229,7 +1156,6 @@ function renderConsol(){
     '<div class="sc"><div class="sn" style="color:#f97316">' + aguard.length + '</div><div class="sl">Aguardando</div></div>' +
     '<div class="sc"><div class="sn" style="color:var(--ouro)">' + Object.keys(grpCliente).length + '</div><div class="sl">Clientes</div></div>' +
     '</div>' +
-    renderDashRepresamento(grpPedido) +
     '<div class="tb">' +
     '<input class="inp" id="consolB" placeholder="Buscar pedido ou cliente..." style="max-width:240px" oninput="buscarConsol(this.value)" value="' + (busca||'') + '">' +
     '<input class="inp" type="date" id="consolD" style="max-width:150px" onchange="renderConsol()" onclick="this.showPicker&&this.showPicker()" value="' + (fData||'') + '">' +
@@ -1800,7 +1726,7 @@ function renderACaminho(){
       var ped=pedidos.find(function(p){return p.num===base;});
       var de=c.due?c.due.substring(0,10):(ped?ped.dataEntrega:null);
       var cli=ped?ped.cliente:(m?m[2].split(/\s*-\s*/).pop().trim():'');
-      return {num:num,base:base,cli:cli,de:de,d:dR(de),url:c.url,rota:rotaCorte(c.labels),foraPadrao:!m,labels:(c.labels||[]).map(function(l){return (l&&l.name)?l.name:'(sem nome)';})};
+      return {num:num,base:base,cli:cli,de:de,d:dR(de),url:c.url,rota:rotaCorte(c.labels),labels:(c.labels||[]).map(function(l){return (l&&l.name)?l.name:'(sem nome)';})};
     });
   }
   function vindoPara(b){
@@ -1862,16 +1788,11 @@ function renderACaminho(){
     var linhas=itens.map(function(it){
       var dc=it.d===999?'var(--muted)':it.d<0?'#ef4444':it.d<=2?'#f97316':it.d<=5?'#eab308':'#22c55e';
       var dt=it.d===999?'sem data':it.d<0?(Math.abs(it.d)+'d atraso'):it.d===0?'hoje':it.d===1?'amanhã':(it.d+'d');
-      var fp=it.foraPadrao;
-      var header=fp
-        ? '<span style="font-size:10px;font-weight:700;color:#a855f7;background:#a855f733;border-radius:4px;padding:1px 6px">⚠ fora do padrão</span>'
-        : '<span style="font-family:monospace;font-size:11px;color:var(--ouro);font-weight:700">#'+it.num+'</span>';
-      var corpo=fp?it.num:(it.cli||'—');
-      return '<a href="'+it.url+'" target="_blank" style="display:block;text-decoration:none;background:var(--bg2);border:1px solid '+(fp?'#a855f755':'var(--border)')+';border-left:3px solid '+(fp?'#a855f7':dc)+';border-radius:8px;padding:8px 10px;margin-bottom:6px">'+
+      return '<a href="'+it.url+'" target="_blank" style="display:block;text-decoration:none;background:var(--bg2);border:1px solid var(--border);border-left:3px solid '+dc+';border-radius:8px;padding:8px 10px;margin-bottom:6px">'+
         '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">'+
-        header+
+        '<span style="font-family:monospace;font-size:11px;color:var(--ouro);font-weight:700">#'+it.num+'</span>'+
         '<span style="margin-left:auto;font-size:10px;font-weight:700;color:'+dc+'">'+dt+'</span></div>'+
-        '<div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+corpo+'</div>'+
+        '<div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(it.cli||'—')+'</div>'+
         (it.de?'<div style="font-size:10px;color:var(--muted)">entrega '+fD(it.de)+'</div>':'')+
         '</a>';
     }).join('')||'<div style="background:var(--bg3);border:1px dashed var(--border);border-radius:8px;padding:14px;text-align:center;color:var(--muted);font-size:11px">Vazio</div>';
@@ -2784,7 +2705,7 @@ function gerarPDFSetor(bid) {
   var cores = {urgente:'#ef4444',hoje:'#f97316',amanha:'#eab308',normal:'#3b82f6'};
 
   var tasks = cards.map(function(card){
-    var m = card.name.match(/^(\d+)[^\s-]*\s*[-–]\s*(.+)/);
+    var m = card.name.match(/^(\d+)(?:\/\d+)?[^-–]*[-–]\s*(.+)/);
     if (!m) return null;
     var num = m[1];
     var ped = pedidos.find(function(p){return p.num===num;});
@@ -2952,7 +2873,7 @@ function gerarPDFGeral() {
   // Setores selecionados
   var setoresSel = '';
   if (setoresExcluidos.length) {
-    setoresSel = 'exceto ' + setoresExcluidos.map(function(id){
+    setoresSel = 'exceto ' + setoresExcluidos.map(function(id) {
       var b = BOARDS.find(function(x){return x.id===id;});
       return b ? b.nome : id;
     }).join(', ');
@@ -3001,7 +2922,7 @@ function gerarPDFGeral() {
 
     // Calcula stats por card (igual gerarPDFSetor)
     var stats = cards.map(function(card){
-      var m = card.name.match(/^(\d+)[^\s-]*\s*[-–]\s*(.+)/);
+      var m = card.name.match(/^(\d+)(?:\/\d+)?[^-–]*[-–]\s*(.+)/);
       if (!m) return null;
       var ped = pedidos.find(function(p){return p.num===m[1];});
       var de = card.due ? card.due.substring(0,10) : (ped ? ped.dataEntrega : null);
