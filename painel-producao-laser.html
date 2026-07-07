@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Painel Produção · Laser</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -96,6 +97,9 @@ h1,h2,h3{margin:0}
 .grp-sep{grid-column:1/-1;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--laser);font-weight:700;border-top:1px solid var(--line);padding-top:12px;margin-top:2px}
 .prod-block{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
 .prod-block.hidden{display:none}
+.prod-block.mode-picote .corte-only{display:none!important}
+.prod-block.mode-picote .picote-only{display:block!important}
+.prod-block.mode-corte .picote-only{display:none!important}
 .op-alert{grid-column:1/-1;display:none;padding:10px 14px;border-radius:9px;font-size:13px;font-weight:600}
 .op-alert.warn{display:block;background:#fff7e6;border:1px solid #f0c040;color:#8a6100}
 .op-alert.crit{display:block;background:var(--neg-bg);border:1px solid var(--neg);color:#a3232a}
@@ -236,6 +240,7 @@ canvas{max-height:300px}
   <button class="tab active" data-view="lanc">Lançamento</button>
   <button class="tab" data-view="dash">Dashboard</button>
   <button class="tab" data-view="reg">Registros</button>
+  <button class="tab" data-view="rnc">RNC</button>
 </div>
 
 <div class="wrap">
@@ -248,7 +253,7 @@ canvas{max-height:300px}
     <div class="form-grid">
 
       <div class="fld"><label>Máquina</label>
-        <select id="f_maquina" class="maq-select"><option>Laser 2</option><option>Laser 4</option><option>Infinity</option><option>Infinity Scan</option><option>X-Type</option></select></div>
+        <select id="f_maquina" class="maq-select"><option>Laser 2</option><option>Laser 4</option><option>Infinity</option><option>Infinity Scan</option><option>X-Type</option><option>Easy_picote</option></select></div>
 
       <div class="fld"><label>Tipo</label>
         <div class="seg laser" id="segTipo">
@@ -258,8 +263,7 @@ canvas{max-height:300px}
         </div><input type="hidden" id="f_tipo" value="Corte"></div>
 
       <div class="fld"><label>Operador</label>
-        <input list="opList" id="f_operador" placeholder="Nome" autocomplete="off">
-        <datalist id="opList"></datalist></div>
+        <select id="f_operador"></select></div>
 
       <div class="fld"><label>Turno <span class="hint">(auto, pela hora início)</span></label>
         <div id="turnoChip" class="turno-chip">—</div></div>
@@ -291,31 +295,33 @@ canvas{max-height:300px}
           <option>3D Flex</option><option>Flock</option><option>Fusion Tag</option><option>Dome Tag</option>
           <option>4D Touch</option><option>Policarbonato</option>
         </select></div>
-      <div class="fld"><label>Matéria-prima</label><input list="mpList" id="f_mp" placeholder="ex: Metallic Prata 1800, Dourado 3505, Prata 251"><datalist id="mpList"></datalist></div>
+      <div class="fld corte-only"><label>Matéria-prima</label><input list="mpList" id="f_mp" placeholder="ex: Metallic Prata 1800, Dourado 3505, Prata 251"><datalist id="mpList"></datalist></div>
+      <div class="fld picote-only" style="display:none"><label>Máscara</label><select id="f_mascara" class="mono"><option value="">—</option><option value="FL80">FL80</option><option value="FL150">FL150</option></select></div>
 
       <div class="grp-sep">Cartela e processo</div>
       <div class="fld"><label>Quantidade de cartelas da OP</label><input id="f_cartelasOP" class="mono" inputmode="numeric" placeholder="0"></div>
-      <div class="fld"><label>Cartela (mm)</label>
+      <div class="fld corte-only"><label>Cartela (mm)</label>
         <div class="dim"><input id="f_tamcartL" class="mono" inputmode="numeric" maxlength="3" placeholder="larg"><span>×</span><input id="f_tamcartA" class="mono" inputmode="numeric" maxlength="3" placeholder="alt"></div></div>
-      <label class="proc-toggle" id="tgCorte"><input type="checkbox" id="f_procCorte"> Corte</label>
-      <label class="proc-toggle" id="tgGrav"><input type="checkbox" id="f_procGrav"> Gravação e corte</label>
-      <label class="proc-toggle" id="tgCam"><input type="checkbox" id="f_procCam"> Registro por câmera</label>
-      <label class="proc-toggle" id="tgJan"><input type="checkbox" id="f_procJan"> Corte por janela</label>
+      <label class="proc-toggle corte-only" id="tgCorte"><input type="checkbox" id="f_procCorte"> Corte</label>
+      <label class="proc-toggle corte-only" id="tgGrav"><input type="checkbox" id="f_procGrav"> Gravação e corte</label>
+      <label class="proc-toggle corte-only" id="tgCam"><input type="checkbox" id="f_procCam"> Registro por câmera</label>
+      <label class="proc-toggle corte-only" id="tgJan"><input type="checkbox" id="f_procJan"> Corte por janela</label>
 
-      <div class="grp-sep">Peça e valor</div>
-      <div class="fld"><label>Arte (mm)</label>
+      <div class="grp-sep corte-only">Peça e valor</div>
+      <div class="fld corte-only"><label>Arte (mm)</label>
         <div class="dim"><input id="f_tampecaL" class="mono" inputmode="numeric" maxlength="3" placeholder="larg"><span>×</span><input id="f_tampecaA" class="mono" inputmode="numeric" maxlength="3" placeholder="alt"></div></div>
-      <div class="fld"><label>Quantidade de peças por cartela</label><input id="f_ppc" class="mono" inputmode="numeric" placeholder="0"></div>
-      <div class="fld"><label>Valor unit. peça R$</label><input id="f_valor" class="mono" placeholder="0,00" inputmode="decimal"></div>
+      <div class="fld corte-only"><label>Quantidade de peças por cartela</label><input id="f_ppc" class="mono" inputmode="numeric" placeholder="0"></div>
+      <div class="fld corte-only"><label>Valor unit. peça R$</label><input id="f_valor" class="mono" placeholder="0,00" inputmode="decimal"></div>
 
       <div class="grp-sep">Produção / corte</div>
-      <div class="fld"><label>Tempo 1 cartela <span class="hint">(mm:ss)</span></label><input id="f_tcart" class="mono" placeholder="00:00"></div>
+      <div class="fld corte-only"><label>Tempo 1 cartela <span class="hint">(mm:ss)</span></label><input id="f_tcart" class="mono" placeholder="00:00"></div>
       <div class="fld"><label>Quantidade de cartelas produzidas</label><input id="f_cartProd" class="mono" inputmode="numeric" placeholder="0"></div>
-      <div class="fld"><label>Quantidade de peças cortadas</label><input id="f_pecasCort" class="mono" inputmode="numeric" placeholder="0"><div class="calc" id="calcCort"></div></div>
+      <div class="fld corte-only"><label>Quantidade de peças cortadas <span style="font-size:10px;color:var(--ink2)">(auto: cart×pç/cart)</span></label><input id="f_pecasCort" class="mono" inputmode="numeric" placeholder="0" readonly style="background:#f4f5f7;cursor:not-allowed"><div class="calc" id="calcCort"></div></div>
+      <div class="fld picote-only" style="display:none"><label>Tempo por cartela (picote) <span style="font-size:10px;color:var(--ink2)">(auto)</span></label><input id="f_tpicoteCart" class="mono" readonly style="background:#f4f5f7" placeholder="—"></div>
       </div>
 
       <div class="handoff-box" id="handoffBox">
-        <div class="fld"><label>Assume operador</label><input list="opList" id="f_hOp" placeholder="Nome"></div>
+        <div class="fld"><label>Assume operador</label><select id="f_hOp"></select></div>
         <div class="fld"><label>Turno que assume</label>
           <select id="f_hTurno"><option value="T1">1º Turno</option><option value="T2">2º Turno</option><option value="T3">3º Turno</option></select></div>
         <div class="fld"><label>Hora da passagem</label><input type="time" id="f_hHora" step="1"></div>
@@ -334,6 +340,11 @@ canvas{max-height:300px}
         <div id="ltNaoCort" style="font-size:12px;color:var(--ink2);margin-top:2px"></div>
       </div>
       <button class="btn btn-primary" id="btnSalvar">Lançar OP</button>
+    </div>
+
+    <div class="rnc-box" id="rncBox" style="grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 14px;background:#eef3ff;border:1px dashed #2f6bff;border-radius:10px;margin-top:12px">
+      <label class="chk" style="font-weight:700;color:#2f6bff"><input type="checkbox" id="chkRnc"> RNC — retrabalho (não conformidade)</label>
+      <input type="text" id="f_rncMotivo" placeholder="Motivo da RNC (obrigatório)" style="flex:1;min-width:220px;display:none">
     </div>
   </div>
 </div>
@@ -365,6 +376,25 @@ canvas{max-height:300px}
     <canvas id="chartDias"></canvas>
     <div class="cfg-hint" style="padding-top:8px">Últimos dias com lançamento. Ocupação = soma do tempo início→próximo início por máquina no dia.</div>
   </div>
+  <div class="card dash-wide" style="margin-top:18px;border:1px solid #2f6bff;background:#f5f8ff">
+    <h2 style="color:#2f6bff">⚠ PERDAS RNC — retrabalho por não conformidade (não entra no faturamento)</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin:12px 0">
+      <div class="mcard"><div class="mt">R$ PERDA</div><div class="mv mono" id="rncPerda" style="color:#2f6bff">R$ 0</div></div>
+      <div class="mcard"><div class="mt">Nº LANÇAMENTOS RNC</div><div class="mv mono" id="rncLanc" style="color:#2f6bff">0</div></div>
+      <div class="mcard"><div class="mt">TEMPO-MÁQUINA RNC</div><div class="mv mono" id="rncTempo" style="color:#2f6bff">00:00</div></div>
+      <div class="mcard"><div class="mt">CARTELAS REFEITAS</div><div class="mv mono" id="rncCart" style="color:#2f6bff">0</div></div>
+      <div class="mcard"><div class="mt">PEÇAS REFEITAS</div><div class="mv mono" id="rncPecas" style="color:#2f6bff">0</div></div>
+    </div>
+    <div style="margin-top:6px">
+      <div class="cfg-hint" style="font-weight:700;margin-bottom:4px">Histórico de motivos (dia atual):</div>
+      <div id="rncMotivos" style="font-size:13px;line-height:1.7"></div>
+    </div>
+  </div>
+  <div class="card dash-wide" style="margin-top:18px">
+    <h2>Ocupação por máquina e turno — horas</h2>
+    <div style="height:340px"><canvas id="chartUtilTurno"></canvas></div>
+    <div class="cfg-hint" style="padding-top:8px">Ocupação (h) de cada máquina, empilhada por turno. Clique na legenda para mostrar/ocultar um turno.</div>
+  </div>
 </div>
 
 <!-- ============ REGISTROS ============ -->
@@ -390,12 +420,31 @@ canvas{max-height:300px}
   </div>
 </div>
 
+<div class="view" id="view-rnc">
+  <div class="card dash-wide" style="border:1px solid #2f6bff;background:#f5f8ff">
+    <h2 style="color:#2f6bff">⚠ HISTÓRICO DE RNC — todos os registros (todas as datas)</h2>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:10px 0">
+      <button class="btn btn-primary" id="btnRncReload">Atualizar</button>
+      <button class="btn btn-ghost" id="btnRncCsv">Exportar CSV (para IA)</button>
+      <span id="rncAbaResumo" style="font-size:13px;color:var(--ink2)"></span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Data</th><th>Máquina</th><th>Operador</th><th>Nº Pedido</th><th>Cód. Produto</th><th>Motivo da RNC</th><th>Cartelas ref.</th><th>Peças ref.</th>
+        </tr></thead>
+        <tbody id="rncBody"><tr><td colspan="8" class="empty">Clique em "Atualizar" para carregar o histórico.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 </div>
 
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const OPS_SEED=['Luis','Guilherme','Adilson','Ruan','Adriano','Maxoel','Lilian','Camila','Matheus'];
-const MAQS=['Laser 2','Laser 4','Infinity','Infinity Scan','X-Type'];
+const MAQS=['Laser 2','Laser 4','Infinity','Infinity Scan','X-Type','Easy_picote'];
 // Turnos: classificados pela HORA DE INÍCIO da OP. Corte da sobreposição no meio: 1º→2º=15:11, 2º→3º=21:16.
 // Disponível líquido/dia: 1º=8h48(528min) · 2º=6h00(360min) · 3º=7h48(468min).
 const TURNOS=[
@@ -446,6 +495,27 @@ const TOLERANCIA=5;         // ± % antes de sinalizar
 /* estimado = cartelas×tempo1cartela + cartelas×20s (troca) + 180s (setup fixo por pedido) */
 const FALLBACK_FOLGA_S=20;  // por cartela
 const FALLBACK_SETUP_S=180; // por pedido
+const PICOTE_FALLBACK_SCART=8; // s/cartela até haver histórico
+let picoteMedia={}; // {maquina: segundos por cartela (média histórica)}
+async function loadPicoteMedia(){
+  if(!_sb) return;
+  try{
+    const { data, error } = await _sb.from(TABLE).select('maquina,ini,fim,tefsec,cartprod')
+      .eq('tipo','Picote').neq('status','excluido');
+    if(error) throw error;
+    const acc={}; // maquina: {somaSeg, somaCart}
+    (data||[]).forEach(r=>{
+      const cart=parseNum(r.cartprod); if(cart<=0) return;
+      let total=parseNum(r.tefsec);
+      if(!total){ const i=timeToSec(r.ini), f=timeToSec(r.fim); if(i&&f){ total=f-i; if(total<0)total+=86400; } }
+      if(total<=0) return;
+      const m=r.maquina||''; if(!acc[m])acc[m]={seg:0,cart:0};
+      acc[m].seg+=total; acc[m].cart+=cart;
+    });
+    picoteMedia={};
+    Object.keys(acc).forEach(m=>{ if(acc[m].cart>0) picoteMedia[m]=acc[m].seg/acc[m].cart; });
+  }catch(err){ console.error('picoteMedia',err); }
+}
 const CFG='painel_laser_cfg_v2';
 const cfg=JSON.parse(localStorage.getItem(CFG)||'{}');
 /* confere se cartelas da OP × peças por cartela bate com pedido + margem */
@@ -490,17 +560,23 @@ function setupMap(entries){
 /* ---- datalists ---- */
 function buildLists(){
   const ops=new Set(OPS_SEED), mps=new Set();
-  Object.values(store).forEach(d=>d.entries&&d.entries.forEach(e=>{if(e.operador)ops.add(e.operador);if(e.mp)mps.add(e.mp);}));
-  $('#opList').innerHTML=[...ops].map(o=>`<option value="${o}">`).join('');
+  Object.values(store).forEach(d=>d.entries&&d.entries.forEach(e=>{if(e.operador&&e.operador!=='—')ops.add(e.operador);if(e.mp)mps.add(e.mp);}));
+  const sel=$('#f_operador'); const cur=sel.value;
+  const optsHtml=[...ops].sort().map(o=>`<option value="${o}">${o}</option>`).join('');
+  sel.innerHTML='<option value="">Selecione…</option>'+optsHtml+'<option value="__novo__">+ Novo operador…</option>';
+  if(cur && [...ops].includes(cur)) sel.value=cur;
+  const selH=$('#f_hOp'); const curH=selH?selH.value:'';
+  if(selH){ selH.innerHTML='<option value="">—</option>'+optsHtml+'<option value="__novo__">+ Novo operador…</option>'; if(curH && [...ops].includes(curH)) selH.value=curH; }
   $('#mpList').innerHTML=[...mps].map(o=>`<option value="${o}">`).join('');
 }
 
 /* ================= RASCUNHO (anti-fechamento) + cronômetro persistente ================= */
-const FORM_FIELDS=['f_maquina','f_operador','f_ini','f_fim','f_tecnica','f_mp','f_caixa','f_cod','f_pedido','f_valor','f_pecasOP','f_cartelasOP','f_ppc','f_tcart','f_tamcartL','f_tamcartA','f_tampecaL','f_tampecaA','f_cartProd','f_pecasCort','f_hOp','f_hTurno','f_hHora','f_hFalta','f_hObs'];
+const FORM_FIELDS=['f_maquina','f_operador','f_ini','f_fim','f_tecnica','f_mp','f_mascara','f_caixa','f_cod','f_pedido','f_valor','f_pecasOP','f_cartelasOP','f_ppc','f_tcart','f_tamcartL','f_tamcartA','f_tampecaL','f_tampecaA','f_cartProd','f_pecasCort','f_hOp','f_hTurno','f_hHora','f_hFalta','f_hObs'];
 const PROC_FIELDS=['f_procCorte','f_procGrav','f_procCam','f_procJan'];
 let draftTimer;
 function persistDraft(){
   const d={editingId, tipo:$('#f_tipo').value, handoff:$('#chkHandoff').checked,
+    rnc:$('#chkRnc').checked, rncMotivo:$('#f_rncMotivo').value,
     chronoAccum, chronoRun, chronoStartEpoch: chronoRun?chronoStart:0, cortTouched:$('#f_pecasCort').dataset.touched||'0'};
   FORM_FIELDS.forEach(id=>d[id]=$('#'+id).value);
   PROC_FIELDS.forEach(id=>d[id]=$('#'+id).checked);
@@ -511,10 +587,12 @@ function clearDraft(){ localStorage.removeItem(DRAFT); }
 function restoreDraft(){
   const raw=localStorage.getItem(DRAFT); if(!raw)return false;
   let d; try{d=JSON.parse(raw);}catch(e){return false;}
+  if(d.f_operador && !Array.from($('#f_operador').options).some(o=>o.value===d.f_operador)){ if(!OPS_SEED.includes(d.f_operador))OPS_SEED.push(d.f_operador); buildLists(); }
   FORM_FIELDS.forEach(id=>{ if(d[id]!=null)$('#'+id).value=d[id]; });
   PROC_FIELDS.forEach(id=>{ $('#'+id).checked=!!d[id]; syncProc(id); });
   setSeg('segTipo','f_tipo',d.tipo||'Corte'); updateAmostraMode();
   $('#chkHandoff').checked=!!d.handoff; $('#handoffBox').classList.toggle('show',!!d.handoff);
+  $('#chkRnc').checked=!!d.rnc; $('#f_rncMotivo').value=d.rncMotivo||''; $('#f_rncMotivo').style.display=d.rnc?'block':'none';
   $('#f_pecasCort').dataset.touched=d.cortTouched||'0';
   editingId=d.editingId||null;
   if(editingId){ $('#editBanner').classList.add('show'); $('#formTitle').textContent='Editar Ordem de Produção'; $('#btnSalvar').textContent='Salvar alterações'; }
@@ -529,18 +607,58 @@ function restoreDraft(){
 function setSeg(id,hidden,val){ $$('#'+id+' button').forEach(x=>x.classList.toggle('on',x.dataset.v===val)); $('#'+hidden).value=val; }
 function segInit(id,hidden){ $('#'+id).addEventListener('click',ev=>{const b=ev.target.closest('button');if(!b)return;setSeg(id,hidden,b.dataset.v);throttleDraft();}); }
 segInit('segTipo','f_tipo');
-function updateAmostraMode(){ $('#prodBlock').classList.toggle('hidden',$('#f_tipo').value==='Amostras'); }
+function updateAmostraMode(){
+  const t=$('#f_tipo').value;
+  $('#prodBlock').classList.toggle('hidden',t==='Amostras');
+  const pb=$('#prodBlock');
+  pb.classList.toggle('mode-picote',t==='Picote');
+  pb.classList.toggle('mode-corte',t==='Corte');
+}
 $('#segTipo').addEventListener('click',ev=>{ if(ev.target.closest('button')) updateAmostraMode(); });
-$('#chkHandoff').addEventListener('change',e=>{$('#handoffBox').classList.toggle('show',e.target.checked);throttleDraft();});
+let hHoraTimer=null, hHoraEditado=false;
+function pararRelogioHandoff(){ if(hHoraTimer){ clearInterval(hHoraTimer); hHoraTimer=null; } }
+function tickHoraHandoff(){
+  if(hHoraEditado) return;
+  const now=new Date();
+  $('#f_hHora').value=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+':'+String(now.getSeconds()).padStart(2,'0');
+}
+$('#f_hHora').addEventListener('input',()=>{ hHoraEditado=true; pararRelogioHandoff(); });
+$('#chkHandoff').addEventListener('change',e=>{
+  $('#handoffBox').classList.toggle('show',e.target.checked);
+  if(e.target.checked){
+    hHoraEditado=false;
+    if(!$('#f_hHora').value){ tickHoraHandoff(); hHoraTimer=setInterval(tickHoraHandoff,1000); }
+    const now=new Date();
+    const hh=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+    const atual=turnoOf({ini:hh},curDate);
+    const idx=TURNO_IDS.indexOf(atual);
+    const prox = idx>=0 ? TURNO_IDS[(idx+1)%TURNO_IDS.length] : 'T1';
+    if(!$('#f_hTurno').value || $('#f_hTurno').value==='T1') $('#f_hTurno').value=prox;
+  } else { pararRelogioHandoff(); }
+  throttleDraft();
+});
+$('#f_hFalta').addEventListener('input',e=>{
+  const n=e.target.value.replace(/\D/g,'');
+  e.target.value = n ? Number(n).toLocaleString('pt-BR') : '';
+  throttleDraft();
+});
+$('#chkRnc').addEventListener('change',e=>{$('#f_rncMotivo').style.display=e.target.checked?'block':'none';throttleDraft();});
 
 function liveCalc(){
   const cartProd=parseNum($('#f_cartProd').value), ppc=parseNum($('#f_ppc').value);
   const suggested=cartProd*ppc, cortEl=$('#f_pecasCort');
-  if(suggested>0 && (cortEl.dataset.touched!=='1' || cortEl.value==='')) cortEl.value=suggested;
-  $('#calcCort').textContent=suggested>0?`sugerido: ${fmtInt(suggested)} (cart×pç/cart)`:'';
-  // tempo estimado = t1cartela × cartelas OP + setup
+  cortEl.value = suggested>0 ? Number(suggested).toLocaleString('pt-BR') : '';
+  $('#calcCort').textContent=suggested>0?`${fmtInt(suggested)} peças (cart×pç/cart)`:'';
+  // tempo estimado
   const _cart=parseNum($('#f_cartelasOP').value);
-  const est=_cart>0 ? _cart*(mmssToSec($('#f_tcart').value)+folga($('#f_maquina').value))+FALLBACK_SETUP_S : 0;
+  const _tipo=$('#f_tipo').value, _maq=$('#f_maquina').value;
+  let est;
+  if(_tipo==='Picote'){
+    const scart = (picoteMedia[_maq]>0) ? picoteMedia[_maq] : PICOTE_FALLBACK_SCART;
+    est = _cart>0 ? _cart*scart : 0;
+  } else {
+    est = _cart>0 ? _cart*(mmssToSec($('#f_tcart').value)+folga(_maq))+FALLBACK_SETUP_S : 0;
+  }
   $('#f_estimado').value=est>0?secToHMS(est):'—';
   const tid=turnoOf({ini:$('#f_ini').value},curDate);
   const chip=$('#turnoChip'); const tt=TURNOS.find(x=>x.id===tid);
@@ -559,14 +677,46 @@ function liveCalc(){
   const ncEl=$('#ltNaoCort');
   if(nc==null){ ncEl.textContent=''; }
   else { const pct=dur?Math.round(corteSec(eNow)/dur*100):0; ncEl.textContent=`Não-cortando ${secToHMsigned(nc)} · ${pct}% cortando`; ncEl.style.color=nc<0?'var(--neg)':'var(--ink2)'; }
+  // Picote: tempo por cartela = tempo total (cronômetro) ÷ cartelas produzidas
+  const tpc=$('#f_tpicoteCart');
+  if(tpc){
+    const total=tempoEfetivoSec(), cprod=parseNum($('#f_cartProd').value);
+    if(total>0 && cprod>0){ const seg=total/cprod; tpc.value=seg.toFixed(1).replace('.',',')+' s/cartela'; }
+    else tpc.value='';
+  }
 }
 FORM_FIELDS.forEach(id=>$('#'+id).addEventListener('input',()=>{liveCalc();throttleDraft();}));
-$('#f_pecasCort').addEventListener('input',()=>$('#f_pecasCort').dataset.touched='1');
+// separador de milhar automático nos campos de quantidade editáveis. parseNum já remove o ponto nos cálculos.
+['f_pecasOP','f_cartelasOP','f_ppc','f_cartProd'].forEach(id=>{
+  $('#'+id).addEventListener('input',e=>{
+    const n=e.target.value.replace(/\D/g,'');
+    e.target.value = n ? Number(n).toLocaleString('pt-BR') : '';
+    liveCalc(); throttleDraft();
+  });
+});
 $('#f_cod').addEventListener('input',e=>{ let n=e.target.value.replace(/\D/g,'').slice(0,8); e.target.value = n.length>4 ? n.slice(0,4)+'.'+n.slice(4) : n; });
 $('#f_tcart').addEventListener('input',e=>{ let n=e.target.value.replace(/\D/g,'').slice(0,4); e.target.value = n.length>2 ? n.slice(0,-2)+':'+n.slice(-2) : n; liveCalc(); throttleDraft(); });
 $('#f_valor').addEventListener('input',e=>{ let n=e.target.value.replace(/\D/g,''); if(!n){ e.target.value=''; liveCalc(); throttleDraft(); return; } n=(n.replace(/^0+/,'')||'0'); while(n.length<3)n='0'+n; e.target.value=Number(n.slice(0,-2)).toLocaleString('pt-BR')+','+n.slice(-2); liveCalc(); throttleDraft(); });
 ['f_tamcartL','f_tamcartA','f_tampecaL','f_tampecaA'].forEach(id=>$('#'+id).addEventListener('input',e=>{ e.target.value=e.target.value.replace(/\D/g,'').slice(0,3); }));
+$('#f_hOp').addEventListener('change',function(){
+  if(this.value==='__novo__'){
+    const nome=(prompt('Nome do novo operador:')||'').trim();
+    if(nome){ if(!OPS_SEED.includes(nome))OPS_SEED.push(nome); buildLists(); this.value=nome; }
+    else { this.value=''; }
+  }
+  throttleDraft();
+});
 $('#f_maquina').addEventListener('change',()=>{liveCalc();throttleDraft();});
+$('#f_operador').addEventListener('change',function(){
+  if(this.value==='__novo__'){
+    const nome=(prompt('Nome do novo operador:')||'').trim();
+    if(nome){
+      if(!OPS_SEED.includes(nome)) OPS_SEED.push(nome);
+      buildLists(); this.value=nome;
+    } else { this.value=''; }
+  }
+  throttleDraft();
+});
 const PROC_TG={f_procCorte:'tgCorte',f_procGrav:'tgGrav',f_procCam:'tgCam',f_procJan:'tgJan'};
 function syncProc(id){ $('#'+PROC_TG[id]).classList.toggle('on',$('#'+id).checked); }
 PROC_FIELDS.forEach(id=>$('#'+id).addEventListener('change',()=>{syncProc(id);throttleDraft();}));
@@ -604,8 +754,15 @@ function collectEntry(id){
   const tipo=$('#f_tipo').value;
   const base={ id, maquina:$('#f_maquina').value, tipo, operador:$('#f_operador').value.trim()||'—',
     ini:$('#f_ini').value, fim:$('#f_fim').value, tefSec:tempoEfetivoSec(),
+    rnc:$('#chkRnc').checked, rncMotivo:$('#chkRnc').checked?$('#f_rncMotivo').value.trim():'',
     handoff:$('#chkHandoff').checked?{op:$('#f_hOp').value.trim(),turno:$('#f_hTurno').value,hora:$('#f_hHora').value,falta:parseNum($('#f_hFalta').value),obs:$('#f_hObs').value.trim()}:null };
-  if(tipo==='Amostras') return {...base, caixa:'',cod:'',pedido:'',tecnica:'',mp:'',procCorte:false,procGrav:false,procCam:false,procJan:false,pecasOP:0,cartelasOP:0,ppc:0,tcartSec:0,cartL:'',cartA:'',pecaL:'',pecaA:'',valor:0,cartProd:0,pecasCort:0};
+  if(tipo==='Amostras') return {...base, caixa:'',cod:'',pedido:'',tecnica:'',mp:'',mascara:'',procCorte:false,procGrav:false,procCam:false,procJan:false,pecasOP:0,cartelasOP:0,ppc:0,tcartSec:0,cartL:'',cartA:'',pecaL:'',pecaA:'',valor:0,cartProd:0,pecasCort:0};
+  if(tipo==='Picote') return {...base,
+    caixa:$('#f_caixa').value.trim(), cod:$('#f_cod').value.trim(), pedido:$('#f_pedido').value.trim(),
+    tecnica:$('#f_tecnica').value.trim(), mp:'', mascara:$('#f_mascara').value,
+    cartelasOP:parseNum($('#f_cartelasOP').value), cartProd:parseNum($('#f_cartProd').value),
+    procCorte:false,procGrav:false,procCam:false,procJan:false, ppc:0, tcartSec:0,
+    cartL:'',cartA:'',pecaL:'',pecaA:'', valor:0, pecasOP:0, pecasCort:0};
   return {...base,
     caixa:$('#f_caixa').value.trim(), cod:$('#f_cod').value.trim(), pedido:$('#f_pedido').value.trim(),
     tecnica:$('#f_tecnica').value.trim(), mp:$('#f_mp').value.trim(),
@@ -613,13 +770,55 @@ function collectEntry(id){
     pecasOP:parseNum($('#f_pecasOP').value), cartelasOP:parseNum($('#f_cartelasOP').value),
     ppc:parseNum($('#f_ppc').value), tcartSec:mmssToSec($('#f_tcart').value),
     cartL:$('#f_tamcartL').value.trim(), cartA:$('#f_tamcartA').value.trim(), pecaL:$('#f_tampecaL').value.trim(), pecaA:$('#f_tampecaA').value.trim(),
-    valor:parseNum($('#f_valor').value), cartProd:parseNum($('#f_cartProd').value), pecasCort:parseNum($('#f_pecasCort').value)
+    valor:parseNum($('#f_valor').value), cartProd:parseNum($('#f_cartProd').value), pecasCort:parseNum($('#f_pecasCort').value), mascara:''
   };
 }
 $('#btnSalvar').addEventListener('click',()=>{
+  pararRelogioHandoff();
   const e=collectEntry(editingId||Date.now()+''+Math.floor(Math.random()*99));
   if(e.tipo==='Amostras'){ if(!e.tefSec){ alert('Amostras: use o contador ou informe hora início/fim.'); return; } }
-  else if(!e.pecasOP && !e.pecasCort){ alert('Informe ao menos peças da OP ou peças cortadas.'); return; }
+  else if(e.tipo==='Picote'){
+    const falta=[];
+    if(!e.maquina) falta.push('Máquina');
+    if(!e.operador || e.operador==='—') falta.push('Operador');
+    if(!e.ini) falta.push('Hora início');
+    if(!e.fim) falta.push('Hora fim (pare o cronômetro ou informe manualmente)');
+    if(!e.caixa) falta.push('Nº Caixa');
+    if(!e.pedido) falta.push('Nº Pedido');
+    if(!e.cod) falta.push('Cód. Produto');
+    if(!e.tecnica) falta.push('Técnica');
+    if(!e.mascara) falta.push('Máscara (FL80 ou FL150)');
+    if(!e.cartelasOP) falta.push('Quantidade de cartelas da OP');
+    if(!e.cartProd) falta.push('Quantidade de cartelas produzidas');
+    if(e.rnc && !e.rncMotivo) falta.push('Motivo da RNC (obrigatório quando marcado RNC)');
+    if(falta.length){ alert('Não é possível lançar o Picote. Preencha:\n\n• '+falta.join('\n• ')); return; }
+  }
+  else {
+    // ===== Validação de campos obrigatórios (Corte/Picote) =====
+    const falta=[];
+    if(!e.maquina) falta.push('Máquina');
+    if(!e.operador || e.operador==='—') falta.push('Operador');
+    if(!e.ini) falta.push('Hora início');
+    if(!e.fim) falta.push('Hora fim (pare o cronômetro ou informe manualmente)');
+    if(!e.caixa) falta.push('Nº Caixa');
+    if(!e.pedido) falta.push('Nº Pedido');
+    if(!e.cod) falta.push('Cód. Produto');
+    if(!e.pecasOP) falta.push('Quantidade de peças da OP');
+    if(!e.tecnica) falta.push('Técnica');
+    if(!e.cartelasOP) falta.push('Quantidade de cartelas da OP');
+    if(!e.cartL || !e.cartA) falta.push('Cartela (mm) — larg e alt');
+    if(!e.procCorte && !e.procGrav) falta.push('Processo: marque Corte ou Gravação e corte');
+    if(!e.pecaL || !e.pecaA) falta.push('Medida da arte (mm) — larg e alt');
+    if(!e.ppc) falta.push('Quantidade de peças por cartela');
+    if(!e.valor) falta.push('Valor unitário');
+    if(!e.tcartSec) falta.push('Tempo 1 cartela');
+    if(!e.pecasCort) falta.push('Quantidade de cartelas/peças cortadas');
+    if(e.rnc && !e.rncMotivo) falta.push('Motivo da RNC (obrigatório quando marcado RNC)');
+    if(falta.length){
+      alert('Não é possível lançar a OP. Preencha:\n\n• '+falta.join('\n• '));
+      return;
+    }
+  }
   const arr=getDay().entries;
   if(editingId){ const i=arr.findIndex(x=>x.id===editingId); if(i>=0)arr[i]=e; pushUpdate(e,curDate); }
   else { arr.push(e); pushAdd(e,curDate); }
@@ -631,6 +830,7 @@ function clearForm(){
   FORM_FIELDS.forEach(id=>{ if(id==='f_hTurno')$('#'+id).value='T1'; else $('#'+id).value=''; });
   PROC_FIELDS.forEach(id=>{ $('#'+id).checked=false; syncProc(id); });
   $('#f_pecasCort').dataset.touched='0'; $('#chkHandoff').checked=false; $('#handoffBox').classList.remove('show');
+  $('#chkRnc').checked=false; $('#f_rncMotivo').value=''; $('#f_rncMotivo').style.display='none';
   $('#f_estimado').value='—'; updateAmostraMode(); resetChrono(); liveCalc();
 }
 $('#btnLimpar').addEventListener('click',()=>{ exitEdit(); clearForm(); clearDraft(); });
@@ -642,18 +842,22 @@ function editEntry(id){
   const e=getDay().entries.find(x=>x.id===id); if(!e)return;
   editingId=id;
   $('#f_maquina').value=e.maquina; setSeg('segTipo','f_tipo',e.tipo); updateAmostraMode();
-  $('#f_operador').value=e.operador==='—'?'':e.operador;
-  $('#f_caixa').value=e.caixa||''; $('#f_cod').value=e.cod||''; $('#f_pedido').value=e.pedido||''; $('#f_tecnica').value=e.tecnica||''; $('#f_mp').value=e.mp||'';
+  const opv=e.operador==='—'?'':e.operador;
+  if(opv && !Array.from($('#f_operador').options).some(o=>o.value===opv)){ if(!OPS_SEED.includes(opv))OPS_SEED.push(opv); buildLists(); }
+  $('#f_operador').value=opv;
+  $('#f_caixa').value=e.caixa||''; $('#f_cod').value=e.cod||''; $('#f_pedido').value=e.pedido||''; $('#f_tecnica').value=e.tecnica||''; $('#f_mp').value=e.mp||''; $('#f_mascara').value=e.mascara||'';
   $('#f_procCorte').checked=!!e.procCorte; $('#f_procGrav').checked=!!e.procGrav; $('#f_procCam').checked=!!e.procCam; $('#f_procJan').checked=!!e.procJan; PROC_FIELDS.forEach(syncProc);
-  $('#f_pecasOP').value=e.pecasOP||''; $('#f_cartelasOP').value=e.cartelasOP||''; $('#f_ppc').value=e.ppc||'';
+  const fmtQ=n=>n?Number(n).toLocaleString('pt-BR'):'';
+  $('#f_pecasOP').value=fmtQ(e.pecasOP); $('#f_cartelasOP').value=fmtQ(e.cartelasOP); $('#f_ppc').value=fmtQ(e.ppc);
   $('#f_tcart').value=e.tcartSec?secToHMS(e.tcartSec).slice(3):'';
   $('#f_tamcartL').value=e.cartL||''; $('#f_tamcartA').value=e.cartA||''; $('#f_tampecaL').value=e.pecaL||''; $('#f_tampecaA').value=e.pecaA||'';
-  $('#f_valor').value=e.valor?e.valor.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):''; $('#f_cartProd').value=e.cartProd||''; $('#f_pecasCort').value=e.pecasCort||'';
+  $('#f_valor').value=e.valor?e.valor.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):''; $('#f_cartProd').value=fmtQ(e.cartProd); $('#f_pecasCort').value=fmtQ(e.pecasCort);
   $('#f_pecasCort').dataset.touched='1';
   $('#f_ini').value=e.ini||''; $('#f_fim').value=e.fim||'';
   chronoAccum=e.tefSec||0; chronoRun=false; $('#chronoT').textContent=secToHMS(chronoAccum); $('#chronoBtn').textContent=chronoAccum>0?'Retomar':'Iniciar'; $('#chronoBtn').className='go';
   const h=e.handoff; $('#chkHandoff').checked=!!h; $('#handoffBox').classList.toggle('show',!!h);
-  if(h){$('#f_hOp').value=h.op||'';$('#f_hTurno').value=h.turno||'T1';$('#f_hHora').value=h.hora||'';$('#f_hFalta').value=h.falta||'';$('#f_hObs').value=h.obs||'';}
+  $('#chkRnc').checked=!!e.rnc; $('#f_rncMotivo').value=e.rncMotivo||''; $('#f_rncMotivo').style.display=e.rnc?'block':'none';
+  if(h){ if(h.op && !Array.from($('#f_hOp').options).some(o=>o.value===h.op)){ if(!OPS_SEED.includes(h.op))OPS_SEED.push(h.op); buildLists(); } $('#f_hOp').value=h.op||'';$('#f_hTurno').value=h.turno||'T1';$('#f_hHora').value=h.hora||'';$('#f_hFalta').value=h.falta||'';$('#f_hObs').value=h.obs||'';}
   $('#editBanner').classList.add('show'); $('#formTitle').textContent='Editar Ordem de Produção'; $('#btnSalvar').textContent='Salvar alterações';
   $$('.tab').forEach(x=>x.classList.remove('active')); $('.tab[data-view="lanc"]').classList.add('active');
   $$('.view').forEach(v=>v.classList.remove('active')); $('#view-lanc').classList.add('active');
@@ -661,7 +865,7 @@ function editEntry(id){
 }
 
 /* ================= KPIs + DASHBOARD ================= */
-let chMaq,chTurno;
+let chMaq,chTurno,chUtilTurno;
 function renderAll(){ buildLists(); renderKPI(); renderReg(); renderDash(); }
 
 function aggregate(){
@@ -671,17 +875,27 @@ function aggregate(){
   all.filter(e=>e.tipo==='Amostras').forEach(e=>{ amostraByMaq[e.maquina]=(amostraByMaq[e.maquina]||0)+(e.tefSec||0); });
   const es=all.filter(e=>e.tipo!=='Amostras').map(e=>({...e,...calcEntry(e), _turno:turnoOf(e,curDate), _ocup:smap[e.id]||0, _cortePuro:(e.cartProd||0)*(e.tcartSec||0)}));
   const tot={pedido:0,cortado:0,dif:0,tef:0,pecas:0};
+  const rnc={perda:0,ocup:0,lanc:0,cart:0,pecas:0,pedidos:0,motivos:[]};
   const byMaq={}, byTurno={};
-  MAQS.forEach(m=>byMaq[m]={pedido:0,cortado:0,tef:0,pecas:0,ocup:0,corte:0});
-  [...TURNO_IDS,'Sáb','—'].forEach(t=>byTurno[t]={pedido:0,cortado:0,tef:0,ocup:0,corte:0});
+  MAQS.forEach(m=>byMaq[m]={pedido:0,cortado:0,tef:0,pecas:0,ocup:0,corte:0,rncOcup:0});
+  [...TURNO_IDS,'Sáb','—'].forEach(t=>byTurno[t]={pedido:0,cortado:0,tef:0,ocup:0,corte:0,rncOcup:0});
   es.forEach(e=>{
+    const bm=byMaq[e.maquina]||(byMaq[e.maquina]={pedido:0,cortado:0,tef:0,pecas:0,ocup:0,corte:0,rncOcup:0});
+    const bt=byTurno[e._turno]||(byTurno[e._turno]={pedido:0,cortado:0,tef:0,ocup:0,corte:0,rncOcup:0});
+    if(e.rnc){
+      // RNC: fora do faturamento; ocupação contabilizada, mas marcada
+      rnc.perda+=(e.pecasCort||0)*(e.valor||0); rnc.ocup+=e._ocup; rnc.lanc+=1;
+      rnc.cart+=(e.cartProd||0); rnc.pecas+=(e.pecasCort||0); rnc.pedidos+=1;
+      if(e.rncMotivo) rnc.motivos.push({motivo:e.rncMotivo,maquina:e.maquina,pedido:e.pedido||e.pedidoNum,cod:e.cod,data:curDate});
+      bm.ocup+=e._ocup; bm.rncOcup+=e._ocup;
+      bt.ocup+=e._ocup; bt.rncOcup+=e._ocup;
+      return; // não soma no faturamento (tot/bm/bt de pedido/cortado)
+    }
     tot.pedido+=e.pedido; tot.cortado+=e.cortado; tot.tef+=e.tefSec; tot.pecas+=e.pecasCort;
-    const bm=byMaq[e.maquina]||(byMaq[e.maquina]={pedido:0,cortado:0,tef:0,pecas:0,ocup:0,corte:0});
     bm.pedido+=e.pedido; bm.cortado+=e.cortado; bm.tef+=e.tefSec; bm.pecas+=e.pecasCort; bm.ocup+=e._ocup; bm.corte+=e._cortePuro;
-    const bt=byTurno[e._turno]||(byTurno[e._turno]={pedido:0,cortado:0,tef:0,ocup:0,corte:0});
     bt.pedido+=e.pedido; bt.cortado+=e.cortado; bt.tef+=e.tefSec; bt.ocup+=e._ocup; bt.corte+=e._cortePuro;
   });
-  tot.dif=tot.cortado-tot.pedido; return {es,tot,byMaq,byTurno,smap,amostraByMaq};
+  tot.dif=tot.cortado-tot.pedido; return {es,tot,rnc,byMaq,byTurno,smap,amostraByMaq};
 }
 function renderKPI(){
   const{tot}=aggregate(); const meta=getDay().meta||0; const pct=meta?tot.pedido/meta*100:0;
@@ -724,8 +938,78 @@ function renderDias(){
   if(!ctx)return;
   chDias=new Chart(ctx,{type:'bar',data:{labels,datasets},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{font:{family:'Inter'},boxWidth:12}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.raw+'h'}}},scales:{y:{ticks:{callback:v=>v+'h',font:{family:'JetBrains Mono'}},grid:{color:'#eef1f4'}},x:{grid:{display:false}}}}});
 }
+function renderUtilTurno(){
+  const {es}=aggregate();
+  // ocupação (h) por máquina, separada por turno (ignora '—' e 'Sáb')
+  const turnos=TURNO_IDS; // ['T1','T2','T3']
+  const cores={T1:'#ff6a1a',T2:'#f0a020',T3:'#7c5cff'};
+  const datasets=turnos.map(t=>({
+    label:turnoLab(t)+' turno',
+    backgroundColor:cores[t]||'#999',
+    data:MAQS.map(m=>{
+      let s=0; es.forEach(e=>{ if(e.maquina===m && e._turno===t) s+=e._ocup; });
+      return +(s/3600).toFixed(2);
+    })
+  }));
+  const ctx=$('#chartUtilTurno'); if(!ctx)return;
+  if(chUtilTurno)chUtilTurno.destroy();
+  chUtilTurno=new Chart(ctx,{type:'bar',data:{labels:MAQS,datasets},options:{responsive:true,indexAxis:'y',maintainAspectRatio:false,
+    plugins:{legend:{position:'bottom',labels:{font:{family:'Inter'},boxWidth:12}},
+      tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.raw+'h'}}},
+    scales:{x:{grid:{color:'#eef1f4'},ticks:{callback:v=>v+'h',font:{family:'JetBrains Mono'}}},
+      y:{grid:{display:false}}}}});
+}
+let rncHist=[];
+async function loadRncHist(){
+  if(!_sb){ alert('Supabase não carregou.'); return; }
+  const tb=$('#rncBody');
+  tb.innerHTML='<tr><td colspan="8" class="empty">Carregando…</td></tr>';
+  try{
+    const { data, error } = await _sb.from(TABLE).select('*').eq('rnc',true).neq('status','excluido').order('data',{ascending:false});
+    if(error) throw error;
+    rncHist=(data||[]).map(r=>({
+      data:r.data||'', maquina:r.maquina||'', operador:r.operador||'',
+      pedido:r.pedido||'', cod:r.cod||'', motivo:r.rnc_motivo||'',
+      cartprod:r.cartprod||0, pecascort:r.pecascort||0
+    }));
+    renderRncTable();
+  }catch(err){ console.error('rncHist',err); tb.innerHTML='<tr><td colspan="8" class="empty">Erro ao carregar. Veja o console.</td></tr>'; }
+}
+function renderRncTable(){
+  const tb=$('#rncBody');
+  if(!rncHist.length){ tb.innerHTML='<tr><td colspan="8" class="empty">Nenhuma RNC registrada.</td></tr>'; $('#rncAbaResumo').textContent=''; return; }
+  tb.innerHTML=rncHist.map(r=>`<tr>
+    <td>${r.data}</td><td>${r.maquina}</td><td>${r.operador}</td><td>${r.pedido||'—'}</td><td>${r.cod||'—'}</td>
+    <td>${(r.motivo||'—').replace(/</g,'&lt;')}</td><td class="num">${fmtInt(r.cartprod)}</td><td class="num">${fmtInt(r.pecascort)}</td></tr>`).join('');
+  $('#rncAbaResumo').textContent=`${rncHist.length} RNC no total`;
+}
+function exportRncCsv(){
+  if(!rncHist.length){ alert('Nada para exportar. Clique em Atualizar primeiro.'); return; }
+  const head=['Data','Maquina','Operador','Pedido','CodProduto','Motivo','CartelasRefeitas','PecasRefeitas'];
+  const rows=rncHist.map(r=>[r.data,r.maquina,r.operador,r.pedido,r.cod,r.motivo,r.cartprod,r.pecascort]
+    .map(x=>`"${String(x??'').replace(/"/g,'""')}"`).join(';'));
+  const csv=[head.join(';'),...rows].join('\n');
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='rnc_historico_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+}
+function renderRncDash(){
+  const {rnc}=aggregate();
+  const el=id=>$('#'+id);
+  if(el('rncPerda'))el('rncPerda').textContent=fmtBRL0(rnc.perda);
+  if(el('rncLanc'))el('rncLanc').textContent=rnc.lanc;
+  if(el('rncTempo'))el('rncTempo').textContent=secToHM(rnc.ocup);
+  if(el('rncCart'))el('rncCart').textContent=fmtInt(rnc.cart);
+  if(el('rncPecas'))el('rncPecas').textContent=fmtInt(rnc.pecas);
+  const mv=el('rncMotivos');
+  if(mv){
+    mv.innerHTML = rnc.motivos.length
+      ? rnc.motivos.map(m=>`• <b>${m.maquina||'—'}</b> · pedido ${m.pedido||'—'} · ${m.motivo}`).join('<br>')
+      : '<span style="color:var(--ink2)">Sem RNC registrada neste dia.</span>';
+  }
+}
 function renderDash(){
-  renderUtil(); renderDias();
+  renderUtil(); renderDias(); renderUtilTurno(); renderRncDash();
   const{byMaq,byTurno,amostraByMaq}=aggregate();
   $('#miniGrid').innerHTML=MAQS.map(m=>{
     const d=byMaq[m]||{pedido:0,cortado:0,tef:0}; const dif=d.cortado-d.pedido;
@@ -760,8 +1044,8 @@ let searchQ='';
 $('#regSearch').addEventListener('input',e=>{searchQ=e.target.value.toLowerCase().trim();renderReg();});
 function regRowHtml(e,smap){
   const c=calcEntry(e); const dcls=c.dif>=0?'d-pos':'d-neg';
-  return `<tr>
-      <td>${e.maquina}</td>
+  return `<tr${e.rnc?' style="background:#eef3ff"':''}>
+      <td>${e.maquina}${e.rnc?' <span style="background:#2f6bff;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;vertical-align:middle" title="'+(e.rncMotivo||'RNC').replace(/"/g,'&quot;')+'">RNC</span>':''}</td>
       <td><span class="pill ${e.tipo==='Picote'?'picote':(e.tipo==='Amostras'?'amostras':'corte')}">${e.tipo}</span></td>
       <td>${e.operador}${e.handoff?` <span class="handoff-tag">↪${e.handoff.op||'?'}</span>`:''}</td>
       <td>${(()=>{const t=turnoOf(e,curDate);const cls=t==='Sáb'?'sab':(t==='T1'?'t1':t==='T2'?'t2':t==='T3'?'t3':'');const lab=t==='Sáb'?'Sáb':(t==='—'?'—':turnoLab(t));return `<span class="pill ${cls}">${lab}</span>`;})()}</td>
@@ -821,72 +1105,100 @@ $$('.tab').forEach(t=>t.addEventListener('click',()=>{
   $$('.tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');
   $$('.view').forEach(v=>v.classList.remove('active'));$('#view-'+t.dataset.view).classList.add('active');
   if(t.dataset.view==='dash')renderDash();
+  if(t.dataset.view==='rnc' && !rncHist.length)loadRncHist();
 }));
+$('#btnRncReload')&&$('#btnRncReload').addEventListener('click',loadRncHist);
+$('#btnRncCsv')&&$('#btnRncCsv').addEventListener('click',exportRncCsv);
 $('#dataDia').addEventListener('change',e=>{ curDate=e.target.value; getDay(); $('#meta').value=(getDay().meta||0).toLocaleString('pt-BR'); renderAll(); });
 $('#meta').addEventListener('input',e=>{ getDay().meta=parseNum(e.target.value); save(); renderKPI(); });
 $('#meta').addEventListener('blur',e=>{ e.target.value=(getDay().meta||0).toLocaleString('pt-BR'); });
 window.addEventListener('beforeunload',persistDraft);
 
 /* ================= init ================= */
-/* ================= SINCRONIZAÇÃO COM GOOGLE SHEETS ================= */
-const SYNC_URL='https://script.google.com/macros/s/AKfycbxNqCRE13BjdN_UYFfvFQh9OpANvLuEU_n-yfQfDoJLbhOE9nsuoS8GfIKBbd9n4ob9mA/exec';
+/* ================= SINCRONIZAÇÃO COM SUPABASE ================= */
+/* Backend: Supabase (Postgres) — substitui Google Sheets/Apps Script.
+   Resolve o redirect /u/N/ de multiconta e o "no-cors" que mascarava falha. */
+const SUPABASE_URL='https://qbdzzngcwxljomqiboqh.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFiZHp6bmdjd3hsam9tcWlib3FoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNjgzNzgsImV4cCI6MjA5ODk0NDM3OH0._CU_-wy58epCQ3y_OuZ-E10aJ4vKffs_r-GhpEnVlpc';
+const TABLE='laser';
+const _sb = (window.supabase && window.supabase.createClient)
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+  : null;
 let lastWriteAt=0;
 function syncTag(msg,ok){ const t=$('#syncTag'); if(t){ t.textContent=msg; t.style.color=ok?'#3ad07f':'#8a94a2'; } const d=$('.brand .dot'); if(d){ d.classList.toggle('online',!!ok); d.classList.toggle('offline',!ok); } }
 
+/* flatten: monta a linha para o banco. Colunas do Postgres são MINÚSCULAS. */
 function flatten(e,dateStr){
   const h=e.handoff||{};
+  const numOrNull=v=>{ if(v===''||v==null) return null; const n=parseFloat(v); return isNaN(n)?null:n; };
   return { id:e.id, data:dateStr, status:'ativo', maquina:e.maquina, tipo:e.tipo, operador:e.operador,
-    ini:e.ini, fim:e.fim, tefSec:e.tefSec, caixa:e.caixa, pedido:e.pedido, cod:e.cod, tecnica:e.tecnica, mp:e.mp,
-    pecasOP:e.pecasOP, cartelasOP:e.cartelasOP, ppc:e.ppc, tcartSec:e.tcartSec,
-    cartL:e.cartL, cartA:e.cartA, pecaL:e.pecaL, pecaA:e.pecaA,
-    valor:e.valor, cartProd:e.cartProd, pecasCort:e.pecasCort,
-    procCorte:!!e.procCorte, procGrav:!!e.procGrav, procCam:!!e.procCam, procJan:!!e.procJan,
-    handoff_op:h.op||'', handoff_turno:h.turno||'', handoff_hora:h.hora||'', handoff_falta:(h.falta!=null?h.falta:''), handoff_obs:h.obs||'' };
+    ini:e.ini, fim:e.fim, tefsec:numOrNull(e.tefSec), caixa:e.caixa, pedido:e.pedido, cod:e.cod, tecnica:e.tecnica, mp:e.mp,
+    pecasop:numOrNull(e.pecasOP), cartelasop:numOrNull(e.cartelasOP), ppc:numOrNull(e.ppc), tcartsec:numOrNull(e.tcartSec),
+    cartl:e.cartL, carta:e.cartA, pecal:e.pecaL, pecaa:e.pecaA,
+    valor:numOrNull(e.valor), cartprod:numOrNull(e.cartProd), pecascort:numOrNull(e.pecasCort),
+    proccorte:!!e.procCorte, procgrav:!!e.procGrav, proccam:!!e.procCam, procjan:!!e.procJan,
+    handoff_op:h.op||'', handoff_turno:h.turno||'', handoff_hora:h.hora||'', handoff_falta:numOrNull(h.falta), handoff_obs:h.obs||'',
+    rnc:!!e.rnc, rnc_motivo:e.rncMotivo||'', mascara:e.mascara||'' };
 }
+/* unflatten: lê a linha MINÚSCULA do banco e volta para o formato camelCase interno. */
 function unflatten(r){
   const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n;};
   const b=v=>v===true||v==='TRUE'||v==='true'||v===1||v==='1';
   const s=v=>(v==null?'':String(v));
   const e={ id:s(r.id), maquina:s(r.maquina), tipo:s(r.tipo), operador:s(r.operador),
-    ini:s(r.ini), fim:s(r.fim), tefSec:num(r.tefSec), caixa:s(r.caixa), pedido:s(r.pedido), cod:s(r.cod), tecnica:s(r.tecnica), mp:s(r.mp),
-    pecasOP:num(r.pecasOP), cartelasOP:num(r.cartelasOP), ppc:num(r.ppc), tcartSec:num(r.tcartSec),
-    cartL:s(r.cartL), cartA:s(r.cartA), pecaL:s(r.pecaL), pecaA:s(r.pecaA),
-    valor:num(r.valor), cartProd:num(r.cartProd), pecasCort:num(r.pecasCort),
-    procCorte:b(r.procCorte), procGrav:b(r.procGrav), procCam:b(r.procCam), procJan:b(r.procJan) };
+    ini:s(r.ini), fim:s(r.fim), tefSec:num(r.tefsec), caixa:s(r.caixa), pedido:s(r.pedido), cod:s(r.cod), tecnica:s(r.tecnica), mp:s(r.mp),
+    pecasOP:num(r.pecasop), cartelasOP:num(r.cartelasop), ppc:num(r.ppc), tcartSec:num(r.tcartsec),
+    cartL:s(r.cartl), cartA:s(r.carta), pecaL:s(r.pecal), pecaA:s(r.pecaa),
+    valor:num(r.valor), cartProd:num(r.cartprod), pecasCort:num(r.pecascort),
+    procCorte:b(r.proccorte), procGrav:b(r.procgrav), procCam:b(r.proccam), procJan:b(r.procjan),
+    rnc:b(r.rnc), rncMotivo:s(r.rnc_motivo), mascara:s(r.mascara) };
   if(r.handoff_op||r.handoff_obs||r.handoff_hora){ e.handoff={op:s(r.handoff_op),turno:s(r.handoff_turno),hora:s(r.handoff_hora),falta:num(r.handoff_falta),obs:s(r.handoff_obs)}; }
   return {entry:e, data:s(r.data).slice(0,10)};
 }
-function pushToSheet(payload){
+
+async function pushAdd(e,dateStr){
+  if(!_sb){ syncTag('Supabase não carregou'); return; }
   lastWriteAt=Date.now();
   try{
-    fetch(SYNC_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
-    syncTag('enviado ✓',true);
-  }catch(err){ syncTag('falha no envio'); }
+    const { error } = await _sb.from(TABLE).insert(flatten(e,dateStr));
+    if(error) throw error;
+    syncTag('salvo ✓',true);
+  }catch(err){ console.error('add',err); syncTag('falha ao salvar'); }
 }
-function pushAdd(e,dateStr){ pushToSheet({action:'add',registro:flatten(e,dateStr)}); }
-function pushUpdate(e,dateStr){ pushToSheet({action:'update',id:e.id,registro:flatten(e,dateStr)}); }
-function pushDelete(id){ pushToSheet({action:'delete',id:id}); }
+async function pushUpdate(e,dateStr){
+  if(!_sb){ syncTag('Supabase não carregou'); return; }
+  lastWriteAt=Date.now();
+  try{
+    const row=flatten(e,dateStr); delete row.id; // não reescreve a PK
+    const { error } = await _sb.from(TABLE).update(row).eq('id', e.id);
+    if(error) throw error;
+    syncTag('atualizado ✓',true);
+  }catch(err){ console.error('update',err); syncTag('falha ao atualizar'); }
+}
+async function pushDelete(id){
+  if(!_sb){ syncTag('Supabase não carregou'); return; }
+  lastWriteAt=Date.now();
+  try{
+    // soft delete: marca status='excluido' (a leitura filtra esses)
+    const { error } = await _sb.from(TABLE).update({status:'excluido'}).eq('id', id);
+    if(error) throw error;
+    syncTag('excluído ✓',true);
+  }catch(err){ console.error('delete',err); syncTag('falha ao excluir'); }
+}
 
-function pullFromSheet(){
+async function pullFromSheet(){
+  if(!_sb){ syncTag('Supabase não carregou'); return; }
   if(Date.now()-lastWriteAt < 6000) return; // não sobrescreve o que acabei de gravar
-  const cb='__lz_'+Date.now();
-  const s=document.createElement('script');
-  window[cb]=function(res){
-    try{
-      if(res && res.ok){
-        const byDate={};
-        (res.registros||[]).forEach(r=>{ const u=unflatten(r); if(!u.data)return; (byDate[u.data]=byDate[u.data]||[]).push(u.entry); });
-        Object.keys(byDate).forEach(d=>{ const meta=(store[d]&&store[d].meta)||70000; store[d]={meta,entries:byDate[d]}; });
-        localStorage.setItem(KEY,JSON.stringify(store));
-        renderAll();
-        syncTag('sincronizado ✓',true);
-      }
-    }catch(err){ syncTag('erro leitura'); }
-    finally{ delete window[cb]; if(s.parentNode)s.remove(); }
-  };
-  s.src=SYNC_URL+'?callback='+cb+'&_='+Date.now();
-  s.onerror=()=>{ syncTag('sem conexão'); delete window[cb]; if(s.parentNode)s.remove(); };
-  document.body.appendChild(s);
+  try{
+    const { data, error } = await _sb.from(TABLE).select('*').neq('status','excluido');
+    if(error) throw error;
+    const byDate={};
+    (data||[]).forEach(r=>{ const u=unflatten(r); if(!u.data)return; (byDate[u.data]=byDate[u.data]||[]).push(u.entry); });
+    Object.keys(byDate).forEach(d=>{ const meta=(store[d]&&store[d].meta)||70000; store[d]={meta,entries:byDate[d]}; });
+    localStorage.setItem(KEY,JSON.stringify(store));
+    renderAll();
+    syncTag('sincronizado ✓',true);
+  }catch(err){ console.error('pull',err); syncTag('sem conexão'); }
 }
 
 (function init(){
@@ -895,6 +1207,7 @@ function pullFromSheet(){
   $('#meta').value=(getDay().meta||70000).toLocaleString('pt-BR');
   buildCfg(); buildLists(); restoreDraft(); liveCalc(); renderAll();
   pullFromSheet();
+  loadPicoteMedia();
   setInterval(pullFromSheet, 15000);
 })();
 </script>
