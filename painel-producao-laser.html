@@ -241,6 +241,7 @@ canvas{max-height:300px}
   <button class="tab" data-view="dash">Dashboard</button>
   <button class="tab" data-view="reg">Registros</button>
   <button class="tab" data-view="rnc">RNC</button>
+  <button class="tab" data-view="obs">Observações</button>
 </div>
 
 <div class="wrap">
@@ -352,6 +353,11 @@ canvas{max-height:300px}
       <label class="chk" style="font-weight:700;color:#2f6bff"><input type="checkbox" id="chkRnc"> RNC — retrabalho (não conformidade)</label>
       <input type="text" id="f_rncMotivo" placeholder="Motivo da RNC (obrigatório)" style="flex:1;min-width:220px;display:none">
     </div>
+
+    <div style="grid-column:1/-1;margin-top:10px">
+      <label style="font-weight:600;font-size:13px;color:var(--ink2);display:block;margin-bottom:4px">Observações / sugestão de melhoria <span style="font-weight:400">(opcional)</span></label>
+      <textarea id="f_observacao" rows="2" placeholder="Ex: sugestão de melhoria para esta OP, ajuste de processo, ideia do operador…" style="width:100%;resize:vertical;font-family:inherit;font-size:13px;padding:8px;border:1px solid var(--line);border-radius:8px"></textarea>
+    </div>
   </div>
 </div>
 
@@ -395,6 +401,16 @@ canvas{max-height:300px}
       <div class="cfg-hint" style="font-weight:700;margin-bottom:4px">Histórico de motivos (dia atual):</div>
       <div id="rncMotivos" style="font-size:13px;line-height:1.7"></div>
     </div>
+  </div>
+  <div class="card dash-wide" style="margin-top:18px;border:1px solid #ff6a1a;background:#fff8f4">
+    <h2 style="color:#ff6a1a">✂ PICOTE — resumo do dia</h2>
+    <div class="tbl-wrap" style="margin-top:8px">
+      <table>
+        <thead><tr><th>Turno</th><th class="num">Cartelas picotadas</th><th class="num">Horas de ocupação</th></tr></thead>
+        <tbody id="picoteTurnoBody"><tr><td colspan="3" class="empty">Sem picote no dia.</td></tr></tbody>
+      </table>
+    </div>
+    <div id="picoteLider" style="margin-top:10px;font-size:14px;font-weight:600;color:#ff6a1a"></div>
   </div>
   <div class="card dash-wide" style="margin-top:18px">
     <h2>Ocupação por máquina e turno — horas</h2>
@@ -440,6 +456,25 @@ canvas{max-height:300px}
           <th>Data</th><th>Máquina</th><th>Operador</th><th>Nº Pedido</th><th>Cód. Produto</th><th>Motivo da RNC</th><th>Cartelas ref.</th><th>Peças ref.</th>
         </tr></thead>
         <tbody id="rncBody"><tr><td colspan="8" class="empty">Clique em "Atualizar" para carregar o histórico.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="view" id="view-obs">
+  <div class="card dash-wide" style="border:1px solid #1e874b;background:#f2fbf5">
+    <h2 style="color:#1e874b">💡 OBSERVAÇÕES / SUGESTÕES DE MELHORIA — todos os registros</h2>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:10px 0">
+      <button class="btn btn-primary" id="btnObsReload">Atualizar</button>
+      <button class="btn btn-ghost" id="btnObsCsv">Exportar CSV (para IA)</button>
+      <span id="obsResumo" style="font-size:13px;color:var(--ink2)"></span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Data</th><th>Máquina</th><th>Operador</th><th>Nº Pedido</th><th>Cód. Produto</th><th>Observação / sugestão</th>
+        </tr></thead>
+        <tbody id="obsBody"><tr><td colspan="6" class="empty">Clique em "Atualizar" para carregar.</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -584,6 +619,7 @@ function persistDraft(){
   const d={editingId, tipo:$('#f_tipo').value, handoff:$('#chkHandoff').checked,
     rnc:$('#chkRnc').checked, rncMotivo:$('#f_rncMotivo').value,
     composto:$('#f_composto').checked, parte:$('#f_parte').value,
+    observacao:$('#f_observacao').value,
     chronoAccum, chronoRun, chronoStartEpoch: chronoRun?chronoStart:0, cortTouched:$('#f_pecasCort').dataset.touched||'0'};
   FORM_FIELDS.forEach(id=>d[id]=$('#'+id).value);
   PROC_FIELDS.forEach(id=>d[id]=$('#'+id).checked);
@@ -601,6 +637,7 @@ function restoreDraft(){
   $('#chkHandoff').checked=!!d.handoff; $('#handoffBox').classList.toggle('show',!!d.handoff);
   $('#chkRnc').checked=!!d.rnc; $('#f_rncMotivo').value=d.rncMotivo||''; $('#f_rncMotivo').style.display=d.rnc?'block':'none';
   $('#f_composto').checked=!!d.composto; $('#f_parte').value=d.parte||''; $('#f_parte').style.display=d.composto?'block':'none';
+  $('#f_observacao').value=d.observacao||'';
   $('#f_pecasCort').dataset.touched=d.cortTouched||'0';
   editingId=d.editingId||null;
   if(editingId){ $('#editBanner').classList.add('show'); $('#formTitle').textContent='Editar Ordem de Produção'; $('#btnSalvar').textContent='Salvar alterações'; }
@@ -673,12 +710,17 @@ function liveCalc(){
   chip.textContent = tid==='Sáb'?'Sábado' : (tt?tt.nome:(tid==='—'?'— (defina a hora início)':tid));
   chip.classList.toggle('on', tid!=='—');
   const valor=parseNum($('#f_valor').value), pecasOP=parseNum($('#f_pecasOP').value), pecasCort=parseNum(cortEl.value);
+  const _isPicote=$('#f_tipo').value==='Picote';
   const pedido=pecasOP*valor, cortado=pecasCort*valor, dif=cortado-pedido;
-  $('#ltPedido').textContent=fmtBRL(pedido); $('#ltCortado').textContent=fmtBRL(cortado);
+  $('#ltPedido').textContent=fmtBRL(_isPicote?0:pedido); $('#ltCortado').textContent=fmtBRL(_isPicote?0:cortado);
   const pecasDif=pecasCort-pecasOP;
-  const pEl=$('#ltPecasDif'); pEl.textContent=(pecasDif>=0?'+ ':'− ')+fmtInt(Math.abs(pecasDif))+' peças'; pEl.style.color=pecasDif>=0?'var(--pos)':'var(--neg)';
-  const dEl=$('#ltDif'); dEl.textContent=(dif>=0?'+ ':'− ')+fmtBRL(Math.abs(dif)); dEl.style.color=dif>=0?'var(--pos)':'var(--neg)';
-  const chk=opCheck({pecasOP,ppc:parseNum($('#f_ppc').value),cartelasOP:parseNum($('#f_cartelasOP').value)});
+  const pEl=$('#ltPecasDif');
+  if(_isPicote){ pEl.textContent='—'; pEl.style.color='var(--ink2)'; }
+  else { pEl.textContent=(pecasDif>=0?'+ ':'− ')+fmtInt(Math.abs(pecasDif))+' peças'; pEl.style.color=pecasDif>=0?'var(--pos)':'var(--neg)'; }
+  const dEl=$('#ltDif');
+  if(_isPicote){ dEl.textContent=''; }
+  else { dEl.textContent=(dif>=0?'+ ':'− ')+fmtBRL(Math.abs(dif)); dEl.style.color=dif>=0?'var(--pos)':'var(--neg)'; }
+  const chk=_isPicote?{level:'ok',msg:''}:opCheck({pecasOP,ppc:parseNum($('#f_ppc').value),cartelasOP:parseNum($('#f_cartelasOP').value)});
   const al=$('#opAlert'); al.className='op-alert'+(chk.level==='ok'?'':' '+chk.level); al.textContent=chk.level==='ok'?'':('⚠ '+chk.msg);
   const eNow={ini:$('#f_ini').value,fim:$('#f_fim').value,cartProd:parseNum($('#f_cartProd').value),tcartSec:parseNum($('#f_tcart').value)};
   const nc=naoCortSec(eNow), dur=opDurSec(eNow);
@@ -766,6 +808,7 @@ function collectEntry(id){
     ini:$('#f_ini').value, fim:$('#f_fim').value, tefSec:tempoEfetivoSec(),
     rnc:$('#chkRnc').checked, rncMotivo:$('#chkRnc').checked?$('#f_rncMotivo').value.trim():'',
     composto:$('#f_composto').checked, parte:$('#f_composto').checked?$('#f_parte').value:'',
+    observacao:$('#f_observacao').value.trim(),
     handoff:$('#chkHandoff').checked?{op:$('#f_hOp').value.trim(),turno:$('#f_hTurno').value,hora:$('#f_hHora').value,falta:parseNum($('#f_hFalta').value),obs:$('#f_hObs').value.trim()}:null };
   if(tipo==='Amostras') return {...base, caixa:'',cod:'',pedido:'',tecnica:'',mp:'',mascara:'',procCorte:false,procGrav:false,procCam:false,procJan:false,pecasOP:0,cartelasOP:0,ppc:0,tcartSec:0,cartL:'',cartA:'',pecaL:'',pecaA:'',valor:0,cartProd:0,pecasCort:0};
   if(tipo==='Picote') return {...base,
@@ -845,6 +888,7 @@ function clearForm(){
   $('#f_pecasCort').dataset.touched='0'; $('#chkHandoff').checked=false; $('#handoffBox').classList.remove('show');
   $('#chkRnc').checked=false; $('#f_rncMotivo').value=''; $('#f_rncMotivo').style.display='none';
   $('#f_composto').checked=false; $('#f_parte').value=''; $('#f_parte').style.display='none';
+  $('#f_observacao').value='';
   $('#f_estimado').value='—'; updateAmostraMode(); resetChrono(); liveCalc();
 }
 $('#btnLimpar').addEventListener('click',()=>{ exitEdit(); clearForm(); clearDraft(); });
@@ -872,6 +916,7 @@ function editEntry(id){
   const h=e.handoff; $('#chkHandoff').checked=!!h; $('#handoffBox').classList.toggle('show',!!h);
   $('#chkRnc').checked=!!e.rnc; $('#f_rncMotivo').value=e.rncMotivo||''; $('#f_rncMotivo').style.display=e.rnc?'block':'none';
   $('#f_composto').checked=!!e.composto; $('#f_parte').value=e.parte||''; $('#f_parte').style.display=e.composto?'block':'none';
+  $('#f_observacao').value=e.observacao||'';
   if(h){ if(h.op && !Array.from($('#f_hOp').options).some(o=>o.value===h.op)){ if(!OPS_SEED.includes(h.op))OPS_SEED.push(h.op); buildLists(); } $('#f_hOp').value=h.op||'';$('#f_hTurno').value=h.turno||'T1';$('#f_hHora').value=h.hora||'';$('#f_hFalta').value=h.falta||'';$('#f_hObs').value=h.obs||'';}
   $('#editBanner').classList.add('show'); $('#formTitle').textContent='Editar Ordem de Produção'; $('#btnSalvar').textContent='Salvar alterações';
   $$('.tab').forEach(x=>x.classList.remove('active')); $('.tab[data-view="lanc"]').classList.add('active');
@@ -888,7 +933,7 @@ function aggregate(){
   const smap=setupMap(all);
   const amostraByMaq={}; MAQS.forEach(m=>amostraByMaq[m]=0);
   all.filter(e=>e.tipo==='Amostras').forEach(e=>{ amostraByMaq[e.maquina]=(amostraByMaq[e.maquina]||0)+(e.tefSec||0); });
-  const es=all.filter(e=>e.tipo!=='Amostras').map(e=>({...e,...calcEntry(e), _turno:turnoOf(e,curDate), _ocup:smap[e.id]||0, _cortePuro:(e.cartProd||0)*(e.tcartSec||0)}));
+  const es=all.filter(e=>e.tipo!=='Amostras').map(e=>{ const oc=smap[e.id]||0; let cp, stp=0; if(e.tipo==='Picote'){ cp=e.tefSec||0; stp=Math.max(0,Math.min(oc-cp,1800)); } else { cp=(e.cartProd||0)*(e.tcartSec||0); } return {...e,...calcEntry(e), _turno:turnoOf(e,curDate), _ocup:oc, _cortePuro:cp, _setup:stp}; });
   const tot={pedido:0,cortado:0,dif:0,tef:0,pecas:0};
   const rnc={perda:0,ocup:0,lanc:0,cart:0,pecas:0,pedidos:0,motivos:[]};
   const byMaq={}, byTurno={};
@@ -931,18 +976,19 @@ function renderUtil(){
   let disp=null;
   if(utilFilter==='Todos' && !hasSat) disp=TURNOS.reduce((a,t)=>a+t.dispMin,0)*60;
   else if(TURNO_IDS.includes(utilFilter)) disp=TURNOS.find(x=>x.id===utilFilter).dispMin*60;
-  const rows=MAQS.map(m=>{ let ocup=0,corte=0; es.forEach(e=>{ if(e.maquina!==m)return; if(utilFilter!=='Todos'&&e._turno!==utilFilter)return; ocup+=e._ocup; corte+=e._cortePuro; }); return {m,ocup,corte}; });
-  const totOcup=rows.reduce((a,r)=>a+r.ocup,0), totCorte=rows.reduce((a,r)=>a+r.corte,0);
-  const row=(nm,ocup,corte,isTot)=>{
+  const rows=MAQS.map(m=>{ let ocup=0,corte=0,setup=0; es.forEach(e=>{ if(e.maquina!==m)return; if(utilFilter!=='Todos'&&e._turno!==utilFilter)return; ocup+=e._ocup; corte+=e._cortePuro; setup+=(e._setup||0); }); return {m,ocup,corte,setup}; });
+  const totOcup=rows.reduce((a,r)=>a+r.ocup,0), totCorte=rows.reduce((a,r)=>a+r.corte,0), totSetup=rows.reduce((a,r)=>a+r.setup,0);
+  const row=(nm,ocup,corte,setup,isTot)=>{
     const base=disp!=null?disp:Math.max(ocup,1);
-    const cut=Math.min(corte,ocup), waste=Math.max(0,ocup-cut), idle=disp!=null?Math.max(0,disp-ocup):0;
+    // cut = tempo produtivo (Corte: cartelas×tempo; Picote: tempo real da OP). waste = setup/troca. idle = resto.
+    const cut=Math.min(corte,ocup), waste=setup>0?Math.min(setup,Math.max(0,ocup-cut)):Math.max(0,ocup-cut), idle=disp!=null?Math.max(0,disp-ocup):0;
     const w=x=>Math.max(0,Math.min(100,x/base*100));
     const pct=disp?(ocup/disp*100):null;
     return `<div class="util-row ${isTot?'tot':''}"><div class="util-nm">${nm}</div>
       <div class="util-track"><span class="seg-cut" style="width:${w(cut)}%"></span><span class="seg-waste" style="width:${w(waste)}%"></span><span class="seg-idle" style="width:${w(idle)}%"></span></div>
       <div class="util-pct">${pct!=null?`<b>${pct.toFixed(0)}%</b> · `:''}${secToHM(ocup)}${disp!=null?' / '+secToHM(disp):''}</div></div>`;
   };
-  $('#utilRows').innerHTML=rows.map(r=>row(r.m,r.ocup,r.corte,false)).join('')+row('Total',totOcup,totCorte,true);
+  $('#utilRows').innerHTML=rows.map(r=>row(r.m,r.ocup,r.corte,r.setup,false)).join('')+row('Total',totOcup,totCorte,totSetup,true);
 }
 function renderDias(){
   const dates=Object.keys(store).filter(d=>store[d]&&store[d].entries&&store[d].entries.length).sort().slice(-10);
@@ -1008,6 +1054,40 @@ function exportRncCsv(){
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='rnc_historico_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
 }
+let obsHist=[];
+async function loadObsHist(){
+  if(!_sb){ alert('Supabase não carregou.'); return; }
+  const tb=$('#obsBody');
+  tb.innerHTML='<tr><td colspan="6" class="empty">Carregando…</td></tr>';
+  try{
+    const { data, error } = await _sb.from(TABLE).select('data,maquina,operador,pedido,cod,observacao')
+      .neq('status','excluido').not('observacao','is',null).neq('observacao','').order('data',{ascending:false});
+    if(error) throw error;
+    obsHist=(data||[]).filter(r=>r.observacao&&r.observacao.trim()).map(r=>({
+      data:r.data||'', maquina:r.maquina||'', operador:r.operador||'',
+      pedido:r.pedido||'', cod:r.cod||'', observacao:r.observacao||''
+    }));
+    renderObsTable();
+  }catch(err){ console.error('obsHist',err); tb.innerHTML='<tr><td colspan="6" class="empty">Erro ao carregar. Veja o console.</td></tr>'; }
+}
+function renderObsTable(){
+  const tb=$('#obsBody');
+  if(!obsHist.length){ tb.innerHTML='<tr><td colspan="6" class="empty">Nenhuma observação registrada.</td></tr>'; $('#obsResumo').textContent=''; return; }
+  tb.innerHTML=obsHist.map(r=>`<tr>
+    <td>${r.data}</td><td>${r.maquina}</td><td>${r.operador}</td><td>${r.pedido||'—'}</td><td>${r.cod||'—'}</td>
+    <td>${(r.observacao||'—').replace(/</g,'&lt;')}</td></tr>`).join('');
+  $('#obsResumo').textContent=`${obsHist.length} observação(ões)`;
+}
+function exportObsCsv(){
+  if(!obsHist.length){ alert('Nada para exportar. Clique em Atualizar primeiro.'); return; }
+  const head=['Data','Maquina','Operador','Pedido','CodProduto','Observacao'];
+  const rows=obsHist.map(r=>[r.data,r.maquina,r.operador,r.pedido,r.cod,r.observacao]
+    .map(x=>`"${String(x??'').replace(/"/g,'""')}"`).join(';'));
+  const csv=[head.join(';'),...rows].join('\n');
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='observacoes_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+}
 function renderRncDash(){
   const {rnc}=aggregate();
   const el=id=>$('#'+id);
@@ -1023,8 +1103,30 @@ function renderRncDash(){
       : '<span style="color:var(--ink2)">Sem RNC registrada neste dia.</span>';
   }
 }
+function renderPicoteDash(){
+  const {es}=aggregate();
+  const pic=es.filter(e=>e.tipo==='Picote');
+  const tb=$('#picoteTurnoBody'), lid=$('#picoteLider');
+  if(!tb)return;
+  if(!pic.length){ tb.innerHTML='<tr><td colspan="3" class="empty">Sem picote no dia.</td></tr>'; if(lid)lid.textContent=''; return; }
+  // por turno
+  const porTurno={};
+  TURNO_IDS.forEach(t=>porTurno[t]={cart:0,ocup:0});
+  pic.forEach(e=>{ const t=e._turno; if(!porTurno[t])porTurno[t]={cart:0,ocup:0}; porTurno[t].cart+=(e.cartProd||0); porTurno[t].ocup+=(e._ocup||0); });
+  tb.innerHTML=TURNO_IDS.filter(t=>porTurno[t]&&(porTurno[t].cart>0||porTurno[t].ocup>0)).map(t=>
+    `<tr><td>${turnoLab(t)} turno</td><td class="num">${fmtInt(porTurno[t].cart)}</td><td class="num">${secToHM(porTurno[t].ocup)}</td></tr>`).join('')||'<tr><td colspan="3" class="empty">Sem picote no dia.</td></tr>';
+  // máquina líder (cartelas e horas)
+  const porMaq={};
+  pic.forEach(e=>{ if(!porMaq[e.maquina])porMaq[e.maquina]={cart:0,ocup:0}; porMaq[e.maquina].cart+=(e.cartProd||0); porMaq[e.maquina].ocup+=(e._ocup||0); });
+  const arr=Object.entries(porMaq);
+  const topCart=arr.slice().sort((a,b)=>b[1].cart-a[1].cart)[0];
+  const topHora=arr.slice().sort((a,b)=>b[1].ocup-a[1].ocup)[0];
+  if(lid){
+    lid.innerHTML=`🏆 Mais picotou (cartelas): <b>${topCart[0]}</b> — ${fmtInt(topCart[1].cart)} cartelas &nbsp;·&nbsp; Mais tempo: <b>${topHora[0]}</b> — ${secToHM(topHora[1].ocup)}`;
+  }
+}
 function renderDash(){
-  renderUtil(); renderDias(); renderUtilTurno(); renderRncDash();
+  renderUtil(); renderDias(); renderUtilTurno(); renderRncDash(); renderPicoteDash();
   const{byMaq,byTurno,amostraByMaq}=aggregate();
   $('#miniGrid').innerHTML=MAQS.map(m=>{
     const d=byMaq[m]||{pedido:0,cortado:0,tef:0}; const dif=d.cortado-d.pedido;
@@ -1098,7 +1200,8 @@ function renderReg(){
       const pcort=tes.reduce((a,e)=>a+(e.pecasCort||0),0);
       const ocup=tes.reduce((a,e)=>a+(smap[e.id]||0),0);
       html+=`<tr class="grp-turno"><td colspan="28">${turnoNome(t)} · ${tes.length} OP(s) · ${fmtInt(pcort)} peças cortadas · ocupação ${secToHM(ocup)}</td></tr>`;
-      html+=tes.map(e=>regRowHtml(e,smap)).join('');
+      const tesSorted=[...tes].sort((a,b)=>(b.ini||'').localeCompare(a.ini||''));
+      html+=tesSorted.map(e=>regRowHtml(e,smap)).join('');
     });
   });
   b.innerHTML=html;
@@ -1121,7 +1224,10 @@ $$('.tab').forEach(t=>t.addEventListener('click',()=>{
   $$('.view').forEach(v=>v.classList.remove('active'));$('#view-'+t.dataset.view).classList.add('active');
   if(t.dataset.view==='dash')renderDash();
   if(t.dataset.view==='rnc' && !rncHist.length)loadRncHist();
+  if(t.dataset.view==='obs' && !obsHist.length)loadObsHist();
 }));
+$('#btnObsReload')&&$('#btnObsReload').addEventListener('click',loadObsHist);
+$('#btnObsCsv')&&$('#btnObsCsv').addEventListener('click',exportObsCsv);
 $('#btnRncReload')&&$('#btnRncReload').addEventListener('click',loadRncHist);
 $('#btnRncCsv')&&$('#btnRncCsv').addEventListener('click',exportRncCsv);
 $('#dataDia').addEventListener('change',e=>{ curDate=e.target.value; getDay(); $('#meta').value=(getDay().meta||0).toLocaleString('pt-BR'); renderAll(); });
@@ -1153,7 +1259,7 @@ function flatten(e,dateStr){
     valor:numOrNull(e.valor), cartprod:numOrNull(e.cartProd), pecascort:numOrNull(e.pecasCort),
     proccorte:!!e.procCorte, procgrav:!!e.procGrav, proccam:!!e.procCam, procjan:!!e.procJan,
     handoff_op:h.op||'', handoff_turno:h.turno||'', handoff_hora:h.hora||'', handoff_falta:numOrNull(h.falta), handoff_obs:h.obs||'',
-    rnc:!!e.rnc, rnc_motivo:e.rncMotivo||'', mascara:e.mascara||'', composto:!!e.composto, parte:e.parte||'' };
+    rnc:!!e.rnc, rnc_motivo:e.rncMotivo||'', mascara:e.mascara||'', composto:!!e.composto, parte:e.parte||'', observacao:e.observacao||'' };
 }
 /* unflatten: lê a linha MINÚSCULA do banco e volta para o formato camelCase interno. */
 function unflatten(r){
@@ -1166,7 +1272,7 @@ function unflatten(r){
     cartL:s(r.cartl), cartA:s(r.carta), pecaL:s(r.pecal), pecaA:s(r.pecaa),
     valor:num(r.valor), cartProd:num(r.cartprod), pecasCort:num(r.pecascort),
     procCorte:b(r.proccorte), procGrav:b(r.procgrav), procCam:b(r.proccam), procJan:b(r.procjan),
-    rnc:b(r.rnc), rncMotivo:s(r.rnc_motivo), mascara:s(r.mascara), composto:b(r.composto), parte:s(r.parte) };
+    rnc:b(r.rnc), rncMotivo:s(r.rnc_motivo), mascara:s(r.mascara), composto:b(r.composto), parte:s(r.parte), observacao:s(r.observacao) };
   if(r.handoff_op||r.handoff_obs||r.handoff_hora){ e.handoff={op:s(r.handoff_op),turno:s(r.handoff_turno),hora:s(r.handoff_hora),falta:num(r.handoff_falta),obs:s(r.handoff_obs)}; }
   return {entry:e, data:s(r.data).slice(0,10)};
 }
