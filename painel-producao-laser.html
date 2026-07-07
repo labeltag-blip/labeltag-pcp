@@ -296,6 +296,12 @@ canvas{max-height:300px}
           <option>4D Touch</option><option>Policarbonato</option>
         </select></div>
       <div class="fld corte-only"><label>Matéria-prima</label><input list="mpList" id="f_mp" placeholder="ex: Metallic Prata 1800, Dourado 3505, Prata 251"><datalist id="mpList"></datalist></div>
+      <div class="fld"><label>Composto</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label class="chk" style="white-space:nowrap"><input type="checkbox" id="f_composto"> Sim</label>
+          <select id="f_parte" class="mono" style="display:none;flex:1"><option value="">Parte…</option><option value="A">A</option><option value="B">B</option></select>
+        </div>
+      </div>
       <div class="fld picote-only" style="display:none"><label>Máscara</label><select id="f_mascara" class="mono"><option value="">—</option><option value="FL80">FL80</option><option value="FL150">FL150</option></select></div>
 
       <div class="grp-sep">Cartela e processo</div>
@@ -577,6 +583,7 @@ let draftTimer;
 function persistDraft(){
   const d={editingId, tipo:$('#f_tipo').value, handoff:$('#chkHandoff').checked,
     rnc:$('#chkRnc').checked, rncMotivo:$('#f_rncMotivo').value,
+    composto:$('#f_composto').checked, parte:$('#f_parte').value,
     chronoAccum, chronoRun, chronoStartEpoch: chronoRun?chronoStart:0, cortTouched:$('#f_pecasCort').dataset.touched||'0'};
   FORM_FIELDS.forEach(id=>d[id]=$('#'+id).value);
   PROC_FIELDS.forEach(id=>d[id]=$('#'+id).checked);
@@ -593,6 +600,7 @@ function restoreDraft(){
   setSeg('segTipo','f_tipo',d.tipo||'Corte'); updateAmostraMode();
   $('#chkHandoff').checked=!!d.handoff; $('#handoffBox').classList.toggle('show',!!d.handoff);
   $('#chkRnc').checked=!!d.rnc; $('#f_rncMotivo').value=d.rncMotivo||''; $('#f_rncMotivo').style.display=d.rnc?'block':'none';
+  $('#f_composto').checked=!!d.composto; $('#f_parte').value=d.parte||''; $('#f_parte').style.display=d.composto?'block':'none';
   $('#f_pecasCort').dataset.touched=d.cortTouched||'0';
   editingId=d.editingId||null;
   if(editingId){ $('#editBanner').classList.add('show'); $('#formTitle').textContent='Editar Ordem de Produção'; $('#btnSalvar').textContent='Salvar alterações'; }
@@ -706,6 +714,8 @@ $('#f_hOp').addEventListener('change',function(){
   }
   throttleDraft();
 });
+$('#f_composto').addEventListener('change',e=>{$('#f_parte').style.display=e.target.checked?'block':'none';if(!e.target.checked)$('#f_parte').value='';throttleDraft();});
+$('#f_parte').addEventListener('change',()=>throttleDraft());
 $('#f_maquina').addEventListener('change',()=>{liveCalc();throttleDraft();});
 $('#f_operador').addEventListener('change',function(){
   if(this.value==='__novo__'){
@@ -755,6 +765,7 @@ function collectEntry(id){
   const base={ id, maquina:$('#f_maquina').value, tipo, operador:$('#f_operador').value.trim()||'—',
     ini:$('#f_ini').value, fim:$('#f_fim').value, tefSec:tempoEfetivoSec(),
     rnc:$('#chkRnc').checked, rncMotivo:$('#chkRnc').checked?$('#f_rncMotivo').value.trim():'',
+    composto:$('#f_composto').checked, parte:$('#f_composto').checked?$('#f_parte').value:'',
     handoff:$('#chkHandoff').checked?{op:$('#f_hOp').value.trim(),turno:$('#f_hTurno').value,hora:$('#f_hHora').value,falta:parseNum($('#f_hFalta').value),obs:$('#f_hObs').value.trim()}:null };
   if(tipo==='Amostras') return {...base, caixa:'',cod:'',pedido:'',tecnica:'',mp:'',mascara:'',procCorte:false,procGrav:false,procCam:false,procJan:false,pecasOP:0,cartelasOP:0,ppc:0,tcartSec:0,cartL:'',cartA:'',pecaL:'',pecaA:'',valor:0,cartProd:0,pecasCort:0};
   if(tipo==='Picote') return {...base,
@@ -791,6 +802,7 @@ $('#btnSalvar').addEventListener('click',()=>{
     if(!e.cartelasOP) falta.push('Quantidade de cartelas da OP');
     if(!e.cartProd) falta.push('Quantidade de cartelas produzidas');
     if(e.rnc && !e.rncMotivo) falta.push('Motivo da RNC (obrigatório quando marcado RNC)');
+    if(e.composto && !e.parte) falta.push('Parte (A ou B) — obrigatório quando Composto');
     if(falta.length){ alert('Não é possível lançar o Picote. Preencha:\n\n• '+falta.join('\n• ')); return; }
   }
   else {
@@ -814,6 +826,7 @@ $('#btnSalvar').addEventListener('click',()=>{
     if(!e.tcartSec) falta.push('Tempo 1 cartela');
     if(!e.pecasCort) falta.push('Quantidade de cartelas/peças cortadas');
     if(e.rnc && !e.rncMotivo) falta.push('Motivo da RNC (obrigatório quando marcado RNC)');
+    if(e.composto && !e.parte) falta.push('Parte (A ou B) — obrigatório quando Composto');
     if(falta.length){
       alert('Não é possível lançar a OP. Preencha:\n\n• '+falta.join('\n• '));
       return;
@@ -831,6 +844,7 @@ function clearForm(){
   PROC_FIELDS.forEach(id=>{ $('#'+id).checked=false; syncProc(id); });
   $('#f_pecasCort').dataset.touched='0'; $('#chkHandoff').checked=false; $('#handoffBox').classList.remove('show');
   $('#chkRnc').checked=false; $('#f_rncMotivo').value=''; $('#f_rncMotivo').style.display='none';
+  $('#f_composto').checked=false; $('#f_parte').value=''; $('#f_parte').style.display='none';
   $('#f_estimado').value='—'; updateAmostraMode(); resetChrono(); liveCalc();
 }
 $('#btnLimpar').addEventListener('click',()=>{ exitEdit(); clearForm(); clearDraft(); });
@@ -857,6 +871,7 @@ function editEntry(id){
   chronoAccum=e.tefSec||0; chronoRun=false; $('#chronoT').textContent=secToHMS(chronoAccum); $('#chronoBtn').textContent=chronoAccum>0?'Retomar':'Iniciar'; $('#chronoBtn').className='go';
   const h=e.handoff; $('#chkHandoff').checked=!!h; $('#handoffBox').classList.toggle('show',!!h);
   $('#chkRnc').checked=!!e.rnc; $('#f_rncMotivo').value=e.rncMotivo||''; $('#f_rncMotivo').style.display=e.rnc?'block':'none';
+  $('#f_composto').checked=!!e.composto; $('#f_parte').value=e.parte||''; $('#f_parte').style.display=e.composto?'block':'none';
   if(h){ if(h.op && !Array.from($('#f_hOp').options).some(o=>o.value===h.op)){ if(!OPS_SEED.includes(h.op))OPS_SEED.push(h.op); buildLists(); } $('#f_hOp').value=h.op||'';$('#f_hTurno').value=h.turno||'T1';$('#f_hHora').value=h.hora||'';$('#f_hFalta').value=h.falta||'';$('#f_hObs').value=h.obs||'';}
   $('#editBanner').classList.add('show'); $('#formTitle').textContent='Editar Ordem de Produção'; $('#btnSalvar').textContent='Salvar alterações';
   $$('.tab').forEach(x=>x.classList.remove('active')); $('.tab[data-view="lanc"]').classList.add('active');
@@ -1138,7 +1153,7 @@ function flatten(e,dateStr){
     valor:numOrNull(e.valor), cartprod:numOrNull(e.cartProd), pecascort:numOrNull(e.pecasCort),
     proccorte:!!e.procCorte, procgrav:!!e.procGrav, proccam:!!e.procCam, procjan:!!e.procJan,
     handoff_op:h.op||'', handoff_turno:h.turno||'', handoff_hora:h.hora||'', handoff_falta:numOrNull(h.falta), handoff_obs:h.obs||'',
-    rnc:!!e.rnc, rnc_motivo:e.rncMotivo||'', mascara:e.mascara||'' };
+    rnc:!!e.rnc, rnc_motivo:e.rncMotivo||'', mascara:e.mascara||'', composto:!!e.composto, parte:e.parte||'' };
 }
 /* unflatten: lê a linha MINÚSCULA do banco e volta para o formato camelCase interno. */
 function unflatten(r){
@@ -1151,7 +1166,7 @@ function unflatten(r){
     cartL:s(r.cartl), cartA:s(r.carta), pecaL:s(r.pecal), pecaA:s(r.pecaa),
     valor:num(r.valor), cartProd:num(r.cartprod), pecasCort:num(r.pecascort),
     procCorte:b(r.proccorte), procGrav:b(r.procgrav), procCam:b(r.proccam), procJan:b(r.procjan),
-    rnc:b(r.rnc), rncMotivo:s(r.rnc_motivo), mascara:s(r.mascara) };
+    rnc:b(r.rnc), rncMotivo:s(r.rnc_motivo), mascara:s(r.mascara), composto:b(r.composto), parte:s(r.parte) };
   if(r.handoff_op||r.handoff_obs||r.handoff_hora){ e.handoff={op:s(r.handoff_op),turno:s(r.handoff_turno),hora:s(r.handoff_hora),falta:num(r.handoff_falta),obs:s(r.handoff_obs)}; }
   return {entry:e, data:s(r.data).slice(0,10)};
 }
