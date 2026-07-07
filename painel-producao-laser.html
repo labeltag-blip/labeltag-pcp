@@ -314,7 +314,7 @@ canvas{max-height:300px}
       <div class="fld corte-only"><label>Valor unit. peça R$</label><input id="f_valor" class="mono" placeholder="0,00" inputmode="decimal"></div>
 
       <div class="grp-sep">Produção / corte</div>
-      <div class="fld corte-only"><label>Tempo 1 cartela <span class="hint">(mm:ss)</span></label><input id="f_tcart" class="mono" placeholder="00:00"></div>
+      <div class="fld corte-only"><label>Tempo 1 cartela <span class="hint">(segundos)</span></label><input id="f_tcart" class="mono" inputmode="numeric" placeholder="0"></div>
       <div class="fld"><label>Quantidade de cartelas produzidas</label><input id="f_cartProd" class="mono" inputmode="numeric" placeholder="0"></div>
       <div class="fld corte-only"><label>Quantidade de peças cortadas <span style="font-size:10px;color:var(--ink2)">(auto: cart×pç/cart)</span></label><input id="f_pecasCort" class="mono" inputmode="numeric" placeholder="0" readonly style="background:#f4f5f7;cursor:not-allowed"><div class="calc" id="calcCort"></div></div>
       <div class="fld picote-only" style="display:none"><label>Tempo por cartela (picote) <span style="font-size:10px;color:var(--ink2)">(auto)</span></label><input id="f_tpicoteCart" class="mono" readonly style="background:#f4f5f7" placeholder="—"></div>
@@ -657,7 +657,7 @@ function liveCalc(){
     const scart = (picoteMedia[_maq]>0) ? picoteMedia[_maq] : PICOTE_FALLBACK_SCART;
     est = _cart>0 ? _cart*scart : 0;
   } else {
-    est = _cart>0 ? _cart*(mmssToSec($('#f_tcart').value)+folga(_maq))+FALLBACK_SETUP_S : 0;
+    est = _cart>0 ? _cart*(parseNum($('#f_tcart').value)+folga(_maq))+FALLBACK_SETUP_S : 0;
   }
   $('#f_estimado').value=est>0?secToHMS(est):'—';
   const tid=turnoOf({ini:$('#f_ini').value},curDate);
@@ -672,7 +672,7 @@ function liveCalc(){
   const dEl=$('#ltDif'); dEl.textContent=(dif>=0?'+ ':'− ')+fmtBRL(Math.abs(dif)); dEl.style.color=dif>=0?'var(--pos)':'var(--neg)';
   const chk=opCheck({pecasOP,ppc:parseNum($('#f_ppc').value),cartelasOP:parseNum($('#f_cartelasOP').value)});
   const al=$('#opAlert'); al.className='op-alert'+(chk.level==='ok'?'':' '+chk.level); al.textContent=chk.level==='ok'?'':('⚠ '+chk.msg);
-  const eNow={ini:$('#f_ini').value,fim:$('#f_fim').value,cartProd:parseNum($('#f_cartProd').value),tcartSec:mmssToSec($('#f_tcart').value)};
+  const eNow={ini:$('#f_ini').value,fim:$('#f_fim').value,cartProd:parseNum($('#f_cartProd').value),tcartSec:parseNum($('#f_tcart').value)};
   const nc=naoCortSec(eNow), dur=opDurSec(eNow);
   const ncEl=$('#ltNaoCort');
   if(nc==null){ ncEl.textContent=''; }
@@ -695,7 +695,7 @@ FORM_FIELDS.forEach(id=>$('#'+id).addEventListener('input',()=>{liveCalc();throt
   });
 });
 $('#f_cod').addEventListener('input',e=>{ let n=e.target.value.replace(/\D/g,'').slice(0,8); e.target.value = n.length>4 ? n.slice(0,4)+'.'+n.slice(4) : n; });
-$('#f_tcart').addEventListener('input',e=>{ let n=e.target.value.replace(/\D/g,'').slice(0,4); e.target.value = n.length>2 ? n.slice(0,-2)+':'+n.slice(-2) : n; liveCalc(); throttleDraft(); });
+$('#f_tcart').addEventListener('input',e=>{ e.target.value=e.target.value.replace(/\D/g,''); liveCalc(); throttleDraft(); });
 $('#f_valor').addEventListener('input',e=>{ let n=e.target.value.replace(/\D/g,''); if(!n){ e.target.value=''; liveCalc(); throttleDraft(); return; } n=(n.replace(/^0+/,'')||'0'); while(n.length<3)n='0'+n; e.target.value=Number(n.slice(0,-2)).toLocaleString('pt-BR')+','+n.slice(-2); liveCalc(); throttleDraft(); });
 ['f_tamcartL','f_tamcartA','f_tampecaL','f_tampecaA'].forEach(id=>$('#'+id).addEventListener('input',e=>{ e.target.value=e.target.value.replace(/\D/g,'').slice(0,3); }));
 $('#f_hOp').addEventListener('change',function(){
@@ -768,7 +768,7 @@ function collectEntry(id){
     tecnica:$('#f_tecnica').value.trim(), mp:$('#f_mp').value.trim(),
     procCorte:$('#f_procCorte').checked, procGrav:$('#f_procGrav').checked, procCam:$('#f_procCam').checked, procJan:$('#f_procJan').checked,
     pecasOP:parseNum($('#f_pecasOP').value), cartelasOP:parseNum($('#f_cartelasOP').value),
-    ppc:parseNum($('#f_ppc').value), tcartSec:mmssToSec($('#f_tcart').value),
+    ppc:parseNum($('#f_ppc').value), tcartSec:parseNum($('#f_tcart').value),
     cartL:$('#f_tamcartL').value.trim(), cartA:$('#f_tamcartA').value.trim(), pecaL:$('#f_tampecaL').value.trim(), pecaA:$('#f_tampecaA').value.trim(),
     valor:parseNum($('#f_valor').value), cartProd:parseNum($('#f_cartProd').value), pecasCort:parseNum($('#f_pecasCort').value), mascara:''
   };
@@ -849,7 +849,7 @@ function editEntry(id){
   $('#f_procCorte').checked=!!e.procCorte; $('#f_procGrav').checked=!!e.procGrav; $('#f_procCam').checked=!!e.procCam; $('#f_procJan').checked=!!e.procJan; PROC_FIELDS.forEach(syncProc);
   const fmtQ=n=>n?Number(n).toLocaleString('pt-BR'):'';
   $('#f_pecasOP').value=fmtQ(e.pecasOP); $('#f_cartelasOP').value=fmtQ(e.cartelasOP); $('#f_ppc').value=fmtQ(e.ppc);
-  $('#f_tcart').value=e.tcartSec?secToHMS(e.tcartSec).slice(3):'';
+  $('#f_tcart').value=e.tcartSec?String(e.tcartSec):'';
   $('#f_tamcartL').value=e.cartL||''; $('#f_tamcartA').value=e.cartA||''; $('#f_tampecaL').value=e.pecaL||''; $('#f_tampecaA').value=e.pecaA||'';
   $('#f_valor').value=e.valor?e.valor.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):''; $('#f_cartProd').value=fmtQ(e.cartProd); $('#f_pecasCort').value=fmtQ(e.pecasCort);
   $('#f_pecasCort').dataset.touched='1';
