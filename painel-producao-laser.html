@@ -210,6 +210,17 @@ canvas{max-height:300px}
 </style>
 </head>
 <body>
+<div id="loginOverlay" style="position:fixed;inset:0;z-index:9999;background:#0f1115;display:flex;align-items:center;justify-content:center;flex-direction:column;font-family:system-ui,Arial,sans-serif">
+  <div style="background:#fff;border-radius:14px;padding:32px;width:340px;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,.4)">
+    <div style="font-weight:800;font-size:18px;color:#ff6a1a;margin-bottom:2px">Painel de Produção</div>
+    <div style="font-size:12px;color:#8a94a2;margin-bottom:20px">Setor Laser — acesso restrito</div>
+    <input id="loginEmail" type="email" placeholder="E-mail" autocomplete="username" style="width:100%;padding:11px;margin-bottom:10px;border:1px solid #d5d9e0;border-radius:8px;font-size:14px;box-sizing:border-box">
+    <input id="loginPass" type="password" placeholder="Senha" autocomplete="current-password" style="width:100%;padding:11px;margin-bottom:14px;border:1px solid #d5d9e0;border-radius:8px;font-size:14px;box-sizing:border-box">
+    <button id="loginBtn" style="width:100%;padding:12px;background:#ff6a1a;color:#fff;border:0;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer">Entrar</button>
+    <div id="loginErr" style="color:#c0392b;font-size:13px;margin-top:10px;min-height:16px"></div>
+  </div>
+  <div style="color:#5a6472;font-size:11px;margin-top:16px">Esta estação permanece conectada após o primeiro acesso.</div>
+</div>
 
 <div class="topband">
   <div class="topband-inner">
@@ -222,6 +233,7 @@ canvas{max-height:300px}
     <div class="spacer"></div>
     <span class="saved" id="syncTag" style="margin-right:12px"></span>
     <span class="saved" id="savedTag">salvo localmente</span>
+    <button id="logoutBtn" title="Sair desta estação" style="margin-left:12px;background:none;border:1px solid #3a4150;color:#8a94a2;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer">Sair</button>
   </div>
 </div>
 
@@ -316,7 +328,7 @@ canvas{max-height:300px}
 
       <div class="grp-sep corte-only">Peça e valor</div>
       <div class="fld corte-only"><label>Arte (mm)</label>
-        <div class="dim"><input id="f_tampecaL" class="mono" inputmode="numeric" maxlength="3" placeholder="larg"><span>×</span><input id="f_tampecaA" class="mono" inputmode="numeric" maxlength="3" placeholder="alt"></div></div>
+        <div class="dim"><input id="f_tampecaL" class="mono" inputmode="decimal" maxlength="6" placeholder="larg"><span>×</span><input id="f_tampecaA" class="mono" inputmode="decimal" maxlength="6" placeholder="alt"></div></div>
       <div class="fld corte-only"><label>Quantidade de peças por cartela</label><input id="f_ppc" class="mono" inputmode="numeric" placeholder="0"></div>
       <div class="fld corte-only"><label>Valor unit. peça R$</label><input id="f_valor" class="mono" placeholder="0,00" inputmode="decimal"></div>
 
@@ -747,7 +759,8 @@ FORM_FIELDS.forEach(id=>$('#'+id).addEventListener('input',()=>{liveCalc();throt
 $('#f_cod').addEventListener('input',e=>{ let n=e.target.value.replace(/\D/g,'').slice(0,8); e.target.value = n.length>4 ? n.slice(0,4)+'.'+n.slice(4) : n; });
 $('#f_tcart').addEventListener('input',e=>{ e.target.value=e.target.value.replace(/\D/g,''); liveCalc(); throttleDraft(); });
 $('#f_valor').addEventListener('input',e=>{ let n=e.target.value.replace(/\D/g,''); if(!n){ e.target.value=''; liveCalc(); throttleDraft(); return; } n=(n.replace(/^0+/,'')||'0'); while(n.length<3)n='0'+n; e.target.value=Number(n.slice(0,-2)).toLocaleString('pt-BR')+','+n.slice(-2); liveCalc(); throttleDraft(); });
-['f_tamcartL','f_tamcartA','f_tampecaL','f_tampecaA'].forEach(id=>$('#'+id).addEventListener('input',e=>{ e.target.value=e.target.value.replace(/\D/g,'').slice(0,3); }));
+['f_tamcartL','f_tamcartA'].forEach(id=>$('#'+id).addEventListener('input',e=>{ e.target.value=e.target.value.replace(/\D/g,'').slice(0,3); }));
+['f_tampecaL','f_tampecaA'].forEach(id=>$('#'+id).addEventListener('input',e=>{ let v=e.target.value.replace(/\./g,',').replace(/[^0-9,]/g,''); const p=v.split(','); v = p.length>1 ? p[0].slice(0,3)+','+p.slice(1).join('').slice(0,1) : p[0].slice(0,3); e.target.value=v; }));
 $('#f_hOp').addEventListener('change',function(){
   if(this.value==='__novo__'){
     const nome=(prompt('Nome do novo operador:')||'').trim();
@@ -1245,6 +1258,38 @@ const TABLE='laser';
 const _sb = (window.supabase && window.supabase.createClient)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
   : null;
+
+/* ===== Autenticação por estação (DESATIVADA temporariamente) ===== */
+const AUTH_ATIVO=false; // trocar para true para reativar o login
+async function checkAuth(){
+  if(!AUTH_ATIVO){ const o=document.getElementById('loginOverlay'); if(o)o.style.display='none'; const lb=document.getElementById('logoutBtn'); if(lb)lb.style.display='none'; return true; }
+  if(!_sb){ document.getElementById('loginOverlay').style.display='none'; return true; }
+  try{
+    const { data } = await _sb.auth.getSession();
+    if(data && data.session){ document.getElementById('loginOverlay').style.display='none'; return true; }
+  }catch(e){ console.error('auth check',e); }
+  document.getElementById('loginOverlay').style.display='flex';
+  return false;
+}
+async function doLogin(){
+  const email=(document.getElementById('loginEmail').value||'').trim();
+  const pass=document.getElementById('loginPass').value||'';
+  const err=document.getElementById('loginErr');
+  if(!email||!pass){ err.textContent='Informe e-mail e senha.'; return; }
+  err.textContent='Entrando…';
+  try{
+    const { error } = await _sb.auth.signInWithPassword({email,password:pass});
+    if(error){ err.textContent='E-mail ou senha inválidos.'; return; }
+    err.textContent='';
+    document.getElementById('loginOverlay').style.display='none';
+    location.reload(); // recarrega já autenticado
+  }catch(e){ console.error('login',e); err.textContent='Erro ao entrar. Tente novamente.'; }
+}
+document.getElementById('loginBtn').addEventListener('click',doLogin);
+document.getElementById('loginPass').addEventListener('keydown',e=>{ if(e.key==='Enter')doLogin(); });
+document.addEventListener('click',e=>{ if(e.target&&e.target.id==='logoutBtn'){ if(confirm('Sair desta estação? Será necessário logar novamente.')){ _sb&&_sb.auth.signOut().then(()=>location.reload()); } } });
+checkAuth();
+
 let lastWriteAt=0;
 function syncTag(msg,ok){ const t=$('#syncTag'); if(t){ t.textContent=msg; t.style.color=ok?'#3ad07f':'#8a94a2'; } const d=$('.brand .dot'); if(d){ d.classList.toggle('online',!!ok); d.classList.toggle('offline',!ok); } }
 
