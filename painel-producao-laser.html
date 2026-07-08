@@ -151,7 +151,8 @@ h1,h2,h3{margin:0}
 .tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:#fff}
 #view-reg .tbl-wrap{width:calc(100vw - 40px);margin-left:calc(-50vw + 50% + 20px);border-radius:var(--r);border:1px solid var(--line)}
 table{border-collapse:collapse;width:100%;min-width:1050px;font-size:11px}
-thead th{background:#f7f8fa;text-align:left;padding:7px 7px;font-size:9px;text-transform:uppercase;letter-spacing:.01em;color:var(--ink2);font-weight:700;border-bottom:1px solid var(--line);border-right:1px solid var(--line);white-space:nowrap;position:sticky;top:0}
+thead th{background:#f7f8fa;text-align:left;padding:7px 7px;font-size:9px;text-transform:uppercase;letter-spacing:.01em;color:var(--ink2);font-weight:700;border-bottom:1px solid var(--line);border-right:1px solid var(--line);white-space:nowrap}
+tbody tr.grp-head td{background:#eceef1;text-align:left;padding:6px 7px;font-size:9px;text-transform:uppercase;letter-spacing:.01em;color:var(--ink2);font-weight:700;border-bottom:1px solid var(--line);border-right:1px solid var(--line);white-space:nowrap}
 tbody td{padding:6px 8px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);white-space:nowrap}
 tbody tr.grp-maq td{background:var(--graphite);color:#fff;font-weight:800;font-size:12.5px;letter-spacing:.03em;padding:9px 12px;border-right:none;position:sticky;left:0}
 tbody tr.grp-turno td{background:#fff3ea;color:var(--laser-dim);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:6px 12px;border-right:none;position:sticky;left:0}
@@ -240,7 +241,7 @@ canvas{max-height:300px}
 <div class="kpis">
   <div class="kpis-inner" id="kpiStrip">
     <div class="kpi hero"><div class="lab">% da Meta</div><div class="val" id="kMeta">0%</div><div class="gauge"><span id="kGauge" style="width:0%"></span></div></div>
-    <div class="kpi"><div class="lab">Faturamento Pedidos</div><div class="val mono" id="kPedido">R$ 0</div><div class="sub">base da meta</div></div>
+    <div class="kpi"><div class="lab">Total Pedidos</div><div class="val mono" id="kPedido">R$ 0</div><div class="sub">base da meta</div></div>
     <div class="kpi"><div class="lab">Total Cortado</div><div class="val mono" id="kCortado">R$ 0</div><div class="sub">produzido físico</div></div>
     <div class="kpi"><div class="lab">Produzido a mais</div><div class="val mono" id="kExced">R$ 0</div><div class="sub" id="kExcedPct">0%</div></div>
     <div class="kpi"><div class="lab">Tempo total</div><div class="val mono" id="kTempo">00:00</div><div class="sub" id="kLanc">0 lançamentos</div></div>
@@ -457,12 +458,6 @@ canvas{max-height:300px}
   </div>
   <div class="tbl-wrap">
     <table>
-      <thead><tr>
-        <th>Máq</th><th>Tipo</th><th>Operador</th><th>Turno</th><th>Caixa</th><th>Cód</th><th>Técnica</th><th>MP</th><th>Proc.</th><th>Ped</th>
-        <th>Pç OP</th><th>Cart OP</th><th>Pç/cart</th><th>T.cart</th><th>Estim.</th><th>T.total</th><th>Val</th>
-        <th>Cart prod</th><th>Pç cort</th><th>Início</th><th>Fim</th><th>T.efet.</th><th>Não-cort.</th><th>% cort.</th>
-        <th>Pedido</th><th>Cortado</th><th>Dif</th><th></th>
-      </tr></thead>
       <tbody id="regBody"></tbody>
     </table>
   </div>
@@ -1389,6 +1384,11 @@ function renderReg(){
       const pcort=tes.reduce((a,e)=>a+(e.pecasCort||0),0);
       const ocup=tes.reduce((a,e)=>a+(smap[e.id]||0),0);
       html+=`<tr class="grp-turno"><td colspan="28">${turnoNome(t)} · ${tes.length} OP(s) · ${fmtInt(pcort)} peças cortadas · ocupação ${secToHM(ocup)}</td></tr>`;
+      html+=`<tr class="grp-head">
+        <td>Máquina</td><td>Tipo</td><td>Operador</td><td>Turno</td><td>Nº Caixa</td><td>Cód. Produto</td><td>Técnica</td><td>Matéria-prima</td><td>Processo</td><td>Nº Pedido</td>
+        <td>Peças OP</td><td>Cartelas OP</td><td>Peças/cartela</td><td>Tempo 1 cartela</td><td>Estimado</td><td>Tempo total</td><td>Valor unit.</td>
+        <td>Cartelas prod.</td><td>Peças cortadas</td><td>Início</td><td>Fim</td><td>Tempo efetivo</td><td>Não-cortando</td><td>% cortando</td>
+        <td>Pedido R$</td><td>Cortado R$</td><td>Diferença</td><td></td></tr>`;
       const tesSorted=[...tes].sort((a,b)=>(b.ini||'').localeCompare(a.ini||''));
       html+=tesSorted.map(e=>regRowHtml(e,smap)).join('');
     });
