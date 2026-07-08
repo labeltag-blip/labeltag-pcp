@@ -254,6 +254,7 @@ canvas{max-height:300px}
   <button class="tab" data-view="reg">Registros</button>
   <button class="tab" data-view="rnc">RNC</button>
   <button class="tab" data-view="obs">Observações</button>
+  <button class="tab" data-view="rel">Relatórios</button>
 </div>
 
 <div class="wrap">
@@ -344,8 +345,15 @@ canvas{max-height:300px}
         <div class="fld"><label>Turno que assume</label>
           <select id="f_hTurno"><option value="T1">1º Turno</option><option value="T2">2º Turno</option><option value="T3">3º Turno</option></select></div>
         <div class="fld"><label>Hora da passagem</label><input type="time" id="f_hHora" step="1"></div>
-        <div class="fld"><label>Cartelas que faltam cortar</label><input id="f_hFalta" class="mono" inputmode="numeric" placeholder="0"></div>
-        <div class="fld span2"><label>Obs. da passagem</label><input id="f_hObs" placeholder="o que falta, estado da OP..."></div>
+        <div class="fld"><label style="color:#c0392b">⚠ Quantidade que FALTA cortar</label><input id="f_hFalta" class="mono" inputmode="numeric" placeholder="0"></div>
+        <div class="fld"><label style="color:#2f6bff">✓ Quantidade cortada</label><input id="f_hFeitas" class="mono" inputmode="numeric" placeholder="0"></div>
+        <div class="fld span2"><label>Obs. da passagem</label>
+          <div style="display:flex;gap:10px;align-items:center">
+            <input id="f_hObs" placeholder="o que falta, estado da OP..." style="flex:1">
+            <button type="button" class="btn btn-primary" id="btnRegPassagem" style="white-space:nowrap">Registrar passagem</button>
+          </div>
+          <span id="passagemStatus" style="font-size:13px;color:#1e874b;font-weight:600;display:block;margin-top:4px"></span>
+        </div>
       </div>
     </div>
 
@@ -492,6 +500,24 @@ canvas{max-height:300px}
   </div>
 </div>
 
+<div class="view" id="view-rel">
+  <div class="card dash-wide">
+    <h2 style="color:#ff6a1a">📊 RELATÓRIO POR PERÍODO</h2>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:12px 0">
+      <div><label style="font-size:12px;color:var(--ink2);display:block">Tipo</label>
+        <select id="relTipo" class="mono"><option value="dia">Dia específico</option><option value="semana">Semana</option><option value="mes">Mês</option><option value="livre">Intervalo livre</option></select></div>
+      <div id="relBoxDia"><label style="font-size:12px;color:var(--ink2);display:block">Data</label><input type="date" id="relDia" class="mono"></div>
+      <div id="relBoxDe" style="display:none"><label style="font-size:12px;color:var(--ink2);display:block">De</label><input type="date" id="relDe" class="mono"></div>
+      <div id="relBoxAte" style="display:none"><label style="font-size:12px;color:var(--ink2);display:block">Até</label><input type="date" id="relAte" class="mono"></div>
+      <div id="relBoxMes" style="display:none"><label style="font-size:12px;color:var(--ink2);display:block">Mês</label><input type="month" id="relMes" class="mono"></div>
+      <button class="btn btn-primary" id="relBuscar">Buscar</button>
+      <button class="btn btn-ghost" id="relCsv">Exportar CSV</button>
+      <span id="relResumo" style="font-size:13px;color:var(--ink2)"></span>
+    </div>
+    <div id="relResultado"><div class="cfg-hint">Escolha o período e clique em Buscar.</div></div>
+  </div>
+</div>
+
 </div>
 
 <script>
@@ -624,7 +650,7 @@ function buildLists(){
 }
 
 /* ================= RASCUNHO (anti-fechamento) + cronômetro persistente ================= */
-const FORM_FIELDS=['f_maquina','f_operador','f_ini','f_fim','f_tecnica','f_mp','f_mascara','f_caixa','f_cod','f_pedido','f_valor','f_pecasOP','f_cartelasOP','f_ppc','f_tcart','f_tamcartL','f_tamcartA','f_tampecaL','f_tampecaA','f_cartProd','f_pecasCort','f_hOp','f_hTurno','f_hHora','f_hFalta','f_hObs'];
+const FORM_FIELDS=['f_maquina','f_operador','f_ini','f_fim','f_tecnica','f_mp','f_mascara','f_caixa','f_cod','f_pedido','f_valor','f_pecasOP','f_cartelasOP','f_ppc','f_tcart','f_tamcartL','f_tamcartA','f_tampecaL','f_tampecaA','f_cartProd','f_pecasCort','f_hOp','f_hTurno','f_hHora','f_hFalta','f_hFeitas','f_hObs'];
 const PROC_FIELDS=['f_procCorte','f_procGrav','f_procCam','f_procJan'];
 let draftTimer;
 function persistDraft(){
@@ -680,6 +706,20 @@ function tickHoraHandoff(){
   $('#f_hHora').value=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+':'+String(now.getSeconds()).padStart(2,'0');
 }
 $('#f_hHora').addEventListener('input',()=>{ hHoraEditado=true; pararRelogioHandoff(); });
+let passagemRegistrada=null;
+$('#btnRegPassagem').addEventListener('click',()=>{
+  const op=$('#f_hOp').value;
+  if(!op||op==='__novo__'){ alert('Selecione o operador que assume.'); return; }
+  if(!$('#f_hHora').value){ alert('Informe a hora da passagem.'); return; }
+  passagemRegistrada={
+    op:op, turno:$('#f_hTurno').value, hora:$('#f_hHora').value,
+    falta:parseNum($('#f_hFalta').value), feitas:parseNum($('#f_hFeitas').value),
+    obs:$('#f_hObs').value.trim()
+  };
+  pararRelogioHandoff(); hHoraEditado=true; // congela a hora registrada
+  $('#passagemStatus').textContent=`✓ Passagem registrada às ${passagemRegistrada.hora} — assume ${op} (${passagemRegistrada.feitas} cartelas feitas). A OP continua aberta.`;
+  throttleDraft();
+});
 $('#chkHandoff').addEventListener('change',e=>{
   $('#handoffBox').classList.toggle('show',e.target.checked);
   if(e.target.checked){
@@ -822,7 +862,7 @@ function collectEntry(id){
     rnc:$('#chkRnc').checked, rncMotivo:$('#chkRnc').checked?$('#f_rncMotivo').value.trim():'',
     composto:$('#f_composto').checked, parte:$('#f_composto').checked?$('#f_parte').value:'',
     observacao:$('#f_observacao').value.trim(),
-    handoff:$('#chkHandoff').checked?{op:$('#f_hOp').value.trim(),turno:$('#f_hTurno').value,hora:$('#f_hHora').value,falta:parseNum($('#f_hFalta').value),obs:$('#f_hObs').value.trim()}:null };
+    handoff:$('#chkHandoff').checked?{op:$('#f_hOp').value.trim(),turno:$('#f_hTurno').value,hora:$('#f_hHora').value,falta:parseNum($('#f_hFalta').value),feitas:parseNum($('#f_hFeitas').value),obs:$('#f_hObs').value.trim()}:null };
   if(tipo==='Amostras') return {...base, caixa:'',cod:'',pedido:'',tecnica:'',mp:'',mascara:'',procCorte:false,procGrav:false,procCam:false,procJan:false,pecasOP:0,cartelasOP:0,ppc:0,tcartSec:0,cartL:'',cartA:'',pecaL:'',pecaA:'',valor:0,cartProd:0,pecasCort:0};
   if(tipo==='Picote') return {...base,
     caixa:$('#f_caixa').value.trim(), cod:$('#f_cod').value.trim(), pedido:$('#f_pedido').value.trim(),
@@ -899,6 +939,7 @@ function clearForm(){
   FORM_FIELDS.forEach(id=>{ if(id==='f_hTurno')$('#'+id).value='T1'; else $('#'+id).value=''; });
   PROC_FIELDS.forEach(id=>{ $('#'+id).checked=false; syncProc(id); });
   $('#f_pecasCort').dataset.touched='0'; $('#chkHandoff').checked=false; $('#handoffBox').classList.remove('show');
+  passagemRegistrada=null; if($('#passagemStatus'))$('#passagemStatus').textContent='';
   $('#chkRnc').checked=false; $('#f_rncMotivo').value=''; $('#f_rncMotivo').style.display='none';
   $('#f_composto').checked=false; $('#f_parte').value=''; $('#f_parte').style.display='none';
   $('#f_observacao').value='';
@@ -930,7 +971,7 @@ function editEntry(id){
   $('#chkRnc').checked=!!e.rnc; $('#f_rncMotivo').value=e.rncMotivo||''; $('#f_rncMotivo').style.display=e.rnc?'block':'none';
   $('#f_composto').checked=!!e.composto; $('#f_parte').value=e.parte||''; $('#f_parte').style.display=e.composto?'block':'none';
   $('#f_observacao').value=e.observacao||'';
-  if(h){ if(h.op && !Array.from($('#f_hOp').options).some(o=>o.value===h.op)){ if(!OPS_SEED.includes(h.op))OPS_SEED.push(h.op); buildLists(); } $('#f_hOp').value=h.op||'';$('#f_hTurno').value=h.turno||'T1';$('#f_hHora').value=h.hora||'';$('#f_hFalta').value=h.falta||'';$('#f_hObs').value=h.obs||'';}
+  if(h){ if(h.op && !Array.from($('#f_hOp').options).some(o=>o.value===h.op)){ if(!OPS_SEED.includes(h.op))OPS_SEED.push(h.op); buildLists(); } $('#f_hOp').value=h.op||'';$('#f_hTurno').value=h.turno||'T1';$('#f_hHora').value=h.hora||'';$('#f_hFalta').value=h.falta||'';$('#f_hFeitas').value=h.feitas||'';$('#f_hObs').value=h.obs||'';}
   $('#editBanner').classList.add('show'); $('#formTitle').textContent='Editar Ordem de Produção'; $('#btnSalvar').textContent='Salvar alterações';
   $$('.tab').forEach(x=>x.classList.remove('active')); $('.tab[data-view="lanc"]').classList.add('active');
   $$('.view').forEach(v=>v.classList.remove('active')); $('#view-lanc').classList.add('active');
@@ -1101,6 +1142,72 @@ function exportObsCsv(){
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='observacoes_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
 }
+/* ===== Relatório por período ===== */
+let relDados=[];
+function relPeriodo(){
+  const tipo=$('#relTipo').value;
+  if(tipo==='dia'){ const d=$('#relDia').value; return d?{de:d,ate:d,label:d.split('-').reverse().join('/')}:null; }
+  if(tipo==='mes'){ const m=$('#relMes').value; if(!m)return null; const [y,mm]=m.split('-'); const ult=new Date(y,mm,0).getDate(); return {de:`${y}-${mm}-01`,ate:`${y}-${mm}-${String(ult).padStart(2,'0')}`,label:`${mm}/${y}`}; }
+  if(tipo==='semana'){ const d=$('#relDia').value; if(!d)return null; const dt=new Date(d+'T12:00:00'); const dow=dt.getDay(); const ini=new Date(dt); ini.setDate(dt.getDate()-dow); const fim=new Date(ini); fim.setDate(ini.getDate()+6); const f=x=>x.toISOString().slice(0,10); return {de:f(ini),ate:f(fim),label:`${f(ini).split('-').reverse().join('/')} a ${f(fim).split('-').reverse().join('/')}`}; }
+  if(tipo==='livre'){ const de=$('#relDe').value, ate=$('#relAte').value; return (de&&ate)?{de,ate,label:`${de.split('-').reverse().join('/')} a ${ate.split('-').reverse().join('/')}`}:null; }
+  return null;
+}
+function relUpdateCampos(){
+  const t=$('#relTipo').value;
+  $('#relBoxDia').style.display=(t==='dia'||t==='semana')?'block':'none';
+  $('#relBoxMes').style.display=t==='mes'?'block':'none';
+  $('#relBoxDe').style.display=t==='livre'?'block':'none';
+  $('#relBoxAte').style.display=t==='livre'?'block':'none';
+}
+async function relBuscar(){
+  if(!_sb){ alert('Supabase não carregou.'); return; }
+  const per=relPeriodo();
+  if(!per){ alert('Escolha o período completo.'); return; }
+  $('#relResultado').innerHTML='<div class="cfg-hint">Carregando…</div>';
+  try{
+    const { data, error } = await _sb.from(TABLE).select('*').neq('status','excluido').gte('data',per.de).lte('data',per.ate);
+    if(error) throw error;
+    relDados=(data||[]).map(r=>unflatten(r).entry).map((e,i)=>({...e,...calcEntry(e)}));
+    relRender(per);
+    $('#relResumo').textContent=`${relDados.length} lançamentos · ${per.label}`;
+  }catch(err){ console.error('relatorio',err); $('#relResultado').innerHTML='<div class="cfg-hint" style="color:#c0392b">Erro ao carregar. Veja o console.</div>'; }
+}
+function relRender(per){
+  const d=relDados;
+  if(!d.length){ $('#relResultado').innerHTML='<div class="cfg-hint">Nenhum lançamento no período.</div>'; return; }
+  const corte=d.filter(e=>e.tipo!=='Picote'&&e.tipo!=='Amostras');
+  const picote=d.filter(e=>e.tipo==='Picote');
+  const rncs=d.filter(e=>e.rnc);
+  const totPecas=corte.reduce((a,e)=>a+(e.pecasCort||0),0);
+  const totFat=corte.filter(e=>!e.rnc).reduce((a,e)=>a+(e.cortado||0),0);
+  const rncPerda=rncs.reduce((a,e)=>a+((e.pecasCort||0)*(e.valor||0)),0);
+  const picCart=picote.reduce((a,e)=>a+(e.cartProd||0),0);
+  // ocupação por máquina
+  const ocMaq={}; d.forEach(e=>{ if(!e.ini||!e.fim)return; ocMaq[e.maquina]=(ocMaq[e.maquina]||0)+(e.tefSec||0); });
+  const card=(t,v)=>`<div class="mcard"><div class="mt">${t}</div><div class="mv mono">${v}</div></div>`;
+  let html=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px">
+    ${card('LANÇAMENTOS',fmtInt(d.length))}
+    ${card('PEÇAS CORTADAS',fmtInt(totPecas))}
+    ${card('FATURAMENTO',fmtBRL0(totFat))}
+    ${card('RNC (qtd)',fmtInt(rncs.length))}
+    ${card('RNC PERDA',fmtBRL0(rncPerda))}
+    ${card('PICOTE (cartelas)',fmtInt(picCart))}
+  </div>`;
+  html+=`<div class="cfg-hint" style="font-weight:700;margin:8px 0 4px">Ocupação por máquina (h):</div><div style="font-size:13px;line-height:1.8">`;
+  html+=MAQS.filter(m=>ocMaq[m]).map(m=>`• <b>${m}</b>: ${secToHM(ocMaq[m])}`).join('<br>')||'—';
+  html+=`</div>`;
+  $('#relResultado').innerHTML=html;
+}
+function relExportCsv(){
+  if(!relDados.length){ alert('Busque um período primeiro.'); return; }
+  const head=['Data','Maquina','Tipo','Operador','Pedido','Cod','Tecnica','PecasCortadas','CartelasProd','Valor','Cortado','RNC','MotivoRNC','Inicio','Fim'];
+  const rows=relDados.map(e=>[e.data||'',e.maquina,e.tipo,e.operador,e.pedido,e.cod,e.tecnica,e.pecasCort,e.cartProd,e.valor,(e.cortado||0).toFixed(2),e.rnc?'SIM':'',e.rncMotivo||'',e.ini,e.fim]
+    .map(x=>`"${String(x??'').replace(/"/g,'""')}"`).join(';'));
+  const csv=[head.join(';'),...rows].join('\n');
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='relatorio_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+}
 function renderRncDash(){
   const {rnc}=aggregate();
   const el=id=>$('#'+id);
@@ -1239,6 +1346,9 @@ $$('.tab').forEach(t=>t.addEventListener('click',()=>{
   if(t.dataset.view==='rnc' && !rncHist.length)loadRncHist();
   if(t.dataset.view==='obs' && !obsHist.length)loadObsHist();
 }));
+$('#relTipo')&&$('#relTipo').addEventListener('change',relUpdateCampos);
+$('#relBuscar')&&$('#relBuscar').addEventListener('click',relBuscar);
+$('#relCsv')&&$('#relCsv').addEventListener('click',relExportCsv);
 $('#btnObsReload')&&$('#btnObsReload').addEventListener('click',loadObsHist);
 $('#btnObsCsv')&&$('#btnObsCsv').addEventListener('click',exportObsCsv);
 $('#btnRncReload')&&$('#btnRncReload').addEventListener('click',loadRncHist);
@@ -1303,7 +1413,7 @@ function flatten(e,dateStr){
     cartl:e.cartL, carta:e.cartA, pecal:e.pecaL, pecaa:e.pecaA,
     valor:numOrNull(e.valor), cartprod:numOrNull(e.cartProd), pecascort:numOrNull(e.pecasCort),
     proccorte:!!e.procCorte, procgrav:!!e.procGrav, proccam:!!e.procCam, procjan:!!e.procJan,
-    handoff_op:h.op||'', handoff_turno:h.turno||'', handoff_hora:h.hora||'', handoff_falta:numOrNull(h.falta), handoff_obs:h.obs||'',
+    handoff_op:h.op||'', handoff_turno:h.turno||'', handoff_hora:h.hora||'', handoff_falta:numOrNull(h.falta), handoff_feitas:numOrNull(h.feitas), handoff_obs:h.obs||'',
     rnc:!!e.rnc, rnc_motivo:e.rncMotivo||'', mascara:e.mascara||'', composto:!!e.composto, parte:e.parte||'', observacao:e.observacao||'' };
 }
 /* unflatten: lê a linha MINÚSCULA do banco e volta para o formato camelCase interno. */
@@ -1318,7 +1428,7 @@ function unflatten(r){
     valor:num(r.valor), cartProd:num(r.cartprod), pecasCort:num(r.pecascort),
     procCorte:b(r.proccorte), procGrav:b(r.procgrav), procCam:b(r.proccam), procJan:b(r.procjan),
     rnc:b(r.rnc), rncMotivo:s(r.rnc_motivo), mascara:s(r.mascara), composto:b(r.composto), parte:s(r.parte), observacao:s(r.observacao) };
-  if(r.handoff_op||r.handoff_obs||r.handoff_hora){ e.handoff={op:s(r.handoff_op),turno:s(r.handoff_turno),hora:s(r.handoff_hora),falta:num(r.handoff_falta),obs:s(r.handoff_obs)}; }
+  if(r.handoff_op||r.handoff_obs||r.handoff_hora){ e.handoff={op:s(r.handoff_op),turno:s(r.handoff_turno),hora:s(r.handoff_hora),falta:num(r.handoff_falta),feitas:num(r.handoff_feitas),obs:s(r.handoff_obs)}; }
   return {entry:e, data:s(r.data).slice(0,10)};
 }
 
