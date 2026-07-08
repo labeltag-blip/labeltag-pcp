@@ -210,7 +210,7 @@ canvas{max-height:300px}
 </style>
 </head>
 <body>
-<div id="loginOverlay" style="position:fixed;inset:0;z-index:9999;background:#0f1115;display:flex;align-items:center;justify-content:center;flex-direction:column;font-family:system-ui,Arial,sans-serif">
+<div id="loginOverlay" style="position:fixed;inset:0;z-index:9999;background:#0f1115;display:none;align-items:center;justify-content:center;flex-direction:column;font-family:system-ui,Arial,sans-serif">
   <div style="background:#fff;border-radius:14px;padding:32px;width:340px;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,.4)">
     <div style="font-weight:800;font-size:18px;color:#ff6a1a;margin-bottom:2px">Painel de Produção</div>
     <div style="font-size:12px;color:#8a94a2;margin-bottom:20px">Setor Laser — acesso restrito</div>
@@ -255,6 +255,7 @@ canvas{max-height:300px}
   <button class="tab" data-view="rnc">RNC</button>
   <button class="tab" data-view="obs">Observações</button>
   <button class="tab" data-view="rel">Relatórios</button>
+  <button class="tab" data-view="aba">Abandonos</button>
 </div>
 
 <div class="wrap">
@@ -372,6 +373,11 @@ canvas{max-height:300px}
     <div class="rnc-box" id="rncBox" style="grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 14px;background:#eef3ff;border:1px dashed #2f6bff;border-radius:10px;margin-top:12px">
       <label class="chk" style="font-weight:700;color:#2f6bff"><input type="checkbox" id="chkRnc"> RNC — retrabalho (não conformidade)</label>
       <input type="text" id="f_rncMotivo" placeholder="Motivo da RNC (obrigatório)" style="flex:1;min-width:220px;display:none">
+    </div>
+
+    <div class="rnc-box" id="abandonoBox" style="grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 14px;background:#fdf3f2;border:1px dashed #c0392b;border-radius:10px;margin-top:10px">
+      <label class="chk" style="font-weight:700;color:#c0392b"><input type="checkbox" id="chkAbandono"> ✕ Abandono de corte (parou antes de terminar)</label>
+      <input type="text" id="f_abandonoMotivo" placeholder="Motivo do abandono (obrigatório)" style="flex:1;min-width:220px;display:none">
     </div>
 
     <div style="grid-column:1/-1;margin-top:10px">
@@ -518,6 +524,25 @@ canvas{max-height:300px}
   </div>
 </div>
 
+<div class="view" id="view-aba">
+  <div class="card dash-wide" style="border:1px solid #c0392b;background:#fdf3f2">
+    <h2 style="color:#c0392b">✕ ABANDONOS DE CORTE — todos os registros</h2>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:10px 0">
+      <button class="btn btn-primary" id="btnAbaReload">Atualizar</button>
+      <button class="btn btn-ghost" id="btnAbaCsv">Exportar CSV (para IA)</button>
+      <span id="abaResumo" style="font-size:13px;color:var(--ink2)"></span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Data</th><th>Máquina</th><th>Operador</th><th>Nº Pedido</th><th>Cód. Produto</th><th>Motivo do abandono</th><th>Tempo rodado</th>
+        </tr></thead>
+        <tbody id="abaBody"><tr><td colspan="7" class="empty">Clique em "Atualizar" para carregar.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 </div>
 
 <script>
@@ -656,6 +681,7 @@ let draftTimer;
 function persistDraft(){
   const d={editingId, tipo:$('#f_tipo').value, handoff:$('#chkHandoff').checked,
     rnc:$('#chkRnc').checked, rncMotivo:$('#f_rncMotivo').value,
+    abandono:$('#chkAbandono').checked, abandonoMotivo:$('#f_abandonoMotivo').value,
     composto:$('#f_composto').checked, parte:$('#f_parte').value,
     observacao:$('#f_observacao').value,
     chronoAccum, chronoRun, chronoStartEpoch: chronoRun?chronoStart:0, cortTouched:$('#f_pecasCort').dataset.touched||'0'};
@@ -674,6 +700,7 @@ function restoreDraft(){
   setSeg('segTipo','f_tipo',d.tipo||'Corte'); updateAmostraMode();
   $('#chkHandoff').checked=!!d.handoff; $('#handoffBox').classList.toggle('show',!!d.handoff);
   $('#chkRnc').checked=!!d.rnc; $('#f_rncMotivo').value=d.rncMotivo||''; $('#f_rncMotivo').style.display=d.rnc?'block':'none';
+  $('#chkAbandono').checked=!!d.abandono; $('#f_abandonoMotivo').value=d.abandonoMotivo||''; $('#f_abandonoMotivo').style.display=d.abandono?'block':'none';
   $('#f_composto').checked=!!d.composto; $('#f_parte').value=d.parte||''; $('#f_parte').style.display=d.composto?'block':'none';
   $('#f_observacao').value=d.observacao||'';
   $('#f_pecasCort').dataset.touched=d.cortTouched||'0';
@@ -740,6 +767,7 @@ $('#f_hFalta').addEventListener('input',e=>{
   throttleDraft();
 });
 $('#chkRnc').addEventListener('change',e=>{$('#f_rncMotivo').style.display=e.target.checked?'block':'none';throttleDraft();});
+$('#chkAbandono').addEventListener('change',e=>{$('#f_abandonoMotivo').style.display=e.target.checked?'block':'none';throttleDraft();});
 
 function liveCalc(){
   const cartProd=parseNum($('#f_cartProd').value), ppc=parseNum($('#f_ppc').value);
@@ -862,6 +890,8 @@ function collectEntry(id){
     rnc:$('#chkRnc').checked, rncMotivo:$('#chkRnc').checked?$('#f_rncMotivo').value.trim():'',
     composto:$('#f_composto').checked, parte:$('#f_composto').checked?$('#f_parte').value:'',
     observacao:$('#f_observacao').value.trim(),
+    abandono:$('#chkAbandono').checked, abandonoMotivo:$('#chkAbandono').checked?$('#f_abandonoMotivo').value.trim():'',
+    abandono:false, abandonoMotivo:'',
     handoff:$('#chkHandoff').checked?{op:$('#f_hOp').value.trim(),turno:$('#f_hTurno').value,hora:$('#f_hHora').value,falta:parseNum($('#f_hFalta').value),feitas:parseNum($('#f_hFeitas').value),obs:$('#f_hObs').value.trim()}:null };
   if(tipo==='Amostras') return {...base, caixa:'',cod:'',pedido:'',tecnica:'',mp:'',mascara:'',procCorte:false,procGrav:false,procCam:false,procJan:false,pecasOP:0,cartelasOP:0,ppc:0,tcartSec:0,cartL:'',cartA:'',pecaL:'',pecaA:'',valor:0,cartProd:0,pecasCort:0};
   if(tipo==='Picote') return {...base,
@@ -898,6 +928,7 @@ $('#btnSalvar').addEventListener('click',()=>{
     if(!e.cartelasOP) falta.push('Quantidade de cartelas da OP');
     if(!e.cartProd) falta.push('Quantidade de cartelas produzidas');
     if(e.rnc && !e.rncMotivo) falta.push('Motivo da RNC (obrigatório quando marcado RNC)');
+    if(e.abandono && !e.abandonoMotivo) falta.push('Motivo do abandono (obrigatório quando marcado)');
     if(e.composto && !e.parte) falta.push('Parte (A ou B) — obrigatório quando Composto');
     if(falta.length){ alert('Não é possível lançar o Picote. Preencha:\n\n• '+falta.join('\n• ')); return; }
   }
@@ -922,6 +953,7 @@ $('#btnSalvar').addEventListener('click',()=>{
     if(!e.tcartSec) falta.push('Tempo 1 cartela');
     if(!e.pecasCort) falta.push('Quantidade de cartelas/peças cortadas');
     if(e.rnc && !e.rncMotivo) falta.push('Motivo da RNC (obrigatório quando marcado RNC)');
+    if(e.abandono && !e.abandonoMotivo) falta.push('Motivo do abandono (obrigatório quando marcado)');
     if(e.composto && !e.parte) falta.push('Parte (A ou B) — obrigatório quando Composto');
     if(falta.length){
       alert('Não é possível lançar a OP. Preencha:\n\n• '+falta.join('\n• '));
@@ -941,6 +973,7 @@ function clearForm(){
   $('#f_pecasCort').dataset.touched='0'; $('#chkHandoff').checked=false; $('#handoffBox').classList.remove('show');
   passagemRegistrada=null; if($('#passagemStatus'))$('#passagemStatus').textContent='';
   $('#chkRnc').checked=false; $('#f_rncMotivo').value=''; $('#f_rncMotivo').style.display='none';
+  $('#chkAbandono').checked=false; $('#f_abandonoMotivo').value=''; $('#f_abandonoMotivo').style.display='none';
   $('#f_composto').checked=false; $('#f_parte').value=''; $('#f_parte').style.display='none';
   $('#f_observacao').value='';
   $('#f_estimado').value='—'; updateAmostraMode(); resetChrono(); liveCalc();
@@ -969,6 +1002,7 @@ function editEntry(id){
   chronoAccum=e.tefSec||0; chronoRun=false; $('#chronoT').textContent=secToHMS(chronoAccum); $('#chronoBtn').textContent=chronoAccum>0?'Retomar':'Iniciar'; $('#chronoBtn').className='go';
   const h=e.handoff; $('#chkHandoff').checked=!!h; $('#handoffBox').classList.toggle('show',!!h);
   $('#chkRnc').checked=!!e.rnc; $('#f_rncMotivo').value=e.rncMotivo||''; $('#f_rncMotivo').style.display=e.rnc?'block':'none';
+  $('#chkAbandono').checked=!!e.abandono; $('#f_abandonoMotivo').value=e.abandonoMotivo||''; $('#f_abandonoMotivo').style.display=e.abandono?'block':'none';
   $('#f_composto').checked=!!e.composto; $('#f_parte').value=e.parte||''; $('#f_parte').style.display=e.composto?'block':'none';
   $('#f_observacao').value=e.observacao||'';
   if(h){ if(h.op && !Array.from($('#f_hOp').options).some(o=>o.value===h.op)){ if(!OPS_SEED.includes(h.op))OPS_SEED.push(h.op); buildLists(); } $('#f_hOp').value=h.op||'';$('#f_hTurno').value=h.turno||'T1';$('#f_hHora').value=h.hora||'';$('#f_hFalta').value=h.falta||'';$('#f_hFeitas').value=h.feitas||'';$('#f_hObs').value=h.obs||'';}
@@ -996,6 +1030,11 @@ function aggregate(){
   es.forEach(e=>{
     const bm=byMaq[e.maquina]||(byMaq[e.maquina]={pedido:0,cortado:0,tef:0,pecas:0,ocup:0,corte:0,rncOcup:0});
     const bt=byTurno[e._turno]||(byTurno[e._turno]={pedido:0,cortado:0,tef:0,ocup:0,corte:0,rncOcup:0});
+    if(e.abandono){
+      // Abandono: fora do faturamento; ocupação contabilizada (máquina rodou até parar)
+      bm.ocup+=e._ocup; bt.ocup+=e._ocup;
+      return;
+    }
     if(e.rnc){
       // RNC: fora do faturamento; ocupação contabilizada, mas marcada
       rnc.perda+=(e.pecasCort||0)*(e.valor||0); rnc.ocup+=e._ocup; rnc.lanc+=1;
@@ -1208,6 +1247,36 @@ function relExportCsv(){
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='relatorio_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
 }
+let abaHist=[];
+async function loadAbaHist(){
+  if(!_sb){ alert('Supabase não carregou.'); return; }
+  const tb=$('#abaBody');
+  tb.innerHTML='<tr><td colspan="7" class="empty">Carregando…</td></tr>';
+  try{
+    const { data, error } = await _sb.from(TABLE).select('*').eq('abandono',true).neq('status','excluido').order('data',{ascending:false});
+    if(error) throw error;
+    abaHist=(data||[]).map(r=>{ const e=unflatten(r).entry; e.data=r.data; return e; });
+    renderAbaTable();
+  }catch(err){ console.error('abaHist',err); tb.innerHTML='<tr><td colspan="7" class="empty">Erro ao carregar. Veja o console.</td></tr>'; }
+}
+function renderAbaTable(){
+  const tb=$('#abaBody');
+  if(!abaHist.length){ tb.innerHTML='<tr><td colspan="7" class="empty">Nenhum abandono registrado.</td></tr>'; $('#abaResumo').textContent=''; return; }
+  tb.innerHTML=abaHist.map(e=>`<tr>
+    <td>${e.data||''}</td><td>${e.maquina||''}</td><td>${e.operador||''}</td><td>${e.pedido||'—'}</td><td>${e.cod||'—'}</td>
+    <td>${(e.abandonoMotivo||'—').replace(/</g,'&lt;')}</td><td>${secToHMS(e.tefSec||0)}</td></tr>`).join('');
+  $('#abaResumo').textContent=`${abaHist.length} abandono(s)`;
+}
+function exportAbaCsv(){
+  if(!abaHist.length){ alert('Nada para exportar. Clique em Atualizar primeiro.'); return; }
+  const head=['Data','Maquina','Operador','Pedido','Cod','Motivo','TempoRodado_seg'];
+  const rows=abaHist.map(e=>[e.data,e.maquina,e.operador,e.pedido,e.cod,e.abandonoMotivo,Math.round(e.tefSec||0)]
+    .map(x=>`"${String(x??'').replace(/"/g,'""')}"`).join(';'));
+  const csv=[head.join(';'),...rows].join('\n');
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='abandonos_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+}
 function renderRncDash(){
   const {rnc}=aggregate();
   const el=id=>$('#'+id);
@@ -1345,7 +1414,10 @@ $$('.tab').forEach(t=>t.addEventListener('click',()=>{
   if(t.dataset.view==='dash')renderDash();
   if(t.dataset.view==='rnc' && !rncHist.length)loadRncHist();
   if(t.dataset.view==='obs' && !obsHist.length)loadObsHist();
+  if(t.dataset.view==='aba' && !abaHist.length)loadAbaHist();
 }));
+$('#btnAbaReload')&&$('#btnAbaReload').addEventListener('click',loadAbaHist);
+$('#btnAbaCsv')&&$('#btnAbaCsv').addEventListener('click',exportAbaCsv);
 $('#relTipo')&&$('#relTipo').addEventListener('change',relUpdateCampos);
 $('#relBuscar')&&$('#relBuscar').addEventListener('click',relBuscar);
 $('#relCsv')&&$('#relCsv').addEventListener('click',relExportCsv);
@@ -1414,7 +1486,7 @@ function flatten(e,dateStr){
     valor:numOrNull(e.valor), cartprod:numOrNull(e.cartProd), pecascort:numOrNull(e.pecasCort),
     proccorte:!!e.procCorte, procgrav:!!e.procGrav, proccam:!!e.procCam, procjan:!!e.procJan,
     handoff_op:h.op||'', handoff_turno:h.turno||'', handoff_hora:h.hora||'', handoff_falta:numOrNull(h.falta), handoff_feitas:numOrNull(h.feitas), handoff_obs:h.obs||'',
-    rnc:!!e.rnc, rnc_motivo:e.rncMotivo||'', mascara:e.mascara||'', composto:!!e.composto, parte:e.parte||'', observacao:e.observacao||'' };
+    rnc:!!e.rnc, rnc_motivo:e.rncMotivo||'', mascara:e.mascara||'', composto:!!e.composto, parte:e.parte||'', observacao:e.observacao||'', abandono:!!e.abandono, abandono_motivo:e.abandonoMotivo||'' };
 }
 /* unflatten: lê a linha MINÚSCULA do banco e volta para o formato camelCase interno. */
 function unflatten(r){
@@ -1427,7 +1499,7 @@ function unflatten(r){
     cartL:s(r.cartl), cartA:s(r.carta), pecaL:s(r.pecal), pecaA:s(r.pecaa),
     valor:num(r.valor), cartProd:num(r.cartprod), pecasCort:num(r.pecascort),
     procCorte:b(r.proccorte), procGrav:b(r.procgrav), procCam:b(r.proccam), procJan:b(r.procjan),
-    rnc:b(r.rnc), rncMotivo:s(r.rnc_motivo), mascara:s(r.mascara), composto:b(r.composto), parte:s(r.parte), observacao:s(r.observacao) };
+    rnc:b(r.rnc), rncMotivo:s(r.rnc_motivo), mascara:s(r.mascara), composto:b(r.composto), parte:s(r.parte), observacao:s(r.observacao), abandono:b(r.abandono), abandonoMotivo:s(r.abandono_motivo) };
   if(r.handoff_op||r.handoff_obs||r.handoff_hora){ e.handoff={op:s(r.handoff_op),turno:s(r.handoff_turno),hora:s(r.handoff_hora),falta:num(r.handoff_falta),feitas:num(r.handoff_feitas),obs:s(r.handoff_obs)}; }
   return {entry:e, data:s(r.data).slice(0,10)};
 }
