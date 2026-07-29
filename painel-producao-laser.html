@@ -211,6 +211,7 @@ canvas{max-height:300px}
 </style>
 </head>
 <body>
+<div id="offlineBanner" style="display:none;position:sticky;top:0;z-index:9998;background:#c0392b;color:#fff;text-align:center;padding:10px 16px;font-weight:700;font-size:15px;box-shadow:0 2px 8px rgba(0,0,0,.3)">⚠ SEM CONEXÃO COM O SERVIDOR — os lançamentos podem NÃO estar sendo salvos. Avise o responsável antes de continuar.</div>
 <div id="loginOverlay" style="position:fixed;inset:0;z-index:9999;background:#0f1115;display:none;align-items:center;justify-content:center;flex-direction:column;font-family:system-ui,Arial,sans-serif">
   <div style="background:#fff;border-radius:14px;padding:32px;width:340px;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,.4)">
     <div style="font-weight:800;font-size:18px;color:#ff6a1a;margin-bottom:2px">Painel de Produção</div>
@@ -309,7 +310,7 @@ canvas{max-height:300px}
           <option>Refletivo</option><option>Star</option><option>Slim Tag</option><option>Light Print</option>
           <option>Politec</option><option>3D Sport</option><option>3D Fashion</option><option>Silicone</option>
           <option>3D Flex</option><option>Flock</option><option>Fusion Tag</option><option>Dome Tag</option>
-          <option>4D Touch</option><option>Policarbonato</option>
+          <option>4D Touch</option><option>Policarbonato</option><option>New 3D</option><option>Pill</option>
         </select></div>
       <div class="fld corte-only"><label>Matéria-prima</label><input list="mpList" id="f_mp" placeholder="ex: Metallic Prata 1800, Dourado 3505, Prata 251"><datalist id="mpList"></datalist></div>
       <div class="fld"><label>Composto</label>
@@ -347,6 +348,8 @@ canvas{max-height:300px}
         <div class="fld"><label>Turno que assume</label>
           <select id="f_hTurno"><option value="T1">1º Turno</option><option value="T2">2º Turno</option><option value="T3">3º Turno</option></select></div>
         <div class="fld"><label>Hora da passagem</label><input type="time" id="f_hHora" step="1"></div>
+        <div class="fld"><label>Motivo da passagem</label>
+          <select id="f_hMotivo"><option value="Troca de turno">Troca de turno</option><option value="Café">Café</option><option value="Almoço">Almoço</option><option value="Janta">Janta</option><option value="Outro">Outro</option></select></div>
         <div class="fld"><label style="color:#c0392b">⚠ Quantidade que FALTA cortar</label><input id="f_hFalta" class="mono" inputmode="numeric" placeholder="0"></div>
         <div class="fld"><label style="color:#2f6bff">✓ Quantidade cortada</label><input id="f_hFeitas" class="mono" inputmode="numeric" placeholder="0"></div>
         <div class="fld span2"><label>Obs. da passagem</label>
@@ -542,7 +545,7 @@ canvas{max-height:300px}
 
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
-const OPS_SEED=['Luis','Guilherme','Adilson','Ruan','Adriano','Maxoel','Lilian','Camila','Matheus'];
+const OPS_SEED=['Luis','Guilherme','Adilson','Ruan','Adriano','Maxoel','Lilian','Camila','Matheus','Daiano'];
 const MAQS=['Laser 2','Laser 4','Infinity','Infinity Scan','X-Type','Easy_picote'];
 // Turnos: classificados pela HORA DE INÍCIO da OP. Corte da sobreposição no meio: 1º→2º=15:11, 2º→3º=21:16.
 // Disponível líquido/dia: 1º=8h48(528min) · 2º=6h00(360min) · 3º=7h48(468min).
@@ -670,13 +673,14 @@ function buildLists(){
 }
 
 /* ================= RASCUNHO (anti-fechamento) + cronômetro persistente ================= */
-const FORM_FIELDS=['f_maquina','f_operador','f_ini','f_fim','f_tecnica','f_mp','f_mascara','f_caixa','f_cod','f_pedido','f_valor','f_pecasOP','f_cartelasOP','f_ppc','f_tcart','f_tamcartL','f_tamcartA','f_tampecaL','f_tampecaA','f_cartProd','f_pecasCort','f_hOp','f_hTurno','f_hHora','f_hFalta','f_hFeitas','f_hObs'];
+const FORM_FIELDS=['f_maquina','f_operador','f_ini','f_fim','f_tecnica','f_mp','f_mascara','f_caixa','f_cod','f_pedido','f_valor','f_pecasOP','f_cartelasOP','f_ppc','f_tcart','f_tamcartL','f_tamcartA','f_tampecaL','f_tampecaA','f_cartProd','f_pecasCort','f_hOp','f_hTurno','f_hHora','f_hMotivo','f_hFalta','f_hFeitas','f_hObs'];
 const PROC_FIELDS=['f_procCorte','f_procGrav','f_procCam','f_procJan'];
 let draftTimer;
 function persistDraft(){
   const d={editingId, tipo:$('#f_tipo').value, handoff:$('#chkHandoff').checked,
     rnc:$('#chkRnc').checked, rncMotivo:$('#f_rncMotivo').value,
     abandono:$('#chkAbandono').checked, abandonoMotivo:$('#f_abandonoMotivo').value,
+    passagens:passagensLista.slice(),
     composto:$('#f_composto').checked, parte:$('#f_parte').value,
     observacao:$('#f_observacao').value,
     chronoAccum, chronoRun, chronoStartEpoch: chronoRun?chronoStart:0, cortTouched:$('#f_pecasCort').dataset.touched||'0'};
@@ -696,6 +700,7 @@ function restoreDraft(){
   $('#chkHandoff').checked=!!d.handoff; $('#handoffBox').classList.toggle('show',!!d.handoff);
   $('#chkRnc').checked=!!d.rnc; $('#f_rncMotivo').value=d.rncMotivo||''; $('#f_rncMotivo').style.display=d.rnc?'block':'none';
   $('#chkAbandono').checked=!!d.abandono; $('#f_abandonoMotivo').value=d.abandonoMotivo||''; $('#f_abandonoMotivo').style.display=d.abandono?'block':'none';
+  passagensLista=Array.isArray(d.passagens)?d.passagens:[]; renderPassagensStatus();
   $('#f_composto').checked=!!d.composto; $('#f_parte').value=d.parte||''; $('#f_parte').style.display=d.composto?'block':'none';
   $('#f_observacao').value=d.observacao||'';
   $('#f_pecasCort').dataset.touched=d.cortTouched||'0';
@@ -728,20 +733,34 @@ function tickHoraHandoff(){
   $('#f_hHora').value=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+':'+String(now.getSeconds()).padStart(2,'0');
 }
 $('#f_hHora').addEventListener('input',()=>{ hHoraEditado=true; pararRelogioHandoff(); });
-let passagemRegistrada=null;
+let passagensLista=[];
 $('#btnRegPassagem').addEventListener('click',()=>{
   const op=$('#f_hOp').value;
   if(!op||op==='__novo__'){ alert('Selecione o operador que assume.'); return; }
   if(!$('#f_hHora').value){ alert('Informe a hora da passagem.'); return; }
-  passagemRegistrada={
-    op:op, turno:$('#f_hTurno').value, hora:$('#f_hHora').value,
-    falta:parseNum($('#f_hFalta').value), feitas:parseNum($('#f_hFeitas').value),
-    obs:$('#f_hObs').value.trim()
-  };
-  pararRelogioHandoff(); hHoraEditado=true; // congela a hora registrada
-  $('#passagemStatus').textContent=`✓ Passagem registrada às ${passagemRegistrada.hora} — assume ${op} (${passagemRegistrada.feitas} cartelas feitas). A OP continua aberta.`;
+  const motivo=$('#f_hMotivo').value;
+  const obs=$('#f_hObs').value.trim();
+  if(motivo==='Outro' && !obs){ alert('Motivo "Outro": descreva na observação.'); return; }
+  passagensLista.push({
+    op:op, turno:$('#f_hTurno').value, hora:$('#f_hHora').value, motivo:motivo,
+    falta:parseNum($('#f_hFalta').value), feitas:parseNum($('#f_hFeitas').value), obs:obs
+  });
+  pararRelogioHandoff(); hHoraEditado=false; // libera o relógio para a próxima passagem
+  renderPassagensStatus();
+  // limpa os campos para a próxima passagem (mantém o operador que assumiu como atual)
+  $('#f_hFeitas').value=''; $('#f_hFalta').value=''; $('#f_hObs').value='';
   throttleDraft();
 });
+function renderPassagensStatus(){
+  const el=$('#passagemStatus'); if(!el)return;
+  if(!passagensLista.length){ el.innerHTML=''; return; }
+  el.innerHTML=passagensLista.map((p,i)=>
+    `${i+1}. ${p.hora} · ${p.motivo} · assume <b>${p.op}</b> (${fmtInt(p.feitas)} cartelas feitas) <span style="color:#c0392b;cursor:pointer" data-rmpass="${i}" title="remover">✕</span>`
+  ).join('<br>');
+  el.querySelectorAll('[data-rmpass]').forEach(x=>x.addEventListener('click',()=>{
+    passagensLista.splice(Number(x.dataset.rmpass),1); renderPassagensStatus(); throttleDraft();
+  }));
+}
 $('#chkHandoff').addEventListener('change',e=>{
   $('#handoffBox').classList.toggle('show',e.target.checked);
   if(e.target.checked){
@@ -886,7 +905,7 @@ function collectEntry(id){
     composto:$('#f_composto').checked, parte:$('#f_composto').checked?$('#f_parte').value:'',
     observacao:$('#f_observacao').value.trim(),
     abandono:$('#chkAbandono').checked, abandonoMotivo:$('#chkAbandono').checked?$('#f_abandonoMotivo').value.trim():'',
-    abandono:false, abandonoMotivo:'',
+    passagens: passagensLista.slice(),
     handoff:$('#chkHandoff').checked?{op:$('#f_hOp').value.trim(),turno:$('#f_hTurno').value,hora:$('#f_hHora').value,falta:parseNum($('#f_hFalta').value),feitas:parseNum($('#f_hFeitas').value),obs:$('#f_hObs').value.trim()}:null };
   if(tipo==='Amostras') return {...base, caixa:'',cod:'',pedido:'',tecnica:'',mp:'',mascara:'',procCorte:false,procGrav:false,procCam:false,procJan:false,pecasOP:0,cartelasOP:0,ppc:0,tcartSec:0,cartL:'',cartA:'',pecaL:'',pecaA:'',valor:0,cartProd:0,pecasCort:0};
   if(tipo==='Picote') return {...base,
@@ -908,7 +927,19 @@ function collectEntry(id){
 $('#btnSalvar').addEventListener('click',()=>{
   pararRelogioHandoff();
   const e=collectEntry(editingId||Date.now()+''+Math.floor(Math.random()*99));
-  if(e.tipo==='Amostras'){ if(!e.tefSec){ alert('Amostras: use o contador ou informe hora início/fim.'); return; } }
+  if(e.abandono){
+    // Abandono: obrigatórios reduzidos
+    const falta=[];
+    if(!e.maquina) falta.push('Máquina');
+    if(!e.operador || e.operador==='—') falta.push('Operador');
+    if(!e.ini) falta.push('Hora início (inicie o cronômetro)');
+    if(!e.caixa) falta.push('Nº Caixa');
+    if(!e.pedido) falta.push('Nº Pedido');
+    if(!e.cod) falta.push('Cód. Produto');
+    if(!e.abandonoMotivo) falta.push('Motivo do abandono');
+    if(falta.length){ alert('Para registrar o abandono, preencha:\n\n• '+falta.join('\n• ')); return; }
+  }
+  else if(e.tipo==='Amostras'){ if(!e.tefSec){ alert('Amostras: use o contador ou informe hora início/fim.'); return; } }
   else if(e.tipo==='Picote'){
     const falta=[];
     if(!e.maquina) falta.push('Máquina');
@@ -966,7 +997,7 @@ function clearForm(){
   FORM_FIELDS.forEach(id=>{ if(id==='f_hTurno')$('#'+id).value='T1'; else $('#'+id).value=''; });
   PROC_FIELDS.forEach(id=>{ $('#'+id).checked=false; syncProc(id); });
   $('#f_pecasCort').dataset.touched='0'; $('#chkHandoff').checked=false; $('#handoffBox').classList.remove('show');
-  passagemRegistrada=null; if($('#passagemStatus'))$('#passagemStatus').textContent='';
+  passagensLista=[]; if($('#passagemStatus'))$('#passagemStatus').innerHTML='';
   $('#chkRnc').checked=false; $('#f_rncMotivo').value=''; $('#f_rncMotivo').style.display='none';
   $('#chkAbandono').checked=false; $('#f_abandonoMotivo').value=''; $('#f_abandonoMotivo').style.display='none';
   $('#f_composto').checked=false; $('#f_parte').value=''; $('#f_parte').style.display='none';
@@ -995,6 +1026,7 @@ function editEntry(id){
   $('#f_pecasCort').dataset.touched='1';
   $('#f_ini').value=e.ini||''; $('#f_fim').value=e.fim||'';
   chronoAccum=e.tefSec||0; chronoRun=false; $('#chronoT').textContent=secToHMS(chronoAccum); $('#chronoBtn').textContent=chronoAccum>0?'Retomar':'Iniciar'; $('#chronoBtn').className='go';
+  passagensLista=Array.isArray(e.passagens)?e.passagens.slice():[]; renderPassagensStatus();
   const h=e.handoff; $('#chkHandoff').checked=!!h; $('#handoffBox').classList.toggle('show',!!h);
   $('#chkRnc').checked=!!e.rnc; $('#f_rncMotivo').value=e.rncMotivo||''; $('#f_rncMotivo').style.display=e.rnc?'block':'none';
   $('#chkAbandono').checked=!!e.abandono; $('#f_abandonoMotivo').value=e.abandonoMotivo||''; $('#f_abandonoMotivo').style.display=e.abandono?'block':'none';
@@ -1230,6 +1262,55 @@ function relRender(per){
   html+=`<div class="cfg-hint" style="font-weight:700;margin:8px 0 4px">Ocupação por máquina (h):</div><div style="font-size:13px;line-height:1.8">`;
   html+=MAQS.filter(m=>ocMaq[m]).map(m=>`• <b>${m}</b>: ${secToHM(ocMaq[m])}`).join('<br>')||'—';
   html+=`</div>`;
+  // Detalhamento por dia (semana, mês ou intervalo)
+  const tipo=$('#relTipo').value;
+  if(tipo==='semana'||tipo==='mes'||tipo==='livre'){
+    const porDia={};
+    d.forEach(e=>{ const dt=e.data||''; if(!dt)return;
+      if(!porDia[dt])porDia[dt]={lanc:0,ped:0,cort:0,pecas:0,ocup:0,rnc:0,pic:0,aband:0};
+      const x=porDia[dt];
+      x.lanc+=1;
+      if(e.tipo!=='Picote'&&e.tipo!=='Amostras'&&!e.rnc&&!e.abandono){ x.ped+=(e.pedido||0); x.cort+=(e.cortado||0); x.pecas+=(e.pecasCort||0); }
+      if(e.ini&&e.fim)x.ocup+=(e.tefSec||0);
+      if(e.rnc)x.rnc+=1;
+      if(e.abandono)x.aband+=1;
+      if(e.tipo==='Picote')x.pic+=(e.cartProd||0);
+    });
+    const dias=Object.keys(porDia).sort();
+    const T={lanc:0,ped:0,cort:0,pecas:0,ocup:0,rnc:0,pic:0,aband:0};
+    const linhas=dias.map(dt=>{ const x=porDia[dt];
+      Object.keys(T).forEach(k=>T[k]+=x[k]);
+      const dif=x.cort-x.ped;
+      return `<tr>
+        <td>${dt.split('-').reverse().join('/')}</td>
+        <td class="num">${fmtInt(x.lanc)}</td>
+        <td class="num">${fmtBRL0(x.ped)}</td>
+        <td class="num">${fmtBRL0(x.cort)}</td>
+        <td class="num" style="color:${dif>=0?'var(--pos)':'var(--neg)'}">${(dif>=0?'+':'−')+fmtBRL0(Math.abs(dif))}</td>
+        <td class="num">${fmtInt(x.pecas)}</td>
+        <td class="num">${secToHM(x.ocup)}</td>
+        <td class="num">${fmtInt(x.rnc)}</td>
+        <td class="num">${fmtInt(x.pic)}</td>
+        <td class="num">${fmtInt(x.aband)}</td></tr>`;
+    }).join('');
+    const tDif=T.cort-T.ped;
+    html+=`<div class="cfg-hint" style="font-weight:700;margin:16px 0 6px">Detalhamento por dia:</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Data</th><th class="num">Lançamentos</th><th class="num">Total Pedidos</th><th class="num">Total Cortado</th><th class="num">Diferença</th><th class="num">Peças cortadas</th><th class="num">Ocupação</th><th class="num">RNC</th><th class="num">Picote (cart.)</th><th class="num">Abandonos</th></tr></thead>
+      <tbody>${linhas}
+      <tr style="font-weight:800;background:#f2f4f7">
+        <td>TOTAL</td>
+        <td class="num">${fmtInt(T.lanc)}</td>
+        <td class="num">${fmtBRL0(T.ped)}</td>
+        <td class="num">${fmtBRL0(T.cort)}</td>
+        <td class="num" style="color:${tDif>=0?'var(--pos)':'var(--neg)'}">${(tDif>=0?'+':'−')+fmtBRL0(Math.abs(tDif))}</td>
+        <td class="num">${fmtInt(T.pecas)}</td>
+        <td class="num">${secToHM(T.ocup)}</td>
+        <td class="num">${fmtInt(T.rnc)}</td>
+        <td class="num">${fmtInt(T.pic)}</td>
+        <td class="num">${fmtInt(T.aband)}</td></tr>
+      </tbody></table></div>`;
+  }
   $('#relResultado').innerHTML=html;
 }
 function relExportCsv(){
@@ -1412,9 +1493,9 @@ $$('.tab').forEach(t=>t.addEventListener('click',()=>{
   $$('.tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');
   $$('.view').forEach(v=>v.classList.remove('active'));$('#view-'+t.dataset.view).classList.add('active');
   if(t.dataset.view==='dash')renderDash();
-  if(t.dataset.view==='rnc' && !rncHist.length)loadRncHist();
-  if(t.dataset.view==='obs' && !obsHist.length)loadObsHist();
-  if(t.dataset.view==='aba' && !abaHist.length)loadAbaHist();
+  if(t.dataset.view==='rnc')loadRncHist();
+  if(t.dataset.view==='obs')loadObsHist();
+  if(t.dataset.view==='aba')loadAbaHist();
 }));
 $('#btnAbaReload')&&$('#btnAbaReload').addEventListener('click',loadAbaHist);
 $('#btnAbaCsv')&&$('#btnAbaCsv').addEventListener('click',exportAbaCsv);
@@ -1425,7 +1506,17 @@ $('#btnObsReload')&&$('#btnObsReload').addEventListener('click',loadObsHist);
 $('#btnObsCsv')&&$('#btnObsCsv').addEventListener('click',exportObsCsv);
 $('#btnRncReload')&&$('#btnRncReload').addEventListener('click',loadRncHist);
 $('#btnRncCsv')&&$('#btnRncCsv').addEventListener('click',exportRncCsv);
-$('#dataDia').addEventListener('change',e=>{ curDate=e.target.value; getDay(); $('#meta').value=(getDay().meta||0).toLocaleString('pt-BR'); renderAll(); });
+$('#dataDia').addEventListener('change',async e=>{ curDate=e.target.value; getDay(); $('#meta').value=(getDay().meta||0).toLocaleString('pt-BR'); renderAll();
+  // Busca o dia escolhido sob demanda (uma vez), caso não seja o dia de hoje
+  if(_sb){ try{ syncTag('carregando dia…');
+    const { data, error } = await _sb.from(TABLE).select('*').neq('status','excluido').eq('data',curDate);
+    if(error) throw error;
+    const entries=(data||[]).map(r=>unflatten(r).entry);
+    const meta=(store[curDate]&&store[curDate].meta)||70000;
+    store[curDate]={meta,entries}; localStorage.setItem(KEY,JSON.stringify(store));
+    $('#meta').value=(getDay().meta||0).toLocaleString('pt-BR'); renderAll(); syncTag('sincronizado ✓',true);
+  }catch(err){ console.error('troca-data',err); syncTag('sem conexão'); } }
+});
 $('#meta').addEventListener('input',e=>{ getDay().meta=parseNum(e.target.value); save(); renderKPI(); });
 $('#meta').addEventListener('blur',e=>{ e.target.value=(getDay().meta||0).toLocaleString('pt-BR'); });
 window.addEventListener('beforeunload',persistDraft);
@@ -1473,7 +1564,7 @@ document.addEventListener('click',e=>{ if(e.target&&e.target.id==='logoutBtn'){ 
 checkAuth();
 
 let lastWriteAt=0;
-function syncTag(msg,ok){ const t=$('#syncTag'); if(t){ t.textContent=msg; t.style.color=ok?'#3ad07f':'#8a94a2'; } const d=$('.brand .dot'); if(d){ d.classList.toggle('online',!!ok); d.classList.toggle('offline',!ok); } }
+function syncTag(msg,ok){ const t=$('#syncTag'); if(t){ t.textContent=msg; t.style.color=ok?'#3ad07f':'#8a94a2'; } const d=$('.brand .dot'); if(d){ d.classList.toggle('online',!!ok); d.classList.toggle('offline',!ok); } const b=$('#offlineBanner'); if(b){ b.style.display=ok?'none':'block'; } }
 
 /* flatten: monta a linha para o banco. Colunas do Postgres são MINÚSCULAS. */
 function flatten(e,dateStr){
@@ -1486,7 +1577,7 @@ function flatten(e,dateStr){
     valor:numOrNull(e.valor), cartprod:numOrNull(e.cartProd), pecascort:numOrNull(e.pecasCort),
     proccorte:!!e.procCorte, procgrav:!!e.procGrav, proccam:!!e.procCam, procjan:!!e.procJan,
     handoff_op:h.op||'', handoff_turno:h.turno||'', handoff_hora:h.hora||'', handoff_falta:numOrNull(h.falta), handoff_feitas:numOrNull(h.feitas), handoff_obs:h.obs||'',
-    rnc:!!e.rnc, rnc_motivo:e.rncMotivo||'', mascara:e.mascara||'', composto:!!e.composto, parte:e.parte||'', observacao:e.observacao||'', abandono:!!e.abandono, abandono_motivo:e.abandonoMotivo||'' };
+    rnc:!!e.rnc, rnc_motivo:e.rncMotivo||'', mascara:e.mascara||'', composto:!!e.composto, parte:e.parte||'', observacao:e.observacao||'', abandono:!!e.abandono, abandono_motivo:e.abandonoMotivo||'', passagens:(e.passagens&&e.passagens.length)?e.passagens:[] };
 }
 /* unflatten: lê a linha MINÚSCULA do banco e volta para o formato camelCase interno. */
 function unflatten(r){
@@ -1499,7 +1590,7 @@ function unflatten(r){
     cartL:s(r.cartl), cartA:s(r.carta), pecaL:s(r.pecal), pecaA:s(r.pecaa),
     valor:num(r.valor), cartProd:num(r.cartprod), pecasCort:num(r.pecascort),
     procCorte:b(r.proccorte), procGrav:b(r.procgrav), procCam:b(r.proccam), procJan:b(r.procjan),
-    rnc:b(r.rnc), rncMotivo:s(r.rnc_motivo), mascara:s(r.mascara), composto:b(r.composto), parte:s(r.parte), observacao:s(r.observacao), abandono:b(r.abandono), abandonoMotivo:s(r.abandono_motivo) };
+    rnc:b(r.rnc), rncMotivo:s(r.rnc_motivo), mascara:s(r.mascara), composto:b(r.composto), parte:s(r.parte), observacao:s(r.observacao), abandono:b(r.abandono), abandonoMotivo:s(r.abandono_motivo), passagens:Array.isArray(r.passagens)?r.passagens:[] };
   if(r.handoff_op||r.handoff_obs||r.handoff_hora){ e.handoff={op:s(r.handoff_op),turno:s(r.handoff_turno),hora:s(r.handoff_hora),falta:num(r.handoff_falta),feitas:num(r.handoff_feitas),obs:s(r.handoff_obs)}; }
   return {entry:e, data:s(r.data).slice(0,10)};
 }
@@ -1538,11 +1629,12 @@ async function pullFromSheet(){
   if(!_sb){ syncTag('Supabase não carregou'); return; }
   if(Date.now()-lastWriteAt < 6000) return; // não sobrescreve o que acabei de gravar
   try{
-    const { data, error } = await _sb.from(TABLE).select('*').neq('status','excluido');
+    // Puxa SOMENTE o dia selecionado (economia de dados). Dias passados são buscados sob demanda ao trocar a data.
+    const { data, error } = await _sb.from(TABLE).select('*').neq('status','excluido').eq('data',curDate);
     if(error) throw error;
-    const byDate={};
-    (data||[]).forEach(r=>{ const u=unflatten(r); if(!u.data)return; (byDate[u.data]=byDate[u.data]||[]).push(u.entry); });
-    Object.keys(byDate).forEach(d=>{ const meta=(store[d]&&store[d].meta)||70000; store[d]={meta,entries:byDate[d]}; });
+    const entries=(data||[]).map(r=>unflatten(r).entry);
+    const meta=(store[curDate]&&store[curDate].meta)||70000;
+    store[curDate]={meta,entries};
     localStorage.setItem(KEY,JSON.stringify(store));
     renderAll();
     syncTag('sincronizado ✓',true);
@@ -1556,7 +1648,7 @@ async function pullFromSheet(){
   buildCfg(); buildLists(); restoreDraft(); liveCalc(); renderAll();
   pullFromSheet();
   loadPicoteMedia();
-  setInterval(pullFromSheet, 15000);
+  setInterval(pullFromSheet, 60000);
 })();
 </script>
 </body>
