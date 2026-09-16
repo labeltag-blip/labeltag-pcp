@@ -202,9 +202,10 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
 
   <div class="tabs">
     <div class="tab ativo" onclick="mudarAba('geral')">📋 Visão Geral</div>
-    <div class="tab" onclick="mudarAba('setor','YZiyCCIL')">🔷 Preparação</div>
+    <div class="tab" onclick="mudarAba('setor','699750a22d02d67996861f9')">🔷 Prep. Inicial</div>
     <div class="tab" onclick="mudarAba('setor','kKxRCcjN')">🎨 Silk</div>
     <div class="tab" onclick="mudarAba('setor','dWdRLX04')">🖨️ Impressão</div>
+    <div class="tab" onclick="mudarAba('setor','6aaaa7b66c5ea4d5344b2905')">🔶 Prep. Final</div>
     <div class="tab" onclick="mudarAba('setor','2psxSaAN')">⚡ Corte Laser</div>
     <div class="tab" onclick="mudarAba('setor','JdC3HfIg')">✂️ Corte Zund</div>
     <div class="tab" onclick="mudarAba('setor','cUWDiSUA')">📡 Frequência</div>
@@ -319,16 +320,29 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
 
 <script>
 var BOARDS=[
-  {id:'YZiyCCIL',nome:'Preparação',emoji:'🔷',cor:'#6366f1',ordem:1},
+  {id:'699750a22d02d67996861f9',nome:'Prep. Inicial',emoji:'🔷',cor:'#6366f1',ordem:1},
   {id:'kKxRCcjN',nome:'Silk',emoji:'🎨',cor:'#ec4899',ordem:2},
   {id:'dWdRLX04',nome:'Impressão',emoji:'🖨️',cor:'#8b5cf6',ordem:3},
-  {id:'2psxSaAN',nome:'Corte Laser',emoji:'⚡',cor:'#f59e0b',ordem:4},
-  {id:'JdC3HfIg',nome:'Corte Zund',emoji:'✂️',cor:'#f97316',ordem:5},
-  {id:'cUWDiSUA',nome:'Frequência',emoji:'📡',cor:'#06b6d4',ordem:6},
-  {id:'8LcFwJ0v',nome:'Acabamento',emoji:'✅',cor:'#84cc16',ordem:7},
-  {id:'V6wt9KT0',nome:'Faturamento',emoji:'📦',cor:'#22c55e',ordem:8}
+  {id:'6aaaa7b66c5ea4d5344b2905',nome:'Prep. Final',emoji:'🔶',cor:'#8b5cf6',ordem:4},
+  {id:'2psxSaAN',nome:'Corte Laser',emoji:'⚡',cor:'#f59e0b',ordem:5},
+  {id:'JdC3HfIg',nome:'Corte Zund',emoji:'✂️',cor:'#f97316',ordem:6},
+  {id:'cUWDiSUA',nome:'Frequência',emoji:'📡',cor:'#06b6d4',ordem:7},
+  {id:'8LcFwJ0v',nome:'Acabamento',emoji:'✅',cor:'#84cc16',ordem:8},
+  {id:'V6wt9KT0',nome:'Faturamento',emoji:'📦',cor:'#22c55e',ordem:9}
 ];
-var SLA_DEF={YZiyCCIL:3,kKxRCcjN:3,dWdRLX04:3,'2psxSaAN':3,JdC3HfIg:2,cUWDiSUA:3,'8LcFwJ0v':2,V6wt9KT0:1};
+var PREP_FINAL_ID='6aaaa7b66c5ea4d5344b2905'; // condicional: só entra no fluxo se o pedido tem Silk ou Impressão
+function temSilkOuImpress(labels){ var s=(labels||[]).map(function(l){return _normLbl(l&&l.name?l.name:l);}).join(' '); return s.indexOf('silk')>=0 || s.indexOf('impress')>=0; }
+// Setores condicionais (por etiqueta): Silk, Impressão e Prep. Final só entram no fluxo/prazo se aplicáveis.
+// Retorna true se o setor deve ser PULADO para este pedido.
+function pulaSetorCond(boardId, labels){
+  var s=(labels||[]).map(function(l){return _normLbl(l&&l.name?l.name:l);}).join(' ');
+  var temSilk=s.indexOf('silk')>=0, temImpr=s.indexOf('impress')>=0;
+  if(boardId==='kKxRCcjN')return !temSilk;                 // Silk
+  if(boardId==='dWdRLX04')return !temImpr;                 // Impressão
+  if(boardId===PREP_FINAL_ID)return !(temSilk||temImpr);   // Prep. Final
+  return false;
+}
+var SLA_DEF={'699750a22d02d67996861f9':3,kKxRCcjN:3,dWdRLX04:3,'6aaaa7b66c5ea4d5344b2905':1,'2psxSaAN':3,JdC3HfIg:2,cUWDiSUA:3,'8LcFwJ0v':2,V6wt9KT0:1};
 var API_KEY='',TOKEN='',CLAUDE_KEY='';
 var SLA=JSON.parse(localStorage.getItem('lt_sla')||'null')||SLA_DEF;
 var cache=JSON.parse(localStorage.getItem('lt_ordens')||'{}');
@@ -572,7 +586,7 @@ function risco(p){
 }
 function corR(r){return{faturado:'#22c55e',atrasado:'#ef4444',critico:'#f97316',atencao:'#eab308',ok:'#3b82f6'}[r]||'#64748b';}
 function setorAtual(p){for(var i=BOARDS.length-1;i>=0;i--)if(p.setores.has(BOARDS[i].id))return BOARDS[i];return null;}
-function scfg(bid){return{YZiyCCIL:{cor:'#6366f1',emoji:'🔷'},kKxRCcjN:{cor:'#ec4899',emoji:'🎨'},dWdRLX04:{cor:'#8b5cf6',emoji:'🖨️'},'2psxSaAN':{cor:'#f59e0b',emoji:'⚡'},JdC3HfIg:{cor:'#f97316',emoji:'✂️'},cUWDiSUA:{cor:'#06b6d4',emoji:'📡'},'8LcFwJ0v':{cor:'#84cc16',emoji:'✅'},V6wt9KT0:{cor:'#22c55e',emoji:'📦'}}[bid]||{cor:'#64748b',emoji:'📋'};}
+function scfg(bid){return{'699750a22d02d67996861f9':{cor:'#6366f1',emoji:'🔷'},kKxRCcjN:{cor:'#ec4899',emoji:'🎨'},dWdRLX04:{cor:'#8b5cf6',emoji:'🖨️'},'6aaaa7b66c5ea4d5344b2905':{cor:'#8b5cf6',emoji:'🔶'},'2psxSaAN':{cor:'#f59e0b',emoji:'⚡'},JdC3HfIg:{cor:'#f97316',emoji:'✂️'},cUWDiSUA:{cor:'#06b6d4',emoji:'📡'},'8LcFwJ0v':{cor:'#84cc16',emoji:'✅'},V6wt9KT0:{cor:'#22c55e',emoji:'📦'}}[bid]||{cor:'#64748b',emoji:'📋'};}
 
 function renderTudo(){
   renderStats();renderBrow();initFiltroSetores();
@@ -718,6 +732,7 @@ function getSlaPost(boardOrdem, cardLabels, setoresPercorridos) {
   return BOARDS.filter(function(x){
     if(x.ordem <= boardOrdem) return false;
     if(CORTES.indexOf(x.id)>=0 && x.id!==via) return false; // exclui os outros cortes
+    if(pulaSetorCond(x.id, cardLabels)) return false;       // Silk/Impressão/Prep.Final só se aplicável
     return true;
   }).reduce(function(acc,x){return acc+(SLA[x.id]||1);},0);
 }
@@ -750,6 +765,7 @@ function renderSetor(bid){
       if(x.ordem<=b.ordem)return false;
       if(x.id==='kKxRCcjN')return temSilk;                        // Silk só se tiver etiqueta
       if(x.id==='dWdRLX04')return temImpr;                        // Impressão só se tiver etiqueta
+      if(x.id===PREP_FINAL_ID)return temSilk||temImpr;            // Prep. Final só se passou por Silk ou Impressão
       if(x.id==='2psxSaAN')return temLaser;                       // Laser: se tiver etiqueta
       if(x.id==='JdC3HfIg')return temZund&&!temLaser;             // Zund: se NÃO tiver Laser
       if(x.id==='cUWDiSUA')return temFreq&&!temLaser&&!temZund;   // Frequência: se NÃO tiver Laser nem Zund
@@ -866,13 +882,14 @@ function buscarConsol(v){
 // menor SLA entre os cortes (fallback quando não se sabe a via)
 function corteMenorSla(){ var menor=null,ms=Infinity; CORTES.forEach(function(cid){var s=SLA[cid]||0; if(s<ms){ms=s;menor=cid;}}); return menor; }
 function viaIdDeRota(rota){ return rota==='laser'?'2psxSaAN':rota==='zund'?'JdC3HfIg':rota==='freq'?'cUWDiSUA':null; }
-function slaRestanteAteFim(boardId,rota){
+function slaRestanteAteFim(boardId,rota,labels){
   if(boardId==='2psxSaAN')rota='laser'; if(boardId==='JdC3HfIg')rota='zund'; if(boardId==='cUWDiSUA')rota='freq';
   var atual=BOARDS.find(function(b){return b.id===boardId;}); if(!atual)return 0;
   var st=stageOf(atual), soma=0, viaId=viaIdDeRota(rota)||corteMenorSla();
   BOARDS.forEach(function(b){
     var bs=stageOf(b); if(bs<st)return;
     if(CORTES.indexOf(b.id)>=0 && b.id!==viaId)return; // no estágio de corte, só a via escolhida
+    if(labels && pulaSetorCond(b.id, labels))return;   // Silk/Impressão/Prep.Final só se aplicável
     soma+=(SLA[b.id]||0);
   });
   return soma;
@@ -880,7 +897,7 @@ function slaRestanteAteFim(boardId,rota){
 function riscoPedido(g){
   var de=g.dataEntrega; if(!de)return {slack:999,gargalo:null};
   var ate=dR(de), minS=999, garg=null;
-  g.caixas.forEach(function(c){ if(c.pronta)return; var rem=slaRestanteAteFim(c.board.id,g.rota); var s=ate-rem; if(s<minS){minS=s;garg=c;} });
+  g.caixas.forEach(function(c){ if(c.pronta)return; var rem=slaRestanteAteFim(c.board.id,g.rota,g.labels); var s=ate-rem; if(s<minS){minS=s;garg=c;} });
   return {slack:minS,gargalo:garg,ate:ate};
 }
 function nivelRisco(s){
@@ -938,7 +955,7 @@ function agruparConsol(){
     var sufixo = numCompleto.indexOf('/') >= 0 ? numCompleto.split('/')[1] : '';
     var ped = pedidos.find(function(p) { return p.num === num; });
     var de = ped ? ped.dataEntrega : (card.due ? card.due.substring(0,10) : null);
-    if (!grpPedido[num]) grpPedido[num] = {num:num, cliente:cli, dataEntrega:de, caixas:[], rota:(ped?rotaPedido(ped):'')};
+    if (!grpPedido[num]) grpPedido[num] = {num:num, cliente:cli, dataEntrega:de, caixas:[], rota:(ped?rotaPedido(ped):''), labels:(ped?(function(){var L=[];ped.artes.forEach(function(a){if(a.labels)L=L.concat(a.labels);});return L;})():[])};
     if (!grpPedido[num].dataEntrega && de) grpPedido[num].dataEntrega = de;
     var c0 = cache[card.id];
     grpPedido[num].caixas.push({ id: card.id, nome: card.name, caixaNum: caixaNum, numCompleto: numCompleto, sufixo: sufixo, board: b, url: card.url, listName: card.listName||'', pronta: b.id === 'V6wt9KT0' || b.id === '8LcFwJ0v', artes: c0 && c0.artes ? c0.artes : [] });
@@ -1384,9 +1401,11 @@ function rotaPedido(p){ for(var i=0;i<p.artes.length;i++){ var r=rotaCorte(p.art
 function slaAposSetor(p){
   var sa=setorAtual(p); if(!sa)return 0;
   var st=stageOf(sa), rota=rotaPedido(p), soma=0, viaId=viaIdDeRota(rota)||corteMenorSla();
+  var lbls=[]; p.artes.forEach(function(a){ if(a.labels)lbls=lbls.concat(a.labels); });
   BOARDS.forEach(function(b){
     var bs=stageOf(b); if(bs<=st)return;
     if(CORTES.indexOf(b.id)>=0 && b.id!==viaId)return;
+    if(pulaSetorCond(b.id, lbls))return;
     soma+=(SLA[b.id]||0);
   });
   return soma;
@@ -1704,7 +1723,7 @@ function gerarPDFPlano(){
 var alvoACaminho='dWdRLX04'; // padrão: Impressão
 var acaminhoDebug=false;
 function toggleDebugACaminho(){ acaminhoDebug=!acaminhoDebug; renderACaminho(); }
-function stageOf(b){ if(b.id==='JdC3HfIg'||b.id==='cUWDiSUA')return 4; if(b.ordem<=4)return b.ordem; return b.ordem-2; } // Laser/Zund/Frequência = mesmo estágio (corte). Acab/Fat descem 2 (2 cortes extras acima)
+function stageOf(b){ if(b.id==='2psxSaAN'||b.id==='JdC3HfIg'||b.id==='cUWDiSUA')return 5; if(b.ordem<=5)return b.ordem; return b.ordem-2; } // Laser/Zund/Frequência = mesmo estágio (corte=5). Acab/Fat descem 2
 var LBL_LASER=['laser'];          // etiquetas que indicam Corte Laser (ex.: "Corte Laser", "Laser")
 var LBL_ZUND=['zund','lamina'];   // etiquetas que indicam Corte Zund (ex.: "Setor Zund", "Corte Lâmina")
 var LBL_FREQ=['frequencia'];      // etiquetas que indicam Frequência / Dome Tag
@@ -1876,7 +1895,7 @@ function renderACaminho(){
 
 function gerarPDFACaminho(){
   var alvo=BOARDS.find(function(x){return x.id===alvoACaminho;})||BOARDS[2];
-  function stg(b){ if(b.id==='JdC3HfIg'||b.id==='cUWDiSUA')return 4; if(b.ordem<=4)return b.ordem; return b.ordem-2; }
+  function stg(b){ if(b.id==='2psxSaAN'||b.id==='JdC3HfIg'||b.id==='cUWDiSUA')return 5; if(b.ordem<=5)return b.ordem; return b.ordem-2; }
   var ups=BOARDS.filter(function(u){return stg(u)<stg(alvo);});
   var dtHoje=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
   var linhas='',basesTot={},pecasTot=0,atrasTot=0,critTot=0;
@@ -2632,13 +2651,13 @@ function mudarAba(a,bid){
   var idx=0;
   if(a==='geral'){document.getElementById('page-geral').classList.add('ativo');document.getElementById('htit').textContent='PCP Label Tag - Visão Geral';idx=0;renderGeral();}
   else if(a==='setor'){document.getElementById('page-setor').classList.add('ativo');var b=BOARDS.find(function(x){return x.id===bid;});document.getElementById('htit').textContent=(b?b.emoji+' '+b.nome:'')+' - Painel';idx=BOARDS.findIndex(function(x){return x.id===bid;})+1;renderSetor(bid);}
-  else if(a==='producao'){document.getElementById('page-producao').classList.add('ativo');document.getElementById('htit').textContent='Em Producao';idx=9;renderProducao();}
-  else if(a==='acaminho'){document.getElementById('page-acaminho').classList.add('ativo');document.getElementById('htit').textContent='A Caminho — Fila dos Setores Anteriores';idx=10;renderACaminho();}
-  else if(a==='consolidacao'){document.getElementById('page-consolidacao').classList.add('ativo');document.getElementById('htit').textContent='Consolidação de Pedidos';idx=11;renderConsol();}
-  else if(a==='dashboard'){document.getElementById('page-dashboard').classList.add('ativo');document.getElementById('htit').textContent='Dashboard';idx=12;renderDashboard();}
-  else if(a==='relatorio'){document.getElementById('page-relatorio').classList.add('ativo');document.getElementById('htit').textContent='Relatório de Prioridades';idx=13;renderRelatorio();}
-  else if(a==='valores'){document.getElementById('page-valores').classList.add('ativo');document.getElementById('htit').textContent='Valores de Faturamento';idx=14;renderValores();}
-  else if(a==='config'){document.getElementById('page-config').classList.add('ativo');document.getElementById('htit').textContent='Configurações';idx=15;renderConfig();}
+  else if(a==='producao'){document.getElementById('page-producao').classList.add('ativo');document.getElementById('htit').textContent='Em Producao';idx=10;renderProducao();}
+  else if(a==='acaminho'){document.getElementById('page-acaminho').classList.add('ativo');document.getElementById('htit').textContent='A Caminho — Fila dos Setores Anteriores';idx=11;renderACaminho();}
+  else if(a==='consolidacao'){document.getElementById('page-consolidacao').classList.add('ativo');document.getElementById('htit').textContent='Consolidação de Pedidos';idx=12;renderConsol();}
+  else if(a==='dashboard'){document.getElementById('page-dashboard').classList.add('ativo');document.getElementById('htit').textContent='Dashboard';idx=13;renderDashboard();}
+  else if(a==='relatorio'){document.getElementById('page-relatorio').classList.add('ativo');document.getElementById('htit').textContent='Relatório de Prioridades';idx=14;renderRelatorio();}
+  else if(a==='valores'){document.getElementById('page-valores').classList.add('ativo');document.getElementById('htit').textContent='Valores de Faturamento';idx=15;renderValores();}
+  else if(a==='config'){document.getElementById('page-config').classList.add('ativo');document.getElementById('htit').textContent='Configurações';idx=16;renderConfig();}
   var tabs=document.querySelectorAll('.tab');if(tabs[idx])tabs[idx].classList.add('ativo');
 }
 
@@ -2740,6 +2759,7 @@ function gerarPDFSetor(bid) {
       if(x.ordem<=b.ordem)return false;
       if(x.id==='kKxRCcjN')return temSilk;
       if(x.id==='dWdRLX04')return temImpr;
+      if(x.id===PREP_FINAL_ID)return temSilk||temImpr;
       if(x.id==='2psxSaAN')return temLaser;
       if(x.id==='JdC3HfIg')return temZund&&!temLaser;
       if(x.id==='cUWDiSUA')return temFreq&&!temLaser&&!temZund;
@@ -3066,6 +3086,7 @@ function gerarPDFGeral() {
         if(b2.ordem<=sa.ordem)return false;
         if(b2.id==='kKxRCcjN')return temSilk;
         if(b2.id==='dWdRLX04')return temImpr;
+        if(b2.id===PREP_FINAL_ID)return temSilk||temImpr;
         if(b2.id==='2psxSaAN')return temLaser;
         if(b2.id==='JdC3HfIg')return temZund&&!temLaser;
         if(b2.id==='cUWDiSUA')return temFreq&&!temLaser&&!temZund;
