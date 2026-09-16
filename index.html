@@ -1738,6 +1738,22 @@ function rotaCorte(labels){
   if(temL)return 'laser'; if(temZ)return 'zund'; if(temF)return 'freq'; return '';
 }
 function corteDoAlvo(bid){ return bid==='2psxSaAN'?'laser':bid==='JdC3HfIg'?'zund':bid==='cUWDiSUA'?'freq':''; }
+// A Caminho: um card "vai passar pelo setor alvo"?
+// - alvo de corte (Laser/Zund/Freq): rota do card bate com o corte (ou 'ambos')
+// - alvo condicional (Silk/Impressão/Prep.Final): tem a etiqueta que o inclui
+// - demais (Acabamento/Faturamento): todo card passa
+function alvoCondicional(bid){ return bid==='kKxRCcjN'||bid==='dWdRLX04'||bid===PREP_FINAL_ID; }
+function passaAlvoACaminho(alvoId, it){
+  var corte=corteDoAlvo(alvoId);
+  if(corte) return it.rota===corte || it.rota==='ambos';
+  if(alvoCondicional(alvoId)) return !pulaSetorCond(alvoId, it.labels||[]);
+  return true;
+}
+// Card sem NENHUMA etiqueta de roteamento (silk/impressão/laser/zund/frequência) — ainda não roteado
+function semRotaDefinida(it){
+  var s=(it.labels||[]).map(function(l){return _normLbl(l&&l.name?l.name:l);}).join(' ');
+  return !(s.indexOf('silk')>=0||s.indexOf('impress')>=0||s.indexOf('laser')>=0||s.indexOf('zund')>=0||s.indexOf('lamina')>=0||s.indexOf('frequencia')>=0);
+}
 function setAlvoACaminho(bid){ alvoACaminho=bid; renderACaminho(); }
 
 function renderACaminho(){
@@ -1754,14 +1770,15 @@ function renderACaminho(){
       var ped=pedidos.find(function(p){return p.num===base;});
       var de=c.due?c.due.substring(0,10):(ped?ped.dataEntrega:null);
       var cli=ped?ped.cliente:(m?m[2].split(/\s*-\s*/).pop().trim():'');
-      return {num:num,base:base,cli:cli,de:de,d:dR(de),url:c.url,rota:rotaCorte(c.labels),labels:(c.labels||[]).map(function(l){return (l&&l.name)?l.name:'(sem nome)';})};
+      var cxM=c.name.match(/CAIXA\s*(\d+)/i); var caixaNum=cxM?cxM[1]:'';
+      return {num:num,base:base,cli:cli,de:de,d:dR(de),url:c.url,rota:rotaCorte(c.labels),caixaNum:caixaNum,nome:c.name,labels:(c.labels||[]).map(function(l){return (l&&l.name)?l.name:'(sem nome)';})};
     });
   }
   function vindoPara(b){
-    var st=stageOf(b),corte=corteDoAlvo(b.id),bases={};
+    var st=stageOf(b),bases={};
     BOARDS.filter(function(u){return stageOf(u)<st;}).forEach(function(u){
       itensDoBoard(u).forEach(function(it){
-        if(corte && it.rota!==corte && it.rota!=='ambos')return;
+        if(!passaAlvoACaminho(b.id,it))return;
         bases[it.base]=1;
       });
     });
@@ -1793,11 +1810,11 @@ function renderACaminho(){
 
   var basesTot={},pecasTot=0,atrasTot=0,critTot=0;
   var chartSetor=[],prazo={atraso:0,hoje:0,semana:0,prox:0,depois:0,sem:0};
-  var corteAlvo=corteDoAlvo(alvo.id),semRotaBases={},semRotaOPs=0;
+  var corteAlvo=corteDoAlvo(alvo.id),ehCondAlvo=(corteAlvo||alvoCondicional(alvo.id)),semRotaBases={},semRotaOPs=0;
   var colunas=ups.map(function(u){
     var itensAll=itensDoBoard(u);
-    if(corteAlvo){ itensAll.forEach(function(it){ if(it.rota===''){semRotaBases[it.base]=1; semRotaOPs++;} }); }
-    var itens=(corteAlvo?itensAll.filter(function(it){return it.rota===corteAlvo||it.rota==='ambos';}):itensAll).sort(function(a,b){
+    if(ehCondAlvo){ itensAll.forEach(function(it){ if(semRotaDefinida(it)){semRotaBases[it.base]=1; semRotaOPs++;} }); }
+    var itens=itensAll.filter(function(it){return passaAlvoACaminho(alvo.id,it);}).sort(function(a,b){
       if(a.d===999&&b.d===999)return 0; if(a.d===999)return 1; if(b.d===999)return -1; return a.d-b.d;
     });
     var basesU={},urgU=0;
@@ -1818,7 +1835,7 @@ function renderACaminho(){
       var dt=it.d===999?'sem data':it.d<0?(Math.abs(it.d)+'d atraso'):it.d===0?'hoje':it.d===1?'amanhã':(it.d+'d');
       return '<a href="'+it.url+'" target="_blank" style="display:block;text-decoration:none;background:var(--bg2);border:1px solid var(--border);border-left:3px solid '+dc+';border-radius:8px;padding:8px 10px;margin-bottom:6px">'+
         '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">'+
-        '<span style="font-family:monospace;font-size:11px;color:var(--ouro);font-weight:700">#'+it.num+'</span>'+
+        '<span style="font-family:monospace;font-size:11px;color:var(--ouro);font-weight:700">#'+it.num+(it.caixaNum?' · Cx '+it.caixaNum:'')+'</span>'+
         '<span style="margin-left:auto;font-size:10px;font-weight:700;color:'+dc+'">'+dt+'</span></div>'+
         '<div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(it.cli||'—')+'</div>'+
         (it.de?'<div style="font-size:10px;color:var(--muted)">entrega '+fD(it.de)+'</div>':'')+
@@ -1864,10 +1881,10 @@ function renderACaminho(){
   var graficos='<div class="dash-grid">'+c1+c2+c3+'</div>';
 
   var notaRota='';
-  if(corteAlvo){
+  if(ehCondAlvo){
     notaRota='<div style="background:var(--bg3);border:1px solid var(--border);border-left:3px solid '+alvo.cor+';border-radius:0 8px 8px 0;padding:10px 14px;margin-bottom:16px;font-size:11px;color:var(--muted2);line-height:1.5">'+
-      '🔀 Mostrando só as OPs com etiqueta <b style="color:'+alvo.cor+'">'+alvo.nome+'</b> nos setores anteriores.'+
-      (semRotaOPs>0?' <b style="color:#eab308">'+semRotaOPs+' OP(s)</b> ('+Object.keys(semRotaBases).length+' pedido(s)) ainda <b>sem etiqueta de corte</b> — não contam pra Laser nem Zund até serem marcadas.':' Todas as OPs anteriores já têm rota de corte definida.')+
+      '🔀 Mostrando só as OPs que vão passar por <b style="color:'+alvo.cor+'">'+alvo.nome+'</b> (pela etiqueta).'+
+      (semRotaOPs>0?' <b style="color:#eab308">'+semRotaOPs+' OP(s)</b> ('+Object.keys(semRotaBases).length+' pedido(s)) ainda <b>sem etiqueta de roteamento</b> — não aparecem em nenhum setor condicional até serem marcadas.':' Todas as OPs anteriores já têm rota definida.')+
       '</div>';
   }
 
@@ -1899,7 +1916,7 @@ function gerarPDFACaminho(){
   var ups=BOARDS.filter(function(u){return stg(u)<stg(alvo);});
   var dtHoje=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
   var linhas='',basesTot={},pecasTot=0,atrasTot=0,critTot=0;
-  var corteAlvo=corteDoAlvo(alvo.id),semRotaOPs=0;
+  var corteAlvo=corteDoAlvo(alvo.id),ehCondAlvo=(corteAlvo||alvoCondicional(alvo.id)),semRotaOPs=0;
 
   ups.forEach(function(u){
     var cards=(boards[u.id]&&boards[u.id].cards)||[];
@@ -1909,29 +1926,32 @@ function gerarPDFACaminho(){
       var ped=pedidos.find(function(p){return p.num===base;});
       var de=c.due?c.due.substring(0,10):(ped?ped.dataEntrega:null);
       var cli=ped?ped.cliente:(m?m[2].split(/\s*-\s*/).pop().trim():'');
-      return {num:num,base:base,cli:cli,de:de,d:dR(de),rota:rotaCorte(c.labels)};
+      var cxM=c.name.match(/CAIXA\s*(\d+)/i);
+      return {num:num,base:base,cli:cli,de:de,d:dR(de),rota:rotaCorte(c.labels),caixaNum:cxM?cxM[1]:'',labels:(c.labels||[]).map(function(l){return (l&&l.name)?l.name:'';})};
     });
-    if(corteAlvo){ itens.forEach(function(it){ if(it.rota==='')semRotaOPs++; }); itens=itens.filter(function(it){return it.rota===corteAlvo||it.rota==='ambos';}); }
+    if(ehCondAlvo){ itens.forEach(function(it){ if(semRotaDefinida(it))semRotaOPs++; }); }
+    itens=itens.filter(function(it){return passaAlvoACaminho(alvo.id,it);});
     itens.sort(function(a,b){ if(a.d===999&&b.d===999)return 0; if(a.d===999)return 1; if(b.d===999)return -1; return a.d-b.d; });
 
     var basesU={}; itens.forEach(function(it){basesU[it.base]=1;basesTot[it.base]=1;if(it.d!==999){if(it.d<0)atrasTot++;else if(it.d<=2)critTot++;}});
     pecasTot+=itens.length;
 
-    linhas+='<tr><td colspan="4" style="background:#1a1a2e;color:#c8a96e;padding:8px 12px;font-weight:700;font-size:13px">'+u.emoji+' '+u.nome+' — '+Object.keys(basesU).length+' pedido(s), '+itens.length+' OP(s)</td></tr>';
-    if(!itens.length){ linhas+='<tr><td colspan="4" style="padding:6px 12px;font-size:11px;color:#999;font-style:italic">Vazio</td></tr>'; return; }
+    linhas+='<tr><td colspan="5" style="background:#1a1a2e;color:#c8a96e;padding:8px 12px;font-weight:700;font-size:13px">'+u.emoji+' '+u.nome+' — '+Object.keys(basesU).length+' pedido(s), '+itens.length+' OP(s)</td></tr>';
+    if(!itens.length){ linhas+='<tr><td colspan="5" style="padding:6px 12px;font-size:11px;color:#999;font-style:italic">Vazio</td></tr>'; return; }
     itens.forEach(function(it){
       var dc=it.d===999?'#999':it.d<0?'#ef4444':it.d<=2?'#f97316':it.d<=5?'#a16207':'#1a6b1a';
       var dt=it.d===999?'sem data':it.d<0?(Math.abs(it.d)+'d atraso'):it.d===0?'Hoje':it.d===1?'Amanha':(it.d+'d');
       var dtFmt=it.de?new Date(it.de+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'';
       linhas+='<tr style="border-bottom:1px solid #eee">'+
         '<td style="padding:6px 12px;font-family:monospace;font-size:12px;color:'+dc+';font-weight:700">#'+it.num+'</td>'+
+        '<td style="padding:6px 12px;font-family:monospace;font-size:11px;text-align:center">'+(it.caixaNum?'Cx '+it.caixaNum:'-')+'</td>'+
         '<td style="padding:6px 12px;font-size:12px;font-weight:600">'+(it.cli||'-')+'</td>'+
         '<td style="padding:6px 12px;text-align:center;font-size:11px">'+dtFmt+'</td>'+
         '<td style="padding:6px 12px;text-align:center;color:'+dc+';font-weight:700;font-size:11px">'+dt+'</td></tr>';
     });
   });
 
-  if(!ups.length){ linhas='<tr><td style="padding:12px;color:#666">'+alvo.nome+' é o primeiro setor do fluxo — não há setores anteriores.</td></tr>'; }
+  if(!ups.length){ linhas='<tr><td colspan="5" style="padding:12px;color:#666">'+alvo.nome+' é o primeiro setor do fluxo — não há setores anteriores.</td></tr>'; }
   var totPed=Object.keys(basesTot).length;
 
   var win=window.open('','_blank');
@@ -1949,7 +1969,7 @@ function gerarPDFACaminho(){
     '<div style="font-size:10px;color:#c8a96e;letter-spacing:2px;text-transform:uppercase">Label Tag</div>'+
     '<div style="font-size:20px;font-weight:700">A Caminho &#8594; '+alvo.emoji+' '+alvo.nome+'</div>'+
     '<div style="font-size:12px;color:#666;margin-top:4px">Pedidos parados nos setores anteriores &middot; '+dtHoje+'</div>'+
-    (corteAlvo?'<div style="font-size:11px;color:#a16207;margin-top:4px">🔀 Apenas OPs com etiqueta '+alvo.nome+(semRotaOPs>0?' &middot; '+semRotaOPs+' OP(s) ainda sem etiqueta de corte (fora desta contagem)':'')+'</div>':'')+
+    (ehCondAlvo?'<div style="font-size:11px;color:#a16207;margin-top:4px">🔀 Apenas OPs que vão passar por '+alvo.nome+' (pela etiqueta)'+(semRotaOPs>0?' &middot; '+semRotaOPs+' OP(s) ainda sem etiqueta de roteamento (fora desta contagem)':'')+'</div>':'')+
     '</div></div>'+
     '<div class="kpi">'+
     '<div><span style="color:#1a1a2e">'+totPed+'</span><small>pedidos vindo</small></div>'+
@@ -1958,7 +1978,7 @@ function gerarPDFACaminho(){
     '<div><span style="color:#f97316">'+critTot+'</span><small>críticos ≤2d</small></div>'+
     '</div>'+
     '<table><thead><tr>'+
-    '<th>Pedido</th><th>Cliente</th><th>Entrega</th><th>Prazo</th>'+
+    '<th>Pedido</th><th>Caixa</th><th>Cliente</th><th>Entrega</th><th>Prazo</th>'+
     '</tr></thead><tbody>'+linhas+'</tbody></table>'+
     '<div style="margin-top:16px;font-size:10px;color:#999;text-align:right">Gerado pelo PCP Label Tag em '+new Date().toLocaleString('pt-BR')+'</div>'+
     '</body></html>');
