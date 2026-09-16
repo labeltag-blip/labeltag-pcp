@@ -202,7 +202,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
 
   <div class="tabs">
     <div class="tab ativo" onclick="mudarAba('geral')">📋 Visão Geral</div>
-    <div class="tab" onclick="mudarAba('setor','699750a22d02d67996861f9')">🔷 Prep. Inicial</div>
+    <div class="tab" onclick="mudarAba('setor','699750a22d02d679968617f9')">🔷 Prep. Inicial</div>
     <div class="tab" onclick="mudarAba('setor','kKxRCcjN')">🎨 Silk</div>
     <div class="tab" onclick="mudarAba('setor','dWdRLX04')">🖨️ Impressão</div>
     <div class="tab" onclick="mudarAba('setor','6aaaa7b66c5ea4d5344b2905')">🔶 Prep. Final</div>
@@ -320,7 +320,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
 
 <script>
 var BOARDS=[
-  {id:'699750a22d02d67996861f9',nome:'Prep. Inicial',emoji:'🔷',cor:'#6366f1',ordem:1},
+  {id:'699750a22d02d679968617f9',nome:'Prep. Inicial',emoji:'🔷',cor:'#6366f1',ordem:1},
   {id:'kKxRCcjN',nome:'Silk',emoji:'🎨',cor:'#ec4899',ordem:2},
   {id:'dWdRLX04',nome:'Impressão',emoji:'🖨️',cor:'#8b5cf6',ordem:3},
   {id:'6aaaa7b66c5ea4d5344b2905',nome:'Prep. Final',emoji:'🔶',cor:'#8b5cf6',ordem:4},
@@ -342,7 +342,7 @@ function pulaSetorCond(boardId, labels){
   if(boardId===PREP_FINAL_ID)return !(temSilk||temImpr);   // Prep. Final
   return false;
 }
-var SLA_DEF={'699750a22d02d67996861f9':3,kKxRCcjN:3,dWdRLX04:3,'6aaaa7b66c5ea4d5344b2905':1,'2psxSaAN':3,JdC3HfIg:2,cUWDiSUA:3,'8LcFwJ0v':2,V6wt9KT0:1};
+var SLA_DEF={'699750a22d02d679968617f9':3,kKxRCcjN:3,dWdRLX04:3,'6aaaa7b66c5ea4d5344b2905':1,'2psxSaAN':3,JdC3HfIg:2,cUWDiSUA:3,'8LcFwJ0v':2,V6wt9KT0:1};
 var API_KEY='',TOKEN='',CLAUDE_KEY='';
 var SLA=JSON.parse(localStorage.getItem('lt_sla')||'null')||SLA_DEF;
 var cache=JSON.parse(localStorage.getItem('lt_ordens')||'{}');
@@ -586,7 +586,7 @@ function risco(p){
 }
 function corR(r){return{faturado:'#22c55e',atrasado:'#ef4444',critico:'#f97316',atencao:'#eab308',ok:'#3b82f6'}[r]||'#64748b';}
 function setorAtual(p){for(var i=BOARDS.length-1;i>=0;i--)if(p.setores.has(BOARDS[i].id))return BOARDS[i];return null;}
-function scfg(bid){return{'699750a22d02d67996861f9':{cor:'#6366f1',emoji:'🔷'},kKxRCcjN:{cor:'#ec4899',emoji:'🎨'},dWdRLX04:{cor:'#8b5cf6',emoji:'🖨️'},'6aaaa7b66c5ea4d5344b2905':{cor:'#8b5cf6',emoji:'🔶'},'2psxSaAN':{cor:'#f59e0b',emoji:'⚡'},JdC3HfIg:{cor:'#f97316',emoji:'✂️'},cUWDiSUA:{cor:'#06b6d4',emoji:'📡'},'8LcFwJ0v':{cor:'#84cc16',emoji:'✅'},V6wt9KT0:{cor:'#22c55e',emoji:'📦'}}[bid]||{cor:'#64748b',emoji:'📋'};}
+function scfg(bid){return{'699750a22d02d679968617f9':{cor:'#6366f1',emoji:'🔷'},kKxRCcjN:{cor:'#ec4899',emoji:'🎨'},dWdRLX04:{cor:'#8b5cf6',emoji:'🖨️'},'6aaaa7b66c5ea4d5344b2905':{cor:'#8b5cf6',emoji:'🔶'},'2psxSaAN':{cor:'#f59e0b',emoji:'⚡'},JdC3HfIg:{cor:'#f97316',emoji:'✂️'},cUWDiSUA:{cor:'#06b6d4',emoji:'📡'},'8LcFwJ0v':{cor:'#84cc16',emoji:'✅'},V6wt9KT0:{cor:'#22c55e',emoji:'📦'}}[bid]||{cor:'#64748b',emoji:'📋'};}
 
 function renderTudo(){
   renderStats();renderBrow();initFiltroSetores();
