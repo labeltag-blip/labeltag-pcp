@@ -196,6 +196,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Label Tag</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
+      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 17/09/2026 16:31</span>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
   </div>
@@ -1755,6 +1756,22 @@ function semRotaDefinida(it){
   return !(s.indexOf('silk')>=0||s.indexOf('impress')>=0||s.indexOf('laser')>=0||s.indexOf('zund')>=0||s.indexOf('lamina')>=0||s.indexOf('frequencia')>=0);
 }
 function setAlvoACaminho(bid){ alvoACaminho=bid; renderACaminho(); }
+// Próximos setores a partir de um setor de origem (por ordem), filtrando condicionais por etiqueta.
+function proximosSetoresDe(ordemOrigem, labels){
+  var s=(labels||[]).map(function(l){return _normLbl(l&&l.name?l.name:l);}).join(' ');
+  var temSilk=s.indexOf('silk')>=0, temImpr=s.indexOf('impress')>=0;
+  var temLaser=s.indexOf('laser')>=0, temZund=s.indexOf('zund')>=0||s.indexOf('lamina')>=0, temFreq=s.indexOf('frequencia')>=0;
+  return BOARDS.filter(function(x){
+    if(x.ordem<=ordemOrigem)return false;
+    if(x.id==='kKxRCcjN')return temSilk;
+    if(x.id==='dWdRLX04')return temImpr;
+    if(x.id===PREP_FINAL_ID)return temSilk||temImpr;
+    if(x.id==='2psxSaAN')return temLaser;
+    if(x.id==='JdC3HfIg')return temZund&&!temLaser;
+    if(x.id==='cUWDiSUA')return temFreq&&!temLaser&&!temZund;
+    return true;
+  });
+}
 
 function renderACaminho(){
   var el=document.getElementById('acaminhoEl'); if(!el)return;
@@ -1833,12 +1850,15 @@ function renderACaminho(){
     var linhas=itens.map(function(it){
       var dc=it.d===999?'var(--muted)':it.d<0?'#ef4444':it.d<=2?'#f97316':it.d<=5?'#eab308':'#22c55e';
       var dt=it.d===999?'sem data':it.d<0?(Math.abs(it.d)+'d atraso'):it.d===0?'hoje':it.d===1?'amanhã':(it.d+'d');
+      var prox=proximosSetoresDe(u.ordem, it.labels);
+      var proxTxt=prox.length?'<div style="font-size:10px;color:var(--muted2);margin-top:3px" title="'+prox.map(function(x){return x.nome;}).join(' → ')+'">→ '+prox.map(function(x){return x.emoji;}).join(' ')+'</div>':'';
       return '<a href="'+it.url+'" target="_blank" style="display:block;text-decoration:none;background:var(--bg2);border:1px solid var(--border);border-left:3px solid '+dc+';border-radius:8px;padding:8px 10px;margin-bottom:6px">'+
         '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">'+
         '<span style="font-family:monospace;font-size:11px;color:var(--ouro);font-weight:700">#'+it.num+(it.caixaNum?' · Cx '+it.caixaNum:'')+'</span>'+
         '<span style="margin-left:auto;font-size:10px;font-weight:700;color:'+dc+'">'+dt+'</span></div>'+
         '<div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(it.cli||'—')+'</div>'+
         (it.de?'<div style="font-size:10px;color:var(--muted)">entrega '+fD(it.de)+'</div>':'')+
+        proxTxt+
         '</a>';
     }).join('')||'<div style="background:var(--bg3);border:1px dashed var(--border);border-radius:8px;padding:14px;text-align:center;color:var(--muted);font-size:11px">Vazio</div>';
 
@@ -1936,22 +1956,25 @@ function gerarPDFACaminho(){
     var basesU={}; itens.forEach(function(it){basesU[it.base]=1;basesTot[it.base]=1;if(it.d!==999){if(it.d<0)atrasTot++;else if(it.d<=2)critTot++;}});
     pecasTot+=itens.length;
 
-    linhas+='<tr><td colspan="5" style="background:#1a1a2e;color:#c8a96e;padding:8px 12px;font-weight:700;font-size:13px">'+u.emoji+' '+u.nome+' — '+Object.keys(basesU).length+' pedido(s), '+itens.length+' OP(s)</td></tr>';
-    if(!itens.length){ linhas+='<tr><td colspan="5" style="padding:6px 12px;font-size:11px;color:#999;font-style:italic">Vazio</td></tr>'; return; }
+    linhas+='<tr><td colspan="6" style="background:#1a1a2e;color:#c8a96e;padding:8px 12px;font-weight:700;font-size:13px">'+u.emoji+' '+u.nome+' — '+Object.keys(basesU).length+' pedido(s), '+itens.length+' OP(s)</td></tr>';
+    if(!itens.length){ linhas+='<tr><td colspan="6" style="padding:6px 12px;font-size:11px;color:#999;font-style:italic">Vazio</td></tr>'; return; }
     itens.forEach(function(it){
       var dc=it.d===999?'#999':it.d<0?'#ef4444':it.d<=2?'#f97316':it.d<=5?'#a16207':'#1a6b1a';
       var dt=it.d===999?'sem data':it.d<0?(Math.abs(it.d)+'d atraso'):it.d===0?'Hoje':it.d===1?'Amanha':(it.d+'d');
       var dtFmt=it.de?new Date(it.de+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'';
+      var prox=proximosSetoresDe(u.ordem, it.labels);
+      var caminhoTxt=prox.length?prox.map(function(x){return x.nome+' ('+(SLA[x.id]||1)+'d)';}).join(' → '):'<span style="color:#1a6b1a">Último setor</span>';
       linhas+='<tr style="border-bottom:1px solid #eee">'+
         '<td style="padding:6px 12px;font-family:monospace;font-size:12px;color:'+dc+';font-weight:700">#'+it.num+'</td>'+
         '<td style="padding:6px 12px;font-family:monospace;font-size:11px;text-align:center">'+(it.caixaNum?'Cx '+it.caixaNum:'-')+'</td>'+
         '<td style="padding:6px 12px;font-size:12px;font-weight:600">'+(it.cli||'-')+'</td>'+
         '<td style="padding:6px 12px;text-align:center;font-size:11px">'+dtFmt+'</td>'+
-        '<td style="padding:6px 12px;text-align:center;color:'+dc+';font-weight:700;font-size:11px">'+dt+'</td></tr>';
+        '<td style="padding:6px 12px;text-align:center;color:'+dc+';font-weight:700;font-size:11px">'+dt+'</td>'+
+        '<td style="padding:6px 12px;font-size:10px;color:#666">'+(prox.length?'&#8594; ':'')+caminhoTxt+'</td></tr>';
     });
   });
 
-  if(!ups.length){ linhas='<tr><td colspan="5" style="padding:12px;color:#666">'+alvo.nome+' é o primeiro setor do fluxo — não há setores anteriores.</td></tr>'; }
+  if(!ups.length){ linhas='<tr><td colspan="6" style="padding:12px;color:#666">'+alvo.nome+' é o primeiro setor do fluxo — não há setores anteriores.</td></tr>'; }
   var totPed=Object.keys(basesTot).length;
 
   var win=window.open('','_blank');
@@ -1978,7 +2001,7 @@ function gerarPDFACaminho(){
     '<div><span style="color:#f97316">'+critTot+'</span><small>críticos ≤2d</small></div>'+
     '</div>'+
     '<table><thead><tr>'+
-    '<th>Pedido</th><th>Caixa</th><th>Cliente</th><th>Entrega</th><th>Prazo</th>'+
+    '<th>Pedido</th><th>Caixa</th><th>Cliente</th><th>Entrega</th><th>Prazo</th><th>Próximos Setores</th>'+
     '</tr></thead><tbody>'+linhas+'</tbody></table>'+
     '<div style="margin-top:16px;font-size:10px;color:#999;text-align:right">Gerado pelo PCP Label Tag em '+new Date().toLocaleString('pt-BR')+'</div>'+
     '</body></html>');
