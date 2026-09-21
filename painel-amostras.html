@@ -437,8 +437,13 @@ function miniCard(p){
   var al=p.artes.reduce(function(acc,a){return acc+((cache[a.id]&&cache[a.id].artes)?cache[a.id].artes.length:0);},0);
   var caixas=p.artes.map(function(a){var m=a.nome.match(/CAIXA[\s ]+(\d+)/i);return m?m[1]:null;}).filter(Boolean);
   var caixaInfo=caixas.length?' · Cx '+caixas.join(', '):'';
+  var alvoArte=null;
+  if(sa){for(var i=0;i<p.artes.length;i++){if(p.artes[i].board.id===sa.id){alvoArte=p.artes[i];break;}}}
+  if(!alvoArte)alvoArte=p.artes[0];
+  var trelloUrl=alvoArte?alvoArte.url:'';
+  var trelloBtn=trelloUrl?'<a href="'+trelloUrl+'" target="_blank" onclick="event.stopPropagation()" style="font-size:10px;color:var(--ouro);text-decoration:none;opacity:.7;white-space:nowrap" title="Abrir no Trello">↗ Trello</a>':'';
   var h='<div class="mc '+r+'"><div style="cursor:pointer" onclick="irPara(\''+p.num+'\')">';
-  h+='<div class="mn">#'+p.num+'</div><div class="mcliente">'+p.cliente+caixaInfo+'</div>';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;gap:6px"><div class="mn">#'+p.num+'</div>'+trelloBtn+'</div><div class="mcliente">'+p.cliente+caixaInfo+'</div>';
   h+='<div class="mset">';
   if(sa)h+='<span class="chip" style="color:'+sa.cor+'">'+sa.emoji+' '+sa.nome+'</span>';
   if(p.artes.length>1)h+='<span class="chip">'+p.artes.length+' caixas</span>';
