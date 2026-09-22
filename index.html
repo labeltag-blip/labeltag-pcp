@@ -196,7 +196,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Label Tag</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 22/09/2026 12:22</span>
+      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 22/09/2026 13:41</span>
       <a href="painel-amostras.html" class="btn-g" style="text-decoration:none">🌱 Amostras</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -389,7 +389,6 @@ function init(){
 // Enxuga a interface para o líder: esconde menu de abas, chips de setor, botões de admin.
 function aplicarModoLider(lider){
   var css='.tabs{display:none!important}'+
-    '#filtroSetores{display:none!important}'+
     '.hdr a[href="painel-amostras.html"]{display:none!important}';
   var st=document.createElement('style'); st.textContent=css; document.head.appendChild(st);
   var tit=document.getElementById('htit'); if(tit)tit.textContent='Painel — '+lider.nome;
@@ -696,7 +695,8 @@ function renderStats(){
 }
 
 function renderBrow(){
-  document.getElementById('brow').innerHTML=BOARDS.map(function(b){
+  var listaBrow=setoresLider?BOARDS.filter(function(b){return setoresLider.indexOf(b.id)>=0;}):BOARDS;
+  document.getElementById('brow').innerHTML=listaBrow.map(function(b){
     var st=boards[b.id]||{};
     return '<div class="bp"><div class="bdot" style="background:'+(st.ok?b.cor:'#ef4444')+'"></div><span>'+b.emoji+' '+b.nome+'</span><span style="color:var(--ouro);font-family:\'DM Mono\',monospace">'+(st.qtd||0)+'</span></div>';
   }).join('');
@@ -2802,8 +2802,9 @@ function initFiltroSetores(){
   // Remove botões antigos exceto "Todos"
   var bts=wrap.querySelectorAll('button:not(#fs-todos)');
   bts.forEach(function(b){b.remove();});
-  // Adiciona um botão por setor
-  BOARDS.forEach(function(b){
+  // Adiciona um botão por setor (no modo líder, só os setores dele)
+  var listaChips=setoresLider?BOARDS.filter(function(b){return setoresLider.indexOf(b.id)>=0;}):BOARDS;
+  listaChips.forEach(function(b){
     var btn=document.createElement('button');
     btn.className='fb';
     btn.id='fs-'+b.id;
