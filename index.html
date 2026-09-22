@@ -196,7 +196,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Label Tag</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 22/09/2026 13:41</span>
+      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 22/09/2026 14:10</span>
       <a href="painel-amostras.html" class="btn-g" style="text-decoration:none">🌱 Amostras</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -386,11 +386,20 @@ function init(){
   if(k&&t){API_KEY=k;TOKEN=t;CLAUDE_KEY=c||'';mostrarApp();}
 }
 
-// Enxuga a interface para o líder: esconde menu de abas, chips de setor, botões de admin.
+// Enxuga a interface para o líder: mantém Visão Geral + as abas dos setores dele; esconde o resto.
 function aplicarModoLider(lider){
-  var css='.tabs{display:none!important}'+
+  var css='#filtroSetores{display:none!important}'+
     '.hdr a[href="painel-amostras.html"]{display:none!important}';
   var st=document.createElement('style'); st.textContent=css; document.head.appendChild(st);
+  // Esconde as abas que não são do líder (mantém Visão Geral + abas dos setores dele)
+  var tabs=document.querySelectorAll('.tabs .tab');
+  tabs.forEach(function(t){
+    var oc=t.getAttribute('onclick')||'';
+    if(oc.indexOf("mudarAba('geral')")>=0)return; // mantém Visão Geral
+    var manter=false;
+    lider.setores.forEach(function(sid){ if(oc.indexOf(sid)>=0)manter=true; });
+    if(!manter)t.style.display='none';
+  });
   var tit=document.getElementById('htit'); if(tit)tit.textContent='Painel — '+lider.nome;
   document.title='PCP — '+lider.nome;
 }
