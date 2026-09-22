@@ -196,7 +196,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Label Tag</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 22/09/2026 16:54</span>
+      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 22/09/2026 17:37</span>
       <a href="painel-amostras.html" class="btn-g" style="text-decoration:none">🌱 Amostras</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -2925,7 +2925,27 @@ function toggleRelSetor(el){
   var b=el.nextElementSibling;
   b.style.display=b.style.display==='none'?'block':'none';
 }
-function gerarPDFSetor(bid) {
+var comentariosCards={}; // cache dos comentários por card (usado no PDF do Planejamento)
+// Wrapper: no Planejamento busca os comentários dos cards antes de montar o PDF; senão monta direto.
+function gerarPDFSetor(bid){
+  var b=BOARDS.find(function(x){return x.id===bid;}); if(!b)return;
+  if(bid!==PLANEJAMENTO_ID){ comentariosCards={}; return _montarPDFSetor(bid); }
+  var cards=(boards[bid]&&boards[bid].cards)||[];
+  if(!cards.length){ comentariosCards={}; return _montarPDFSetor(bid); }
+  var syncEl=document.getElementById('syncTxt'); var msgAntes=syncEl?syncEl.textContent:'';
+  if(syncEl)syncEl.textContent='Buscando comentários...';
+  Promise.all(cards.map(function(c){
+    return tGet('/cards/'+c.id+'/actions',{filter:'commentCard',limit:50,fields:'type,date,data,memberCreator'})
+      .then(function(acts){return {id:c.id,coments:acts||[]};})
+      .catch(function(){return {id:c.id,coments:[]};});
+  })).then(function(res){
+    comentariosCards={}; res.forEach(function(r){comentariosCards[r.id]=r.coments;});
+    if(syncEl)syncEl.textContent=msgAntes;
+    _montarPDFSetor(bid);
+  });
+}
+
+function _montarPDFSetor(bid) {
   var b = BOARDS.find(function(x){return x.id===bid;});
   if (!b) return;
   var cards = (boards[bid] && boards[bid].cards) || [];
@@ -2976,7 +2996,13 @@ function gerarPDFSetor(bid) {
     var grp = gpAll[num]; var libera = grp ? liberaPedido(grp) : false;
     var caminhoFinal=caminhoTxt;
     if(ehPlan){ var bd=breakdownListas(card.id); caminhoFinal=bd&&bd.length?bd.map(function(it){return it.nome+' '+fmtHoras(it.horas)+(it.atual?' (agora)':'');}).join(' → '):'coletando…'; }
-    return {num:num,nome:card.name,cliente:cliente,cxNum:cxNum,d:d,dl:dl,dtFmt:dtFmt,dtInt:dtInt,dtFinal:dtFinal,tp:tp,caminhoTxt:caminhoFinal,listN:listN,url:card.url,libera:libera};
+    var comentarios=[];
+    if(ehPlan && comentariosCards[card.id]){
+      comentarios=comentariosCards[card.id].map(function(a){
+        return {texto:(a.data&&a.data.text)||'', autor:(a.memberCreator&&a.memberCreator.fullName)||'', data:a.date};
+      }).filter(function(c){return c.texto;}).sort(function(a,b){return new Date(a.data)-new Date(b.data);});
+    }
+    return {num:num,nome:card.name,cliente:cliente,cxNum:cxNum,d:d,dl:dl,dtFmt:dtFmt,dtInt:dtInt,dtFinal:dtFinal,tp:tp,caminhoTxt:caminhoFinal,listN:listN,url:card.url,libera:libera,ehPlan:ehPlan,comentarios:comentarios};
   }).filter(Boolean).sort(function(a,b2){ if(a.libera!==b2.libera)return a.libera?-1:1; return a.dl-b2.dl;});
 
   var dtHoje = new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
@@ -3061,7 +3087,16 @@ function gerarPDFSetor(bid) {
       '<td style="padding:6px 8px;text-align:center;color:'+cor+';font-weight:700;font-size:12px">'+t.dtInt+'</td>' +
       '<td style="padding:6px 8px;text-align:center;color:#888;font-size:11px">'+t.dtFinal+'</td>' +
       '<td style="padding:6px 8px;font-size:10px;color:#666">'+(t.caminhoTxt?'&#8594; '+t.caminhoTxt:'<span style="color:#22c55e">Ultimo setor</span>')+'</td>' +
-      '</tr>';
+      '</tr>' +
+      ((t.ehPlan&&t.comentarios&&t.comentarios.length)?
+        '<tr><td colspan="8" style="padding:4px 8px 10px 22px;background:#fffdf5;border-bottom:1px solid #eee">'+
+        '<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#a16207;margin-bottom:3px">💬 Comentários</div>'+
+        t.comentarios.map(function(c){
+          var dt=c.data?new Date(c.data).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+new Date(c.data).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'';
+          return '<div style="font-size:11px;color:#333;margin-bottom:2px;line-height:1.4"><span style="color:#999">'+dt+(c.autor?' · '+c.autor:'')+':</span> '+c.texto.replace(/</g,'&lt;')+'</div>';
+        }).join('')+
+        '</td></tr>'
+      :'');
   }).join('');
 
   var win = window.open('', '_blank');
