@@ -196,7 +196,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Label Tag</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 21/09/2026 14:08</span>
+      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 22/09/2026 12:22</span>
       <a href="painel-amostras.html" class="btn-g" style="text-decoration:none">🌱 Amostras</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -352,9 +352,48 @@ var pedidos=[],boards={},filtro='todos',aba='geral',setorId=null,filtroSetores=[
 var valoresModo='lista';
 var VALOR_ALTO=5000; // limite (R$) p/ destacar pedido de "alto valor" atrasado — ajuste conforme sua realidade
 
+// ===== MODO LÍDER (link por setor: ?setor=couto) =====
+// Token/chave SÓ-LEITURA do Trello, embutidos para os links de líder (preencher com token read-only).
+// Deixe vazio para o líder cair na tela de login normal (útil para testar antes de gerar o token).
+var KEY_LEITURA='';
+var TOKEN_LEITURA='';
+// Cada líder vê só os cards que têm caixa em QUALQUER um dos setores listados.
+var LIDERES={
+  couto:{nome:'Couto', setores:['699750a22d02d679968617f9','6aaaa7b66c5ea4d5344b2905','kKxRCcjN','JdC3HfIg','cUWDiSUA']}
+};
+var setoresLider=null; // null = modo normal (Natieli); array de ids = modo líder
+// No modo líder: mostra o pedido se ele tem QUALQUER caixa num setor do líder.
+function pedidoNoGrupoLider(p){
+  if(!setoresLider)return true;
+  for(var i=0;i<setoresLider.length;i++){ if(p.setores.has(setoresLider[i]))return true; }
+  return false;
+}
+
 function init(){
+  // Modo líder? (link ?setor=couto)
+  var params=new URLSearchParams(location.search);
+  var sl=(params.get('setor')||'').toLowerCase().trim();
+  if(sl && LIDERES[sl]){
+    setoresLider=LIDERES[sl].setores;
+    setoresExcluidos=[]; // no modo líder o filtro vem de pedidoNoGrupoLider, não da exclusão
+    var kL=KEY_LEITURA||localStorage.getItem('lt_key'), tL=TOKEN_LEITURA||localStorage.getItem('lt_token');
+    if(kL&&tL){ API_KEY=kL; TOKEN=tL; aplicarModoLider(LIDERES[sl]); mostrarApp(); return; }
+    // Sem token embutido nem salvo: cai no login normal, mas já em modo líder
+    aplicarModoLider(LIDERES[sl]);
+    return;
+  }
   var k=localStorage.getItem('lt_key'),t=localStorage.getItem('lt_token'),c=localStorage.getItem('lt_claude');
   if(k&&t){API_KEY=k;TOKEN=t;CLAUDE_KEY=c||'';mostrarApp();}
+}
+
+// Enxuga a interface para o líder: esconde menu de abas, chips de setor, botões de admin.
+function aplicarModoLider(lider){
+  var css='.tabs{display:none!important}'+
+    '#filtroSetores{display:none!important}'+
+    '.hdr a[href="painel-amostras.html"]{display:none!important}';
+  var st=document.createElement('style'); st.textContent=css; document.head.appendChild(st);
+  var tit=document.getElementById('htit'); if(tit)tit.textContent='Painel — '+lider.nome;
+  document.title='PCP — '+lider.nome;
 }
 
 function conectar(){
@@ -603,6 +642,16 @@ function risco(p){
 }
 function corR(r){return{faturado:'#22c55e',atrasado:'#ef4444',critico:'#f97316',atencao:'#eab308',ok:'#3b82f6'}[r]||'#64748b';}
 function setorAtual(p){for(var i=BOARDS.length-1;i>=0;i--)if(p.setores.has(BOARDS[i].id))return BOARDS[i];return null;}
+// Pedido tem QUALQUER caixa num setor oculto? (esconder por setor considera todas as caixas, não só o mais avançado)
+// incluirFat=false ignora o Faturamento (que tem coluna própria na Visão Geral).
+function pedidoTemCaixaOculta(p, incluirFat){
+  for(var i=0;i<setoresExcluidos.length;i++){
+    var sid=setoresExcluidos[i];
+    if(!incluirFat && sid==='V6wt9KT0')continue;
+    if(p.setores.has(sid))return true;
+  }
+  return false;
+}
 function scfg(bid){return{'699750a22d02d679968617f9':{cor:'#6366f1',emoji:'🔷'},kKxRCcjN:{cor:'#ec4899',emoji:'🎨'},dWdRLX04:{cor:'#8b5cf6',emoji:'🖨️'},'6aaaa7b66c5ea4d5344b2905':{cor:'#8b5cf6',emoji:'🔶'},'2psxSaAN':{cor:'#f59e0b',emoji:'⚡'},JdC3HfIg:{cor:'#f97316',emoji:'✂️'},cUWDiSUA:{cor:'#06b6d4',emoji:'📡'},'8LcFwJ0v':{cor:'#84cc16',emoji:'✅'},V6wt9KT0:{cor:'#22c55e',emoji:'📦'}}[bid]||{cor:'#64748b',emoji:'📋'};}
 
 function renderTudo(){
@@ -664,7 +713,7 @@ function renderGeral(){
     var mb=!busca||hay.indexOf(_normLbl(busca))>=0;
     var de=p.dataEntrega||'';
     var dentroP=(!dataInicio&&!dataFim)||(!dataInicio&&de<=dataFim)||(!dataFim&&de>=dataInicio)||(de>=dataInicio&&de<=dataFim);
-    var ms=(!filtroSetores.length||(sa&&filtroSetores.indexOf(sa.id)>=0))&&!(sa&&setoresExcluidos.indexOf(sa.id)>=0);
+    var ms=(!filtroSetores.length||(sa&&filtroSetores.indexOf(sa.id)>=0))&&!pedidoTemCaixaOculta(p,false)&&pedidoNoGrupoLider(p);
     return mb&&(filtro==='todos'||risco(p)===filtro)&&dentroP&&ms;
   });
   var fat=fil.filter(function(p){return p.setores.has('V6wt9KT0');});
@@ -683,7 +732,7 @@ function renderGeral(){
     h+='</div><span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:12px;background:'+cor+'22;color:'+cor+'">'+lista.length+'</span></div>';
     h+='<div class="cbody">'+lista.map(miniCard).join('')+'</div></div>';
   });
-  if(fat.length>0||filtro==='faturado'||filtro==='todos'){
+  if((!setoresLider||setoresLider.indexOf('V6wt9KT0')>=0) && setoresExcluidos.indexOf('V6wt9KT0')<0 && (fat.length>0||filtro==='faturado'||filtro==='todos')){
     h+='<div class="kcol faturado"><div class="chdr"><div><div style="font-family:\'DM Mono\',monospace;font-size:13px;font-weight:700">📦 Faturados</div><div style="font-size:10px;color:#22c55e;margin-top:1px">Concluídos</div></div><span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:12px;background:#22c55e22;color:#22c55e">'+fat.length+'</span></div>';
     h+='<div class="cbody">'+fat.map(miniCard).join('')+'</div></div>';
   }
@@ -2989,7 +3038,7 @@ function gerarPDFGeral() {
     var mb = !buscaVal || hay.indexOf(_normLbl(buscaVal)) >= 0;
     var de = p.dataEntrega || '';
     var dentroP = (!dataI && !dataF) || (!dataI && de <= dataF) || (!dataF && de >= dataI) || (de >= dataI && de <= dataF);
-    var ms = (!filtroSetores.length || (sa && filtroSetores.indexOf(sa.id) >= 0)) && !(sa && setoresExcluidos.indexOf(sa.id) >= 0);
+    var ms = (!filtroSetores.length || (sa && filtroSetores.indexOf(sa.id) >= 0)) && !pedidoTemCaixaOculta(p,true) && pedidoNoGrupoLider(p);
     return mb && (filtro === 'todos' || risco(p) === filtro) && dentroP && ms;
   }).sort(function(a,b) {
     if (!a.dataEntrega) return 1;
