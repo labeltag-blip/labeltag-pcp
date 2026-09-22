@@ -196,7 +196,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Label Tag</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 22/09/2026 15:57</span>
+      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 22/09/2026 16:54</span>
       <a href="painel-amostras.html" class="btn-g" style="text-decoration:none">🌱 Amostras</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -444,6 +444,13 @@ function tGet(path,params){
 // ───────────────────────────────────────────────────────────────────────
 // HISTÓRICO DE MOVIMENTAÇÕES (para gráficos de "realizado por setor")
 // ───────────────────────────────────────────────────────────────────────
+var PLANEJAMENTO_ID='1GFeoJFU'; // SLA por PERMANÊNCIA: conta dias úteis desde a criação do card (24h úteis p/ emitir a OP)
+// Data de criação do card vem embutida nos 8 primeiros hex do ID do Trello (timestamp Unix)
+function diasUteisDesdeCriacao(cardId){
+  if(!cardId||cardId.length<8)return 0;
+  var ts=parseInt(cardId.substring(0,8),16); if(isNaN(ts))return 0;
+  return diasUteisEntre(new Date(ts*1000), new Date());
+}
 function diasUteisEntre(dtIni,dtFim){
   if(!dtIni||!dtFim)return 0;
   var ini=new Date(dtIni);ini.setHours(0,0,0,0);
@@ -468,6 +475,55 @@ function carregarHistoricoLocal(){
 function salvarHistoricoLocal(){
   try{localStorage.setItem(HIST_KEY,JSON.stringify(historicoSetores));}catch(e){}
 }
+
+// ===== HISTÓRICO POR LISTA (dentro do Planejamento) — análise de tempo por etapa =====
+var HIST_LISTAS_KEY='labeltag_hist_listas_v1';
+var histListas={}; // {cardId:{num,nome,passagens:[{listId,listName,entrada,saida,horas}],listaAtual,nomeListaAtual,entradaAtual}}
+function carregarHistListas(){ try{var r=localStorage.getItem(HIST_LISTAS_KEY);if(r)histListas=JSON.parse(r);}catch(e){histListas={};} }
+function salvarHistListas(){ try{localStorage.setItem(HIST_LISTAS_KEY,JSON.stringify(histListas));}catch(e){} }
+
+// Coleta as movimentações entre listas do quadro Planejamento (a partir de agora vai acumulando)
+function coletarHistListas(diasAtras){
+  diasAtras=diasAtras||90;
+  var corte=new Date();corte.setDate(corte.getDate()-diasAtras);
+  return tGet('/boards/'+PLANEJAMENTO_ID+'/actions',{
+    filter:'createCard,copyCard,updateCard',
+    limit:1000, since:corte.toISOString(), fields:'type,date,data'
+  }).then(function(actions){
+    var evPorCard={};
+    actions.forEach(function(a){
+      var card=a.data&&a.data.card; if(!card)return;
+      var cid=card.id, ev={tipo:a.type,data:a.date,cardName:card.name};
+      if(a.type==='createCard'||a.type==='copyCard'){ if(a.data.list){ev.listId=a.data.list.id;ev.listName=a.data.list.name;} }
+      else if(a.type==='updateCard'){ if(a.data.listAfter){ev.listId=a.data.listAfter.id;ev.listName=a.data.listAfter.name;} else return; }
+      if(!ev.listId)return;
+      if(!evPorCard[cid])evPorCard[cid]=[]; evPorCard[cid].push(ev);
+    });
+    var novo={};
+    Object.keys(evPorCard).forEach(function(cid){
+      var evs=evPorCard[cid].sort(function(a,b){return new Date(a.data)-new Date(b.data);});
+      var nome=evs[0].cardName||'', m=nome.match(/^(\d+)/), num=m?m[1]:cid;
+      var passagens=[], listaAtual=null, nomeAtual=null, entradaAtual=null;
+      evs.forEach(function(e){
+        if(listaAtual&&entradaAtual){ passagens.push({listId:listaAtual,listName:nomeAtual,entrada:entradaAtual,saida:e.data,horas:(new Date(e.data)-new Date(entradaAtual))/3600000}); }
+        listaAtual=e.listId; nomeAtual=e.listName; entradaAtual=e.data;
+      });
+      novo[cid]={num:num,nome:nome,passagens:passagens,listaAtual:listaAtual,nomeListaAtual:nomeAtual,entradaAtual:entradaAtual};
+    });
+    // O Trello devolve o histórico completo da janela (90d) — sobrescreve (card fica ~24h, não há risco de perder)
+    Object.keys(novo).forEach(function(cid){ histListas[cid]=novo[cid]; });
+    salvarHistListas();
+    return histListas;
+  }).catch(function(){return histListas;});
+}
+// Breakdown de tempo por lista de um card (inclui a lista atual, em andamento)
+function breakdownListas(cardId){
+  var h=histListas[cardId]; if(!h)return null;
+  var itens=(h.passagens||[]).map(function(p){return {nome:p.listName,horas:p.horas,atual:false};});
+  if(h.listaAtual&&h.entradaAtual){ itens.push({nome:h.nomeListaAtual,horas:(new Date()-new Date(h.entradaAtual))/3600000,atual:true}); }
+  return itens.length?itens:null;
+}
+function fmtHoras(h){ if(h==null)return '';var hr=Math.round(h); if(hr<1)return '<1h'; if(hr<24)return hr+'h'; var d=Math.floor(hr/24),r=hr%24; return d+'d'+(r?' '+r+'h':''); }
 
 // Liberados no mês: quantos cards SAÍRAM deste setor (passagens com saída) no mês corrente.
 // Conta OPs distintas (pedido+caixa) para não inflar com re-movimentações.
@@ -621,10 +677,14 @@ function sincronizar(){
     renderTudo();
     // Carrega histórico local e atualiza em background (não bloqueia UI)
     if(Object.keys(historicoSetores).length===0)carregarHistoricoLocal();
+    if(Object.keys(histListas).length===0)carregarHistListas();
     setTimeout(function(){coletarHistorico(90).then(function(){
       // Se o usuário estiver na aba dashboard, re-renderiza
       if(document.getElementById('page-dashboard').classList.contains('ativo'))renderDashboard();
     });},800);
+    setTimeout(function(){coletarHistListas(90).then(function(){
+      if(aba==='setor'&&setorId===PLANEJAMENTO_ID)renderSetor(PLANEJAMENTO_ID);
+    });},1200);
   }).catch(function(e){document.getElementById('syncTxt').textContent='Erro - tente novamente';});
 }
 
@@ -826,14 +886,31 @@ function renderSetor(bid){
     var num=m[1],ped=pedidos.find(function(p){return p.num===num;});
     var de=card.due?card.due.substring(0,10):(ped?ped.dataEntrega:null);
     var d=dR(de),labels=(ped?ped.artes.filter(function(a){return a.id===card.id;})[0]:null),lblArr=labels?labels.labels||[]:((card.labels||[]).map(function(l){return l.name||'';})),slaP=getSlaPost(b.ordem,lblArr,ped?ped.setores:null);
-    return{num:num,nome:card.name,cliente:ped?ped.cliente:m[2],d:d,dl:d-slaP,url:card.url,lblArr:lblArr};
-  }).filter(Boolean).sort(function(a,b){return a.d-b.d;});
+    var dlCalc=d-slaP, diasParado=null, ehPlan=false;
+    if(bid===PLANEJAMENTO_ID){ ehPlan=true; diasParado=diasUteisDesdeCriacao(card.id); dlCalc=(SLA[bid]||1)-diasParado; } // SLA - dias parados
+    return{num:num,nome:card.name,cliente:ped?ped.cliente:m[2],d:d,dl:dlCalc,diasParado:diasParado,ehPlan:ehPlan,cardId:card.id,url:card.url,lblArr:lblArr};
+  }).filter(Boolean).sort(function(a,b){ if(a.ehPlan||b.ehPlan)return a.dl-b.dl; return a.d-b.d; });
 
   var urg=tasks.filter(function(t){return t.dl<0;}),hj=tasks.filter(function(t){return t.dl===0;}),am=tasks.filter(function(t){return t.dl===1;}),nm=tasks.filter(function(t){return t.dl>1;});
 
   function tk(t,tp){
     var cor=tp==='urgente'?'#ef4444':tp==='hoje'?'#f97316':tp==='amanha'?'#eab308':'#3b82f6';
     var dt=t.d===999?'Sem data':t.d<0?(Math.abs(t.d)+'d atraso'):t.d===0?'Hoje':t.d===1?'Amanha':(t.d+'d');
+    // Planejamento: o "prazo" é o tempo parado desde a criação da OP (SLA de permanência)
+    if(t.ehPlan){ dt=t.diasParado===0?'entrou hoje':t.diasParado===1?'1 dia útil':(t.diasParado+' dias úteis'); }
+    var listasHtml='';
+    if(t.ehPlan){
+      var bd=breakdownListas(t.cardId);
+      if(bd&&bd.length){
+        listasHtml='<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;align-items:center">'+
+          bd.map(function(it){
+            var c=it.atual?'#f97316':'var(--muted2)';
+            return '<span style="font-size:10px;background:'+(it.atual?'#f9731618':'var(--bg3)')+';border:1px solid '+(it.atual?'#f9731644':'var(--border)')+';color:'+c+';border-radius:4px;padding:1px 6px;white-space:nowrap">'+it.nome+' <b>'+fmtHoras(it.horas)+'</b>'+(it.atual?' ←agora':'')+'</span>';
+          }).join('')+'</div>';
+      } else {
+        listasHtml='<div style="font-size:10px;color:var(--muted);margin-top:6px;font-style:italic">histórico de etapas ainda coletando…</div>';
+      }
+    }
     // Monta caminho dos setores restantes — filtra Silk/Impressão por etiqueta e escolhe UM corte
     var lblStr=(t.lblArr||[]).join(' ').toLowerCase();
     var temSilk=lblStr.indexOf('silk')>=0;
@@ -853,7 +930,7 @@ function renderSetor(bid){
       return true;                                                // Acabamento e Faturamento sempre
     });
     var alertaHtml=alertaCorte?'<div style="font-size:10px;background:#ef444422;border:1px solid #ef4444;color:#ef4444;border-radius:4px;padding:2px 6px;margin-top:4px;display:inline-block">⚠️ Card com mais de um corte (Laser/Zund/Frequência) — escolher apenas um</div>':'';
-    var caminhoHtml=proximosSetores.length>0?
+    var caminhoHtml=t.ehPlan?'':(proximosSetores.length>0?
       '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;align-items:center">'+
       proximosSetores.map(function(x,i){
         var sla=SLA[x.id]||1;
@@ -862,8 +939,8 @@ function renderSetor(bid){
           x.emoji+' '+x.nome+' <span style="opacity:.7">'+sla+'d</span></span>';
       }).join('<span style="color:var(--muted);font-size:10px;align-self:center">&#8594;</span>')+
       '</div>'+alertaHtml:
-      '<div style="font-size:10px;color:#22c55e;margin-top:4px">Ultimo setor</div>'+alertaHtml;
-    return '<div class="tk '+tp+'"><span class="tnum">#'+t.num+'</span><div class="tinfo"><div class="tcli">'+t.cliente+'</div><div class="tdet">'+t.nome+'</div>'+caminhoHtml+'</div><span class="tdias" style="color:'+cor+'">'+dt+'</span><a href="'+t.url+'" target="_blank" class="trl">&#8599;</a></div>';
+      '<div style="font-size:10px;color:#22c55e;margin-top:4px">Ultimo setor</div>'+alertaHtml);
+    return '<div class="tk '+tp+'"><span class="tnum">#'+t.num+'</span><div class="tinfo"><div class="tcli">'+t.cliente+'</div><div class="tdet">'+t.nome+'</div>'+caminhoHtml+listasHtml+'</div><span class="tdias" style="color:'+cor+'">'+dt+'</span><a href="'+t.url+'" target="_blank" class="trl">&#8599;</a></div>';
   }
   function sec(tit,lista,tp,cor,bg){
     if(!lista.length)return'';
@@ -2865,12 +2942,15 @@ function gerarPDFSetor(bid) {
     var de = card.due ? card.due.substring(0,10) : (ped ? ped.dataEntrega : null);
     var d = dR(de);
     var cardLabels=(card.labels||[]).map(function(l){return l.name||'';}); var slaPostCard=getSlaPost(b.ordem,cardLabels,ped?ped.setores:null); var dl = d - slaPostCard;
+    var ehPlan=(bid===PLANEJAMENTO_ID), diasParado=null;
+    if(ehPlan){ diasParado=diasUteisDesdeCriacao(card.id); dl=(SLA[bid]||1)-diasParado; }
     var cxM = card.name.match(/CAIXA\s*(\d+)/i);
     var cxNum = cxM ? 'Cx '+cxM[1] : '';
     var cliente = ped ? ped.cliente : m[2].split(/\s*-\s*/).pop().trim();
     var dtFmt = de ? new Date(de+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '--';
     var tp = dl<0?'urgente':dl===0?'hoje':dl===1?'amanha':'normal';
     var dtInt = dl===999?'--':dl<0?(Math.abs(dl)+'d atraso'):dl===0?'Hoje!':dl===1?'Amanha':(dl+'d');
+    if(ehPlan){ dtInt=diasParado===0?'entrou hoje':diasParado===1?'1 dia útil':(diasParado+' dias úteis'); }
     var dtFinal = d===999?'--':d<0?(Math.abs(d)+'d atraso'):d===0?'Hoje':d===1?'Amanha':(d+'d');
     // Proximos setores — filtra Silk/Impressão por etiqueta e escolhe UM corte
     var lblStr=cardLabels.join(' ').toLowerCase();
@@ -2890,11 +2970,13 @@ function gerarPDFSetor(bid) {
       if(x.id==='cUWDiSUA')return temFreq&&!temLaser&&!temZund;
       return true;
     });
-    var caminhoTxt = proxSetores.map(function(x){return x.nome+' ('+( SLA[x.id]||1)+'d)';}).join(' → ');
+    var caminhoTxt = ehPlan?'':proxSetores.map(function(x){return x.nome+' ('+( SLA[x.id]||1)+'d)';}).join(' → ');
     if(alertaCorte)caminhoTxt='⚠ MAIS DE UM CORTE — '+caminhoTxt;
     var listN = card.listName || '';
     var grp = gpAll[num]; var libera = grp ? liberaPedido(grp) : false;
-    return {num:num,nome:card.name,cliente:cliente,cxNum:cxNum,d:d,dl:dl,dtFmt:dtFmt,dtInt:dtInt,dtFinal:dtFinal,tp:tp,caminhoTxt:caminhoTxt,listN:listN,url:card.url,libera:libera};
+    var caminhoFinal=caminhoTxt;
+    if(ehPlan){ var bd=breakdownListas(card.id); caminhoFinal=bd&&bd.length?bd.map(function(it){return it.nome+' '+fmtHoras(it.horas)+(it.atual?' (agora)':'');}).join(' → '):'coletando…'; }
+    return {num:num,nome:card.name,cliente:cliente,cxNum:cxNum,d:d,dl:dl,dtFmt:dtFmt,dtInt:dtInt,dtFinal:dtFinal,tp:tp,caminhoTxt:caminhoFinal,listN:listN,url:card.url,libera:libera};
   }).filter(Boolean).sort(function(a,b2){ if(a.libera!==b2.libera)return a.libera?-1:1; return a.dl-b2.dl;});
 
   var dtHoje = new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
@@ -3001,7 +3083,7 @@ function gerarPDFSetor(bid) {
     '</div>' +
     dashboardSetorHtml +
     '<table><thead><tr>' +
-    '<th>Pedido</th><th>Cliente</th><th>Caixa</th><th>Etapa</th><th>Entrega</th><th>Prazo Interno</th><th>Prazo Final</th><th>Proximos Setores</th>' +
+    '<th>Pedido</th><th>Cliente</th><th>Caixa</th><th>Etapa</th><th>Entrega</th><th>'+(bid===PLANEJAMENTO_ID?'Tempo Parado':'Prazo Interno')+'</th><th>Prazo Final</th><th>'+(bid===PLANEJAMENTO_ID?'Etapas (tempo em cada lista)':'Proximos Setores')+'</th>' +
     '</tr></thead><tbody>'+linhas+'</tbody></table>' +
     '<div class="footer">Gerado pelo PCP Label Tag em '+new Date().toLocaleString('pt-BR')+'</div>' +
     '</body></html>';
