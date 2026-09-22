@@ -196,7 +196,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Label Tag</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 22/09/2026 14:10</span>
+      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 22/09/2026 15:57</span>
       <a href="painel-amostras.html" class="btn-g" style="text-decoration:none">🌱 Amostras</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -204,6 +204,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
 
   <div class="tabs">
     <div class="tab ativo" onclick="mudarAba('geral')">📋 Visão Geral</div>
+    <div class="tab" onclick="mudarAba('setor','1GFeoJFU')">🗂️ Planejamento</div>
     <div class="tab" onclick="mudarAba('setor','699750a22d02d679968617f9')">🔷 Prep. Inicial</div>
     <div class="tab" onclick="mudarAba('setor','kKxRCcjN')">🎨 Silk</div>
     <div class="tab" onclick="mudarAba('setor','dWdRLX04')">🖨️ Impressão</div>
@@ -322,15 +323,16 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
 
 <script>
 var BOARDS=[
-  {id:'699750a22d02d679968617f9',nome:'Prep. Inicial',emoji:'🔷',cor:'#6366f1',ordem:1},
-  {id:'kKxRCcjN',nome:'Silk',emoji:'🎨',cor:'#ec4899',ordem:2},
-  {id:'dWdRLX04',nome:'Impressão',emoji:'🖨️',cor:'#8b5cf6',ordem:3},
-  {id:'6aaaa7b66c5ea4d5344b2905',nome:'Prep. Final',emoji:'🔶',cor:'#8b5cf6',ordem:4},
-  {id:'2psxSaAN',nome:'Corte Laser',emoji:'⚡',cor:'#f59e0b',ordem:5},
-  {id:'JdC3HfIg',nome:'Corte Zund',emoji:'✂️',cor:'#f97316',ordem:6},
-  {id:'cUWDiSUA',nome:'Frequência',emoji:'📡',cor:'#06b6d4',ordem:7},
-  {id:'8LcFwJ0v',nome:'Acabamento',emoji:'✅',cor:'#84cc16',ordem:8},
-  {id:'V6wt9KT0',nome:'Faturamento',emoji:'📦',cor:'#22c55e',ordem:9}
+  {id:'1GFeoJFU',nome:'Planejamento',emoji:'🗂️',cor:'#0ea5e9',ordem:1},
+  {id:'699750a22d02d679968617f9',nome:'Prep. Inicial',emoji:'🔷',cor:'#6366f1',ordem:2},
+  {id:'kKxRCcjN',nome:'Silk',emoji:'🎨',cor:'#ec4899',ordem:3},
+  {id:'dWdRLX04',nome:'Impressão',emoji:'🖨️',cor:'#8b5cf6',ordem:4},
+  {id:'6aaaa7b66c5ea4d5344b2905',nome:'Prep. Final',emoji:'🔶',cor:'#8b5cf6',ordem:5},
+  {id:'2psxSaAN',nome:'Corte Laser',emoji:'⚡',cor:'#f59e0b',ordem:6},
+  {id:'JdC3HfIg',nome:'Corte Zund',emoji:'✂️',cor:'#f97316',ordem:7},
+  {id:'cUWDiSUA',nome:'Frequência',emoji:'📡',cor:'#06b6d4',ordem:8},
+  {id:'8LcFwJ0v',nome:'Acabamento',emoji:'✅',cor:'#84cc16',ordem:9},
+  {id:'V6wt9KT0',nome:'Faturamento',emoji:'📦',cor:'#22c55e',ordem:10}
 ];
 var PREP_FINAL_ID='6aaaa7b66c5ea4d5344b2905'; // condicional: só entra no fluxo se o pedido tem Silk ou Impressão
 function temSilkOuImpress(labels){ var s=(labels||[]).map(function(l){return _normLbl(l&&l.name?l.name:l);}).join(' '); return s.indexOf('silk')>=0 || s.indexOf('impress')>=0; }
@@ -344,7 +346,7 @@ function pulaSetorCond(boardId, labels){
   if(boardId===PREP_FINAL_ID)return !(temSilk||temImpr);   // Prep. Final
   return false;
 }
-var SLA_DEF={'699750a22d02d679968617f9':3,kKxRCcjN:3,dWdRLX04:3,'6aaaa7b66c5ea4d5344b2905':1,'2psxSaAN':3,JdC3HfIg:2,cUWDiSUA:3,'8LcFwJ0v':2,V6wt9KT0:1};
+var SLA_DEF={'1GFeoJFU':1,'699750a22d02d679968617f9':3,kKxRCcjN:3,dWdRLX04:3,'6aaaa7b66c5ea4d5344b2905':1,'2psxSaAN':3,JdC3HfIg:2,cUWDiSUA:3,'8LcFwJ0v':2,V6wt9KT0:1};
 var API_KEY='',TOKEN='',CLAUDE_KEY='';
 var SLA=JSON.parse(localStorage.getItem('lt_sla')||'null')||SLA_DEF;
 var cache=JSON.parse(localStorage.getItem('lt_ordens')||'{}');
@@ -660,7 +662,7 @@ function pedidoTemCaixaOculta(p, incluirFat){
   }
   return false;
 }
-function scfg(bid){return{'699750a22d02d679968617f9':{cor:'#6366f1',emoji:'🔷'},kKxRCcjN:{cor:'#ec4899',emoji:'🎨'},dWdRLX04:{cor:'#8b5cf6',emoji:'🖨️'},'6aaaa7b66c5ea4d5344b2905':{cor:'#8b5cf6',emoji:'🔶'},'2psxSaAN':{cor:'#f59e0b',emoji:'⚡'},JdC3HfIg:{cor:'#f97316',emoji:'✂️'},cUWDiSUA:{cor:'#06b6d4',emoji:'📡'},'8LcFwJ0v':{cor:'#84cc16',emoji:'✅'},V6wt9KT0:{cor:'#22c55e',emoji:'📦'}}[bid]||{cor:'#64748b',emoji:'📋'};}
+function scfg(bid){return{'1GFeoJFU':{cor:'#0ea5e9',emoji:'🗂️'},'699750a22d02d679968617f9':{cor:'#6366f1',emoji:'🔷'},kKxRCcjN:{cor:'#ec4899',emoji:'🎨'},dWdRLX04:{cor:'#8b5cf6',emoji:'🖨️'},'6aaaa7b66c5ea4d5344b2905':{cor:'#8b5cf6',emoji:'🔶'},'2psxSaAN':{cor:'#f59e0b',emoji:'⚡'},JdC3HfIg:{cor:'#f97316',emoji:'✂️'},cUWDiSUA:{cor:'#06b6d4',emoji:'📡'},'8LcFwJ0v':{cor:'#84cc16',emoji:'✅'},V6wt9KT0:{cor:'#22c55e',emoji:'📦'}}[bid]||{cor:'#64748b',emoji:'📋'};}
 
 function renderTudo(){
   renderStats();renderBrow();initFiltroSetores();
@@ -1803,7 +1805,7 @@ function gerarPDFPlano(){
 var alvoACaminho='dWdRLX04'; // padrão: Impressão
 var acaminhoDebug=false;
 function toggleDebugACaminho(){ acaminhoDebug=!acaminhoDebug; renderACaminho(); }
-function stageOf(b){ if(b.id==='2psxSaAN'||b.id==='JdC3HfIg'||b.id==='cUWDiSUA')return 5; if(b.ordem<=5)return b.ordem; return b.ordem-2; } // Laser/Zund/Frequência = mesmo estágio (corte=5). Acab/Fat descem 2
+function stageOf(b){ if(b.id==='2psxSaAN'||b.id==='JdC3HfIg'||b.id==='cUWDiSUA')return 6; if(b.ordem<=6)return b.ordem; return b.ordem-2; } // Laser/Zund/Frequência = mesmo estágio (corte=6). Acab/Fat descem 2
 var LBL_LASER=['laser'];          // etiquetas que indicam Corte Laser (ex.: "Corte Laser", "Laser")
 var LBL_ZUND=['zund','lamina'];   // etiquetas que indicam Corte Zund (ex.: "Setor Zund", "Corte Lâmina")
 var LBL_FREQ=['frequencia'];      // etiquetas que indicam Frequência / Dome Tag
@@ -2011,7 +2013,7 @@ function renderACaminho(){
 
 function gerarPDFACaminho(){
   var alvo=BOARDS.find(function(x){return x.id===alvoACaminho;})||BOARDS[2];
-  function stg(b){ if(b.id==='2psxSaAN'||b.id==='JdC3HfIg'||b.id==='cUWDiSUA')return 5; if(b.ordem<=5)return b.ordem; return b.ordem-2; }
+  function stg(b){ if(b.id==='2psxSaAN'||b.id==='JdC3HfIg'||b.id==='cUWDiSUA')return 6; if(b.ordem<=6)return b.ordem; return b.ordem-2; }
   var ups=BOARDS.filter(function(u){return stg(u)<stg(alvo);});
   var dtHoje=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
   var linhas='',basesTot={},pecasTot=0,atrasTot=0,critTot=0;
