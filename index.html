@@ -196,7 +196,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Label Tag</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 24/09/2026 14:17</span>
+      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 24/09/2026 15:13</span>
       <a href="painel-amostras.html" class="btn-g" style="text-decoration:none">🌱 Amostras</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -3080,10 +3080,7 @@ function _montarPDFSetor(bid) {
   // com entrega dentro do mês corrente OU já atrasados. Misturados na lista, sinalizados.
   var stAlvoPDF=stageOf(b);
   var fimMes=new Date(); fimMes=new Date(fimMes.getFullYear(),fimMes.getMonth()+1,0);
-  // Janela = fim do mês + 5 dias úteis à frente (para poder adiantar pedidos e puxar faturamento)
-  var limiteJanela=new Date(fimMes); var addUteis=0;
-  while(addUteis<5){ limiteJanela.setDate(limiteJanela.getDate()+1); var dw=limiteJanela.getDay(); if(dw!==0&&dw!==6)addUteis++; }
-  var fimMesISO=limiteJanela.getFullYear()+'-'+String(limiteJanela.getMonth()+1).padStart(2,'0')+'-'+String(limiteJanela.getDate()).padStart(2,'0');
+  var fimMesISO=fimMes.getFullYear()+'-'+String(fimMes.getMonth()+1).padStart(2,'0')+'-'+String(fimMes.getDate()).padStart(2,'0');
   var aCaminhoArr=[];
   if(bid!==PLANEJAMENTO_ID){
     BOARDS.filter(function(u){return stageOf(u)<stAlvoPDF;}).forEach(function(u){
@@ -3095,7 +3092,7 @@ function _montarPDFSetor(bid) {
         var num=m[1], ped=pedidos.find(function(p){return p.num===num;});
         var de=c.due?c.due.substring(0,10):(ped?ped.dataEntrega:null); if(!de)return;
         var d=dR(de);
-        if(!(d<0 || de<=fimMesISO))return; // atrasados ou entrega até o fim do mês + 5 dias úteis
+        if(!(d<0 || de<=fimMesISO))return; // só atrasados ou com entrega dentro do mês
         var cxM=c.name.match(/CAIXA\s*(\d+)/i), cxNum=cxM?'Cx '+cxM[1]:'';
         var slaPost=getSlaPost(u.ordem, it.labels, ped?ped.setores:null), dl=d-slaPost;
         var cliente=ped?ped.cliente:m[2].split(/\s*-\s*/).pop().trim();
