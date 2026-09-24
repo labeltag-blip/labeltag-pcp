@@ -196,7 +196,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Label Tag</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 22/09/2026 17:37</span>
+      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 24/09/2026 14:05</span>
       <a href="painel-amostras.html" class="btn-g" style="text-decoration:none">🌱 Amostras</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -3076,17 +3076,48 @@ function _montarPDFSetor(bid) {
       '</div>'+
     '</div>';
 
-  var linhas = tasks.map(function(t){
+  // ── ITENS A CAMINHO ── vindo dos setores anteriores, que passam por este setor (pela etiqueta),
+  // com entrega dentro do mês corrente OU já atrasados. Misturados na lista, sinalizados.
+  var stAlvoPDF=stageOf(b);
+  var fimMes=new Date(); fimMes=new Date(fimMes.getFullYear(),fimMes.getMonth()+1,0);
+  var fimMesISO=fimMes.getFullYear()+'-'+String(fimMes.getMonth()+1).padStart(2,'0')+'-'+String(fimMes.getDate()).padStart(2,'0');
+  var aCaminhoArr=[];
+  if(bid!==PLANEJAMENTO_ID){
+    BOARDS.filter(function(u){return stageOf(u)<stAlvoPDF;}).forEach(function(u){
+      var ucards=(boards[u.id]&&boards[u.id].cards)||[];
+      ucards.forEach(function(c){
+        var it={rota:rotaCorte(c.labels),labels:(c.labels||[]).map(function(l){return l.name||'';})};
+        if(!passaAlvoACaminho(b.id,it))return;
+        var m=c.name.match(/^(\d+)(?:\/\d+)?[^-\u2013]*[-\u2013]\s*(.+)/); if(!m)return;
+        var num=m[1], ped=pedidos.find(function(p){return p.num===num;});
+        var de=c.due?c.due.substring(0,10):(ped?ped.dataEntrega:null); if(!de)return;
+        var d=dR(de);
+        if(!(d<0 || de<=fimMesISO))return; // só atrasados ou com entrega dentro do mês
+        var cxM=c.name.match(/CAIXA\s*(\d+)/i), cxNum=cxM?'Cx '+cxM[1]:'';
+        var slaPost=getSlaPost(u.ordem, it.labels, ped?ped.setores:null), dl=d-slaPost;
+        var cliente=ped?ped.cliente:m[2].split(/\s*-\s*/).pop().trim();
+        var dtFmt=new Date(de+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+        var tp=dl<0?'urgente':dl===0?'hoje':dl===1?'amanha':'normal';
+        var dtInt=dl<0?(Math.abs(dl)+'d atraso'):dl===0?'Hoje!':dl===1?'Amanha':(dl+'d');
+        var dtFinal=d<0?(Math.abs(d)+'d atraso'):d===0?'Hoje':d===1?'Amanha':(d+'d');
+        aCaminhoArr.push({num:num,nome:c.name,cliente:cliente,cxNum:cxNum,d:d,dl:dl,dtFmt:dtFmt,dtInt:dtInt,dtFinal:dtFinal,tp:tp,caminhoTxt:'',listN:u.nome,url:c.url,libera:false,ehPlan:false,comentarios:[],aCaminho:true,origem:u.emoji+' '+u.nome});
+      });
+    });
+  }
+  var tasksList=tasks.concat(aCaminhoArr).sort(function(a,b2){ if(a.libera!==b2.libera)return a.libera?-1:1; return a.dl-b2.dl;});
+
+  var linhas = tasksList.map(function(t){
     var cor = cores[t.tp]||'#3b82f6';
-    return '<tr style="border-bottom:1px solid #eee' + (t.libera?';background:#fdeaea':'') + '">' +
+    var bgLinha = t.aCaminho?'background:#eff6ff' : (t.libera?'background:#fdeaea':'');
+    return '<tr style="border-bottom:1px solid #eee;'+bgLinha+'">' +
       '<td style="padding:6px 8px;font-family:monospace;font-size:12px;color:'+cor+';font-weight:700">#'+t.num+'</td>' +
-      '<td style="padding:6px 8px;font-size:12px;font-weight:600">'+t.cliente+(t.libera?' <span style="color:#c0392b;font-size:9px;font-weight:700">🔴 LIBERA PEDIDO</span>':'')+'</td>' +
+      '<td style="padding:6px 8px;font-size:12px;font-weight:600">'+t.cliente+(t.libera?' <span style="color:#c0392b;font-size:9px;font-weight:700">🔴 LIBERA PEDIDO</span>':'')+(t.aCaminho?' <span style="background:#1d4ed8;color:#fff;font-size:9px;font-weight:700;border-radius:3px;padding:1px 5px">📥 A CAMINHO · '+t.origem+'</span>':'')+'</td>' +
       '<td style="padding:6px 8px;font-family:monospace;font-size:11px">'+t.cxNum+'</td>' +
-      '<td style="padding:6px 8px;font-size:11px;color:#555">'+t.listN+'</td>' +
+      '<td style="padding:6px 8px;font-size:11px;color:#555">'+(t.aCaminho?'<i style="color:#1d4ed8">'+t.listN+'</i>':t.listN)+'</td>' +
       '<td style="padding:6px 8px;text-align:center;font-size:12px">'+t.dtFmt+'</td>' +
       '<td style="padding:6px 8px;text-align:center;color:'+cor+';font-weight:700;font-size:12px">'+t.dtInt+'</td>' +
       '<td style="padding:6px 8px;text-align:center;color:#888;font-size:11px">'+t.dtFinal+'</td>' +
-      '<td style="padding:6px 8px;font-size:10px;color:#666">'+(t.caminhoTxt?'&#8594; '+t.caminhoTxt:'<span style="color:#22c55e">Ultimo setor</span>')+'</td>' +
+      '<td style="padding:6px 8px;font-size:10px;color:#666">'+(t.aCaminho?'<span style="color:#1d4ed8">ainda não chegou neste setor</span>':(t.caminhoTxt?'&#8594; '+t.caminhoTxt:'<span style="color:#22c55e">Ultimo setor</span>'))+'</td>' +
       '</tr>' +
       ((t.ehPlan&&t.comentarios&&t.comentarios.length)?
         '<tr><td colspan="8" style="padding:4px 8px 10px 22px;background:#fffdf5;border-bottom:1px solid #eee">'+
