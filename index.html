@@ -196,7 +196,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Label Tag</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 24/09/2026 15:13</span>
+      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 25/09/2026 14:30</span>
       <a href="painel-amostras.html" class="btn-g" style="text-decoration:none">🌱 Amostras</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -349,6 +349,12 @@ function pulaSetorCond(boardId, labels){
 var SLA_DEF={'1GFeoJFU':1,'699750a22d02d679968617f9':3,kKxRCcjN:3,dWdRLX04:3,'6aaaa7b66c5ea4d5344b2905':1,'2psxSaAN':3,JdC3HfIg:2,cUWDiSUA:3,'8LcFwJ0v':2,V6wt9KT0:1};
 var API_KEY='',TOKEN='',CLAUDE_KEY='';
 var SLA=JSON.parse(localStorage.getItem('lt_sla')||'null')||SLA_DEF;
+// SLA Diamante: clientes diamante correm mais rápido (SLAs menores por setor). Configurável na aba Config.
+var SLA_DIAMANTE=JSON.parse(localStorage.getItem('lt_sla_diamante')||'null')||JSON.parse(JSON.stringify(SLA_DEF));
+// Etiqueta "diamante" em qualquer caixa torna o pedido inteiro diamante
+function ehDiamante(labels){ return (labels||[]).some(function(l){ return _normLbl(l&&l.name?l.name:l).indexOf('diamante')>=0; }); }
+// SLA do setor conforme o tipo de cliente
+function slaSetor(boardId, diamante){ return diamante ? (SLA_DIAMANTE[boardId]||SLA[boardId]||1) : (SLA[boardId]||1); }
 var cache=JSON.parse(localStorage.getItem('lt_ordens')||'{}');
 var pedidos=[],boards={},filtro='todos',aba='geral',setorId=null,filtroSetores=[],setoresExcluidos=['V6wt9KT0'];
 var valoresModo='lista';
@@ -840,6 +846,8 @@ h+='<div class="mcliente">'+p.cliente+caixaInfo+'</div>';
 }
   if(p.artes.length>1)h+='<span class="chip">'+p.artes.length+' caixas</span>';
   if(al>0)h+='<span class="chip" style="color:#22c55e">'+al+' artes</span>';
+  var lblsPed=[]; p.artes.forEach(function(a){ if(a.labels)lblsPed=lblsPed.concat(a.labels); });
+  if(ehDiamante(lblsPed))h+='<span class="chip" style="color:#38bdf8;border:1px solid #38bdf855;font-weight:700">💎 Diamante</span>';
   h+='</div>';
   if(frete)h+='<div style="font-size:10px;color:var(--muted2);margin-top:5px;display:flex;gap:4px;align-items:flex-start;line-height:1.35"><span>🚚</span><span>'+frete+'</span></div>';
   h+='</div>';
@@ -870,12 +878,13 @@ function viaCorte(cardLabels, setoresPercorridos){
 }
 function getSlaPost(boardOrdem, cardLabels, setoresPercorridos) {
   var via=viaCorte(cardLabels, setoresPercorridos);
+  var dia=ehDiamante(cardLabels);
   return BOARDS.filter(function(x){
     if(x.ordem <= boardOrdem) return false;
     if(CORTES.indexOf(x.id)>=0 && x.id!==via) return false; // exclui os outros cortes
     if(pulaSetorCond(x.id, cardLabels)) return false;       // Silk/Impressão/Prep.Final só se aplicável
     return true;
-  }).reduce(function(acc,x){return acc+(SLA[x.id]||1);},0);
+  }).reduce(function(acc,x){return acc+slaSetor(x.id,dia);},0);
 }
 
 function renderSetor(bid){
@@ -940,7 +949,8 @@ function renderSetor(bid){
       }).join('<span style="color:var(--muted);font-size:10px;align-self:center">&#8594;</span>')+
       '</div>'+alertaHtml:
       '<div style="font-size:10px;color:#22c55e;margin-top:4px">Ultimo setor</div>'+alertaHtml);
-    return '<div class="tk '+tp+'"><span class="tnum">#'+t.num+'</span><div class="tinfo"><div class="tcli">'+t.cliente+'</div><div class="tdet">'+t.nome+'</div>'+caminhoHtml+listasHtml+'</div><span class="tdias" style="color:'+cor+'">'+dt+'</span><a href="'+t.url+'" target="_blank" class="trl">&#8599;</a></div>';
+    var diaTag=ehDiamante(t.lblArr)?' <span style="font-size:9px;color:#38bdf8;font-weight:700">💎</span>':'';
+    return '<div class="tk '+tp+'"><span class="tnum">#'+t.num+'</span><div class="tinfo"><div class="tcli">'+t.cliente+diaTag+'</div><div class="tdet">'+t.nome+'</div>'+caminhoHtml+listasHtml+'</div><span class="tdias" style="color:'+cor+'">'+dt+'</span><a href="'+t.url+'" target="_blank" class="trl">&#8599;</a></div>';
   }
   function sec(tit,lista,tp,cor,bg){
     if(!lista.length)return'';
@@ -1044,12 +1054,12 @@ function viaIdDeRota(rota){ return rota==='laser'?'2psxSaAN':rota==='zund'?'JdC3
 function slaRestanteAteFim(boardId,rota,labels){
   if(boardId==='2psxSaAN')rota='laser'; if(boardId==='JdC3HfIg')rota='zund'; if(boardId==='cUWDiSUA')rota='freq';
   var atual=BOARDS.find(function(b){return b.id===boardId;}); if(!atual)return 0;
-  var st=stageOf(atual), soma=0, viaId=viaIdDeRota(rota)||corteMenorSla();
+  var st=stageOf(atual), soma=0, viaId=viaIdDeRota(rota)||corteMenorSla(), dia=ehDiamante(labels);
   BOARDS.forEach(function(b){
     var bs=stageOf(b); if(bs<st)return;
     if(CORTES.indexOf(b.id)>=0 && b.id!==viaId)return; // no estágio de corte, só a via escolhida
     if(labels && pulaSetorCond(b.id, labels))return;   // Silk/Impressão/Prep.Final só se aplicável
-    soma+=(SLA[b.id]||0);
+    soma+=slaSetor(b.id,dia);
   });
   return soma;
 }
@@ -1561,11 +1571,12 @@ function slaAposSetor(p){
   var sa=setorAtual(p); if(!sa)return 0;
   var st=stageOf(sa), rota=rotaPedido(p), soma=0, viaId=viaIdDeRota(rota)||corteMenorSla();
   var lbls=[]; p.artes.forEach(function(a){ if(a.labels)lbls=lbls.concat(a.labels); });
+  var dia=ehDiamante(lbls);
   BOARDS.forEach(function(b){
     var bs=stageOf(b); if(bs<=st)return;
     if(CORTES.indexOf(b.id)>=0 && b.id!==viaId)return;
     if(pulaSetorCond(b.id, lbls))return;
-    soma+=(SLA[b.id]||0);
+    soma+=slaSetor(b.id,dia);
   });
   return soma;
 }
@@ -2834,13 +2845,20 @@ function renderConfig(){
   var el=document.getElementById('claudeSt');
   if(el){el.textContent=ck?'OK Chave configurada':'⚠ Chave não configurada';el.style.color=ck?'#22c55e':'#f97316';}
   document.getElementById('slaGrid').innerHTML=BOARDS.map(function(b){
-    return'<div class="sla-item"><div style="font-size:12px;font-weight:600;margin-bottom:6px">'+b.emoji+' '+b.nome+'</div><div style="display:flex;align-items:center;gap:8px"><input type="number" id="sla-'+b.id+'" value="'+(SLA[b.id]||1)+'" min="1" max="30"><span style="font-size:11px;color:var(--muted)">dias máx.</span></div></div>';
+    return'<div class="sla-item"><div style="font-size:12px;font-weight:600;margin-bottom:6px">'+b.emoji+' '+b.nome+'</div>'+
+      '<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><input type="number" id="sla-'+b.id+'" value="'+(SLA[b.id]||1)+'" min="1" max="30"><span style="font-size:10px;color:var(--muted)">dias · normal</span></div>'+
+      '<div style="display:flex;align-items:center;gap:6px"><input type="number" id="slad-'+b.id+'" value="'+(SLA_DIAMANTE[b.id]||SLA[b.id]||1)+'" min="1" max="30" style="border-color:#38bdf8"><span style="font-size:10px;color:#38bdf8">dias · 💎 diamante</span></div>'+
+      '</div>';
   }).join('');
 }
 
 function salvarSLA(){
-  BOARDS.forEach(function(b){var el=document.getElementById('sla-'+b.id);var v=el?parseInt(el.value):1;if(v>0)SLA[b.id]=v;});
+  BOARDS.forEach(function(b){
+    var el=document.getElementById('sla-'+b.id);var v=el?parseInt(el.value):1;if(v>0)SLA[b.id]=v;
+    var ed=document.getElementById('slad-'+b.id);var vd=ed?parseInt(ed.value):1;if(vd>0)SLA_DIAMANTE[b.id]=vd;
+  });
   localStorage.setItem('lt_sla',JSON.stringify(SLA));
+  localStorage.setItem('lt_sla_diamante',JSON.stringify(SLA_DIAMANTE));
   var el=document.getElementById('slaSalvo');el.style.display='inline';
   setTimeout(function(){el.style.display='none';},2000);
 }
@@ -3002,7 +3020,7 @@ function _montarPDFSetor(bid) {
         return {texto:(a.data&&a.data.text)||'', autor:(a.memberCreator&&a.memberCreator.fullName)||'', data:a.date};
       }).filter(function(c){return c.texto;}).sort(function(a,b){return new Date(a.data)-new Date(b.data);});
     }
-    return {num:num,nome:card.name,cliente:cliente,cxNum:cxNum,d:d,dl:dl,dtFmt:dtFmt,dtInt:dtInt,dtFinal:dtFinal,tp:tp,caminhoTxt:caminhoFinal,listN:listN,url:card.url,libera:libera,ehPlan:ehPlan,comentarios:comentarios};
+    return {num:num,nome:card.name,cliente:cliente,cxNum:cxNum,d:d,dl:dl,dtFmt:dtFmt,dtInt:dtInt,dtFinal:dtFinal,tp:tp,caminhoTxt:caminhoFinal,listN:listN,url:card.url,libera:libera,ehPlan:ehPlan,comentarios:comentarios,diamante:ehDiamante(cardLabels)};
   }).filter(Boolean).sort(function(a,b2){ if(a.libera!==b2.libera)return a.libera?-1:1; return a.dl-b2.dl;});
 
   var dtHoje = new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
@@ -3113,7 +3131,7 @@ function _montarPDFSetor(bid) {
     var bgLinha = t.aCaminho?'background:#eff6ff' : (t.libera?'background:#fdeaea':'');
     return '<tr style="border-bottom:1px solid #eee;'+bgLinha+'">' +
       '<td style="padding:6px 8px;font-family:monospace;font-size:12px;color:'+cor+';font-weight:700">#'+t.num+'</td>' +
-      '<td style="padding:6px 8px;font-size:12px;font-weight:600">'+t.cliente+(t.libera?' <span style="color:#c0392b;font-size:9px;font-weight:700">🔴 LIBERA PEDIDO</span>':'')+(t.aCaminho?' <span style="background:#1d4ed8;color:#fff;font-size:9px;font-weight:700;border-radius:3px;padding:1px 5px">📥 A CAMINHO · '+t.origem+'</span>':'')+'</td>' +
+      '<td style="padding:6px 8px;font-size:12px;font-weight:600">'+t.cliente+(t.diamante?' <span style="background:#0369a1;color:#fff;font-size:9px;font-weight:700;border-radius:3px;padding:1px 5px">💎 DIAMANTE</span>':'')+(t.libera?' <span style="color:#c0392b;font-size:9px;font-weight:700">🔴 LIBERA PEDIDO</span>':'')+(t.aCaminho?' <span style="background:#1d4ed8;color:#fff;font-size:9px;font-weight:700;border-radius:3px;padding:1px 5px">📥 A CAMINHO · '+t.origem+'</span>':'')+'</td>' +
       '<td style="padding:6px 8px;font-family:monospace;font-size:11px">'+t.cxNum+'</td>' +
       '<td style="padding:6px 8px;font-size:11px;color:#555">'+(t.aCaminho?'<i style="color:#1d4ed8">'+t.listN+'</i>':t.listN)+'</td>' +
       '<td style="padding:6px 8px;text-align:center;font-size:12px">'+t.dtFmt+'</td>' +
