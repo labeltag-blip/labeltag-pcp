@@ -196,7 +196,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Label Tag</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 28/09/2026 20:13</span>
+      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 28/09/2026 20:33</span>
       <a href="painel-amostras.html" class="btn-g" style="text-decoration:none">🌱 Amostras</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -240,6 +240,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
         <button class="fb" id="f-atencao" onclick="setFiltro('atencao')">Atencao</button>
         <button class="fb" id="f-ok" onclick="setFiltro('ok')">Producao</button>
         <button class="fb" id="f-faturado" onclick="setFiltro('faturado')">Faturados</button>
+        <button class="fb" id="f-semmatriz" onclick="toggleSemMatriz()" style="color:var(--ouro);border-color:rgba(200,169,110,.4)">◇ Sem matriz <span id="cnt-semmatriz">0</span></button>
       </div>
       <div class="tb" id="filtroSetores" style="flex-wrap:wrap">
         <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;align-self:center;margin-right:4px">Setor:</span>
@@ -353,10 +354,20 @@ var SLA=JSON.parse(localStorage.getItem('lt_sla')||'null')||SLA_DEF;
 var SLA_DIAMANTE=JSON.parse(localStorage.getItem('lt_sla_diamante')||'null')||JSON.parse(JSON.stringify(SLA_DEF));
 // Etiqueta "diamante" em qualquer caixa torna o pedido inteiro diamante
 function ehDiamante(labels){ return (labels||[]).some(function(l){ return _normLbl(l&&l.name?l.name:l).indexOf('diamante')>=0; }); }
+// Etiqueta "Sem matriz": caixa aguardando a matriz chegar do terceiro (casa "sem matriz" e "sem-matriz")
+function temSemMatriz(labels){ return (labels||[]).some(function(l){ var n=_normLbl(l&&l.name?l.name:l); return n.indexOf('sem matriz')>=0 || n.indexOf('sem-matriz')>=0; }); }
+// Caixas de um pedido que estão sem matriz (retorna os números de caixa)
+function caixasSemMatriz(p){
+  var out=[];
+  (p.artes||[]).forEach(function(a){
+    if(temSemMatriz(a.labels)){ var m=(a.nome||'').match(/CAIXA\s*(\d+)/i); out.push(m?m[1]:'?'); }
+  });
+  return out;
+}
 // SLA do setor conforme o tipo de cliente
 function slaSetor(boardId, diamante){ return diamante ? (SLA_DIAMANTE[boardId]||SLA[boardId]||1) : (SLA[boardId]||1); }
 var cache=JSON.parse(localStorage.getItem('lt_ordens')||'{}');
-var pedidos=[],boards={},filtro='todos',aba='geral',setorId=null,filtroSetores=[],setoresExcluidos=['V6wt9KT0'];
+var pedidos=[],boards={},filtro='todos',filtroSemMatriz=false,aba='geral',setorId=null,filtroSetores=[],setoresExcluidos=['V6wt9KT0'];
 var valoresModo='lista';
 var VALOR_ALTO=5000; // limite (R$) p/ destacar pedido de "alto valor" atrasado — ajuste conforme sua realidade
 
@@ -732,7 +743,7 @@ function pedidoTemCaixaOculta(p, incluirFat){
 function scfg(bid){return{'1GFeoJFU':{cor:'#0ea5e9',emoji:'🗂️'},'699750a22d02d679968617f9':{cor:'#6366f1',emoji:'🔷'},kKxRCcjN:{cor:'#ec4899',emoji:'🎨'},dWdRLX04:{cor:'#8b5cf6',emoji:'🖨️'},'6aaaa7b66c5ea4d5344b2905':{cor:'#8b5cf6',emoji:'🔶'},'2psxSaAN':{cor:'#f59e0b',emoji:'⚡'},JdC3HfIg:{cor:'#f97316',emoji:'✂️'},cUWDiSUA:{cor:'#06b6d4',emoji:'📡'},'8LcFwJ0v':{cor:'#84cc16',emoji:'✅'},V6wt9KT0:{cor:'#22c55e',emoji:'📦'}}[bid]||{cor:'#64748b',emoji:'📋'};}
 
 function renderTudo(){
-  renderStats();renderBrow();initFiltroSetores();
+  renderStats();renderBrow();initFiltroSetores();atualizarContadorSemMatriz();
   if(aba==='geral')renderGeral();
   else if(aba==='setor')renderSetor(setorId);
   else if(aba==='producao')renderProducao();
@@ -792,7 +803,8 @@ function renderGeral(){
     var de=p.dataEntrega||'';
     var dentroP=(!dataInicio&&!dataFim)||(!dataInicio&&de<=dataFim)||(!dataFim&&de>=dataInicio)||(de>=dataInicio&&de<=dataFim);
     var ms=(!filtroSetores.length||(sa&&filtroSetores.indexOf(sa.id)>=0))&&!pedidoTemCaixaOculta(p,false)&&pedidoNoGrupoLider(p);
-    return mb&&(filtro==='todos'||risco(p)===filtro)&&dentroP&&ms;
+    var msm=!filtroSemMatriz||caixasSemMatriz(p).length>0; // filtro "sem matriz"
+    return mb&&(filtro==='todos'||risco(p)===filtro)&&dentroP&&ms&&msm;
   });
   var fat=fil.filter(function(p){return p.setores.has('V6wt9KT0');});
   var atv=fil.filter(function(p){return!p.setores.has('V6wt9KT0');});
@@ -849,6 +861,8 @@ h+='<div class="mcliente">'+p.cliente+caixaInfo+'</div>';
   if(al>0)h+='<span class="chip" style="color:#22c55e">'+al+' artes</span>';
   var lblsPed=[]; p.artes.forEach(function(a){ if(a.labels)lblsPed=lblsPed.concat(a.labels); });
   if(ehDiamante(lblsPed))h+='<span class="chip" style="color:#38bdf8;border:1px solid #38bdf855;font-weight:700">💎 Diamante</span>';
+  var csm=caixasSemMatriz(p);
+  if(csm.length)h+='<span class="chip" style="color:var(--ouro);border:1px solid rgba(200,169,110,.5);font-weight:700">◇ sem matriz: Cx '+csm.join(', ')+'</span>';
   h+='</div>';
   if(frete)h+='<div style="font-size:10px;color:var(--muted2);margin-top:5px;display:flex;gap:4px;align-items:flex-start;line-height:1.35"><span>🚚</span><span>'+frete+'</span></div>';
   h+='</div>';
@@ -2935,10 +2949,20 @@ function initFiltroSetores(){
 }
 
 function setFiltro(f){
-  filtro=f;
-  document.querySelectorAll('.fb').forEach(function(b){b.classList.remove('ativo');});
-  document.getElementById('f-'+f).classList.add('ativo');
+  filtro=(filtro===f && f!=='todos')?'todos':f; // toggle: clicar no ativo volta pra Todos
+  document.querySelectorAll('#f-todos,#f-atrasado,#f-critico,#f-atencao,#f-ok,#f-faturado').forEach(function(b){b.classList.remove('ativo');});
+  var el=document.getElementById('f-'+filtro); if(el)el.classList.add('ativo');
   renderGeral();
+}
+function toggleSemMatriz(){
+  filtroSemMatriz=!filtroSemMatriz;
+  var b=document.getElementById('f-semmatriz');
+  if(b){ if(filtroSemMatriz){b.classList.add('ativo');b.style.background='rgba(200,169,110,.15)';} else {b.classList.remove('ativo');b.style.background='';} }
+  renderGeral();
+}
+function atualizarContadorSemMatriz(){
+  var n=0; pedidos.forEach(function(p){ n+=caixasSemMatriz(p).length; });
+  var el=document.getElementById('cnt-semmatriz'); if(el)el.textContent='('+n+')';
 }
 
 function irPara(num){
@@ -3231,7 +3255,8 @@ function gerarPDFGeral() {
     var de = p.dataEntrega || '';
     var dentroP = (!dataI && !dataF) || (!dataI && de <= dataF) || (!dataF && de >= dataI) || (de >= dataI && de <= dataF);
     var ms = (!filtroSetores.length || (sa && filtroSetores.indexOf(sa.id) >= 0)) && !pedidoTemCaixaOculta(p,true) && pedidoNoGrupoLider(p);
-    return mb && (filtro === 'todos' || risco(p) === filtro) && dentroP && ms;
+    var msm = !filtroSemMatriz || caixasSemMatriz(p).length>0;
+    return mb && (filtro === 'todos' || risco(p) === filtro) && dentroP && ms && msm;
   }).sort(function(a,b) {
     if (!a.dataEntrega) return 1;
     if (!b.dataEntrega) return -1;
@@ -3239,6 +3264,7 @@ function gerarPDFGeral() {
   });
 
   var hoje = new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+  var nSemMatriz=0; filtrados.forEach(function(p){ nSemMatriz+=caixasSemMatriz(p).length; });
   var cores = {atrasado:'#ef4444',critico:'#f97316',atencao:'#eab308',ok:'#3b82f6',faturado:'#22c55e'};
 
   // ── DASHBOARD POR SETOR (topo do PDF) ──────────────────────────────────
@@ -3378,6 +3404,7 @@ function gerarPDFGeral() {
     p.artes.forEach(function(a) {
       var cxM = a.nome.match(/CAIXA\s*(\d+)/i);
       var cxNum = cxM ? 'Cx '+cxM[1] : '';
+      if(temSemMatriz(a.labels)) cxNum = '◇ '+(cxNum||'Cx ?');
       var lN = a.listName || '';
       // Filtra próximos setores pelas etiquetas DESTA arte
       var lblStr=(a.labels||[]).join(' ').toLowerCase();
@@ -3427,7 +3454,9 @@ function gerarPDFGeral() {
     '<div class="hdr">' +
     '<div><div style="font-size:10px;color:#c8a96e;letter-spacing:2px;text-transform:uppercase">Label Tag</div>' +
     '<h1>Relatorio PCP</h1>' +
-    '<div style="font-size:13px;color:#666;margin-top:4px">'+titulo+' &nbsp;|&nbsp; '+hoje+'</div></div>' +
+    '<div style="font-size:13px;color:#666;margin-top:4px">'+titulo+' &nbsp;|&nbsp; '+hoje+'</div>' +
+    (nSemMatriz>0?'<div style="font-size:12px;color:#a16207;margin-top:4px;font-weight:600">◇ = aguardando matriz ('+nSemMatriz+' caixa'+(nSemMatriz>1?'s':'')+')</div>':'') +
+    '</div>' +
     '<div style="text-align:right"><div style="font-size:28px;font-weight:700;color:#c8a96e">'+filtrados.length+'</div><div style="font-size:11px;color:#999">pedidos</div></div>' +
     '</div>' +
     dashboardsHtml +
