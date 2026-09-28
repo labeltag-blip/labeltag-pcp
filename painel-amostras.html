@@ -150,7 +150,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Amostras</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span title="Versão do painel publicada no GitHub" style="font-size:11px;color:var(--ouro);background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap">v. 28/09/2026 19:47</span>
+      <span title="Versão do painel publicada no GitHub" style="font-size:11px;color:var(--ouro);background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap">v. 28/09/2026 19:51</span>
       <a href="index.html" class="btn-g" style="text-decoration:none">📋 Pedidos</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -759,7 +759,7 @@ function initFiltroSetores(){
   });
   _aplicarEstadoChips();
 }
-function setFiltro(f){filtro=f;document.querySelectorAll('.fb').forEach(function(b){b.classList.remove('ativo');});document.getElementById('f-'+f).classList.add('ativo');renderGeral();}
+function setFiltro(f){if(filtro===f&&f!=='todos')f='todos';filtro=f;document.querySelectorAll('.fb').forEach(function(b){b.classList.remove('ativo');});var bt=document.getElementById('f-'+f);if(bt)bt.classList.add('ativo');renderGeral();}
 function irPara(num){var p=pedidos.find(function(x){return x.num===num;});if(!p)return;var s=setorAtual(p);if(s)mudarAba('setor',s.id);else mudarAba('geral');}
 
 function montarTabs(){
