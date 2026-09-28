@@ -150,7 +150,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Amostras</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span title="Versão do painel publicada no GitHub" style="font-size:11px;color:var(--ouro);background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap">v. 28/09/2026 20:20</span>
+      <span title="Versão do painel publicada no GitHub" style="font-size:11px;color:var(--ouro);background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap">v. 28/09/2026 20:24</span>
       <a href="index.html" class="btn-g" style="text-decoration:none">📋 Pedidos</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -674,16 +674,22 @@ function renderConfig(){
   if(nota)nota.innerHTML=bloq?'🔒 Clique em um campo e digite a senha para editar os SLAs.':'🔓 Edição liberada nesta sessão.';
   if(nota)nota.style.color=bloq?'var(--muted)':'#22c55e';
   document.getElementById('slaGrid').innerHTML=LISTAS.map(function(l){
-    var atrs=bloq?'readonly onfocus="pedirSenhaSLA()" onclick="pedirSenhaSLA()" style="opacity:.5;cursor:pointer"':'';
+    var atrs=bloq?'readonly onmousedown="event.preventDefault();pedirSenhaSLA()" style="opacity:.5;cursor:pointer"':'';
     return '<div class="sla-item'+(l.fila?' fila':'')+'"><div style="font-size:12px;font-weight:600;margin-bottom:6px">'+l.emoji+' '+l.nome+(l.fila?'<span class="tag-fila">fila</span>':'')+'</div><div style="display:flex;align-items:center;gap:8px"><input type="number" id="sla-'+l.id+'" value="'+(SLA[l.id]||1)+'" min="0" max="60" '+atrs+'><span style="font-size:11px;color:var(--muted)">dias</span></div></div>';
   }).join('');
 }
+var _pedindoSenha=false;
 function pedirSenhaSLA(){
   if(slaLiberado)return true;
+  if(_pedindoSenha)return false; // evita reentrância (loop de prompt)
+  _pedindoSenha=true;
   var s=prompt('Digite a senha para editar os SLAs:');
-  if(s===null)return false; // cancelou
+  _pedindoSenha=false;
+  if(s===null){if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();return false;} // cancelou
   if(s==='SLA@989'){slaLiberado=true;renderConfig();var f=document.getElementById('sla-'+LISTAS[0].id);if(f)f.focus();return true;}
-  alert('Senha incorreta.');return false;
+  alert('Senha incorreta.');
+  if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();
+  return false;
 }
 function salvarSLA(){
   if(!slaLiberado){alert('Clique em um campo de SLA e digite a senha antes de salvar.');return;}
