@@ -150,7 +150,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Amostras</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span title="Versão do painel publicada no GitHub" style="font-size:11px;color:var(--ouro);background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap">v. 22/09/2026 11:05</span>
+      <span title="Versão do painel publicada no GitHub" style="font-size:11px;color:var(--ouro);background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap">v. 28/09/2026 19:38</span>
       <a href="index.html" class="btn-g" style="text-decoration:none">📋 Pedidos</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -175,6 +175,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         <button class="fb" id="f-atencao" onclick="setFiltro('atencao')">Atencao</button>
         <button class="fb" id="f-ok" onclick="setFiltro('ok')">Em fluxo</button>
         <button class="fb" id="f-faturado" onclick="setFiltro('faturado')">Concluidos</button>
+        <button class="fb" id="f-sem_matriz" onclick="setFiltro('sem_matriz')" style="border-color:rgba(200,169,110,.5)">◇ Sem matriz</button>
       </div>
       <div class="tb" id="filtroSetores" style="flex-wrap:wrap">
         <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;align-self:center;margin-right:4px">Lista:</span>
@@ -366,6 +367,16 @@ function risco(p){
   if(d<0)return'atrasado';if(d<=2)return'critico';if(d<=5)return'atencao';return'ok';
 }
 function corR(r){return{faturado:'#22c55e',atrasado:'#ef4444',critico:'#f97316',atencao:'#eab308',ok:'#3b82f6'}[r]||'#64748b';}
+// ── Etiqueta "Sem matriz": amostra circula na produção aguardando a matriz do terceiro ──
+function _ehSemMatriz(labels){
+  if(!labels)return false;
+  for(var i=0;i<labels.length;i++){var n=_norm(labels[i]);if(n.indexOf('sem matriz')>=0||n.indexOf('sem-matriz')>=0)return true;}
+  return false;
+}
+function caixaNum(a){var m=(a.nome||'').match(/CAIXA[\s ]+(\d+)/i);return m?m[1]:null;}
+function artesSemMatriz(p){return p.artes.filter(function(a){return _ehSemMatriz(a.labels);});}
+function pedidoSemMatriz(p){return artesSemMatriz(p).length>0;}
+function contarCaixasSemMatriz(){var n=0;pedidos.forEach(function(p){n+=artesSemMatriz(p).length;});return n;}
 function setorAtual(p){for(var i=LISTAS.length-1;i>=0;i--)if(p.setores.has(LISTAS[i].id))return LISTAS[i];return null;}
 // LINEAR: soma do SLA das listas com ordem > a informada
 function slaRestante(ordem){return LISTAS.filter(function(l){return l.ordem>ordem;}).reduce(function(a,l){return a+(SLA[l.id]||0);},0);}
@@ -387,6 +398,8 @@ function renderStats(){
     {l:'Em fluxo',v:tot-conc,c:'#3b82f6'},{l:'Concluídos',v:conc,c:'#22c55e'},
     {l:'Críticos',v:crit,c:'#f97316'},{l:'Atrasados',v:atr,c:'#ef4444'}
   ].map(function(s){return '<div class="sc"><div class="sn" style="color:'+s.c+'">'+s.v+'</div><div class="sl">'+s.l+'</div></div>';}).join('');
+  var bsm=document.getElementById('f-sem_matriz');
+  if(bsm){var nsm=contarCaixasSemMatriz();bsm.textContent='◇ Sem matriz'+(nsm>0?' ('+nsm+')':'');}
 }
 function renderBrow(){
   document.getElementById('brow').innerHTML=LISTAS.map(function(l){
@@ -408,7 +421,8 @@ function renderGeral(){
     var de=p.dataEntrega||'';
     var dentroP=(!dataInicio&&!dataFim)||(!dataInicio&&de<=dataFim)||(!dataFim&&de>=dataInicio)||(de>=dataInicio&&de<=dataFim);
     var ms=(sa&&setoresExcluidos.indexOf(sa.id)>=0)?false:true;
-    return mb&&(filtro==='todos'||risco(p)===filtro)&&dentroP&&ms;
+    var mf=filtro==='todos'||(filtro==='sem_matriz'?pedidoSemMatriz(p):risco(p)===filtro);
+    return mb&&mf&&dentroP&&ms;
   });
   var conc=fil.filter(function(p){return p.setores.has(CONCLUIDO_ID);});
   var atv=fil.filter(function(p){return!p.setores.has(CONCLUIDO_ID);});
@@ -449,6 +463,8 @@ function miniCard(p){
   if(sa)h+='<span class="chip" style="color:'+sa.cor+'">'+sa.emoji+' '+sa.nome+'</span>';
   if(p.artes.length>1)h+='<span class="chip">'+p.artes.length+' caixas</span>';
   if(al>0)h+='<span class="chip" style="color:#22c55e">'+al+' artes</span>';
+  var sm=artesSemMatriz(p);
+  if(sm.length){var cxs=sm.map(caixaNum).filter(Boolean);h+='<span class="chip" style="color:var(--ouro);border:1px solid rgba(200,169,110,.55)" title="Aguardando matriz do terceiro">◇ sem matriz'+(cxs.length?': Cx '+cxs.join(', '):'')+'</span>';}
   h+='</div></div>';
   if(p.artes.length===1){
     var c0=cache[p.artes[0].id],bt=c0?('✅ '+(c0.artes?c0.artes.length:0)+' arte(s)'):'📝 Artes';
@@ -806,7 +822,8 @@ function gerarPDFGeral(){
     var d=dR(p.dataEntrega),dt=d===999?'sem data':d<0?(Math.abs(d)+'d atraso'):d===0?'Hoje':d===1?'Amanha':(d+'d');
     var sa=setorAtual(p),prox=sa?proximaLista(sa.ordem):null;
     var caixas=p.artes.map(function(a){var m=a.nome.match(/CAIXA[\s ]+(\d+)/i);return m?m[1]:null;}).filter(Boolean);
-    var caixasTxt=caixas.length?caixas.join(', '):'--';
+    var smSet={};artesSemMatriz(p).forEach(function(a){var c=caixaNum(a);if(c)smSet[c]=1;});
+    var caixasTxt=caixas.length?caixas.map(function(c){return smSet[c]?('◇ '+c):c;}).join(', '):'--';
     return '<tr style="border-bottom:1px solid #eee"><td style="padding:6px 10px;font-family:monospace;font-weight:800;color:'+cor+'">#'+p.num+'</td>'+
       '<td style="padding:6px 10px;font-weight:600">'+p.cliente+'</td>'+
       '<td style="padding:6px 10px;font-family:monospace;font-size:11px">'+caixasTxt+'</td>'+
@@ -815,7 +832,9 @@ function gerarPDFGeral(){
       '<td style="padding:6px 10px;text-align:center;font-size:11px">'+(p.dataEntrega?fD(p.dataEntrega):'--')+'</td>'+
       '<td style="padding:6px 10px;text-align:center;font-weight:700;color:'+cor+';font-size:11px">'+dt+'</td></tr>';
   }).join('')||'<tr><td colspan="7" style="padding:14px;color:#666">Nenhuma amostra.</td></tr>';
-  pdfWin('Amostras - Label Tag',pdfHead('📋 Amostras em fluxo',dtHoje,lista.length,'amostras')+
+  var nsm=contarCaixasSemMatriz();
+  var subt=dtHoje+(nsm>0?'  ·  ◇ = aguardando matriz ('+nsm+' caixa'+(nsm>1?'s':'')+')':'');
+  pdfWin('Amostras - Label Tag',pdfHead('📋 Amostras em fluxo',subt,lista.length,'amostras')+
     '<table><thead><tr><th>Amostra</th><th>Cliente</th><th>Caixas</th><th>Lista atual</th><th>Próxima</th><th>Entrega</th><th>Prazo</th></tr></thead><tbody>'+linhas+'</tbody></table>');
 }
 function gerarPDFLista(){
