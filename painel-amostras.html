@@ -150,7 +150,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Amostras</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span title="Versão do painel publicada no GitHub" style="font-size:11px;color:var(--ouro);background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap">v. 28/09/2026 19:38</span>
+      <span title="Versão do painel publicada no GitHub" style="font-size:11px;color:var(--ouro);background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap">v. 28/09/2026 19:47</span>
       <a href="index.html" class="btn-g" style="text-decoration:none">📋 Pedidos</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -815,8 +815,21 @@ function pdfWin(titulo,corpo){
 }
 function gerarPDFGeral(){
   var dtHoje=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
-  var lista=pedidos.filter(function(p){var sa=setorAtual(p);return !(sa&&setoresExcluidos.indexOf(sa.id)>=0);})
-    .sort(function(a,b){if(!a.dataEntrega)return 1;if(!b.dataEntrega)return -1;return new Date(a.dataEntrega)-new Date(b.dataEntrega);});
+  var busca=(document.getElementById('busca').value||'').toLowerCase();
+  var dataInicio=document.getElementById('dataInicio').value;
+  var dataFim=document.getElementById('dataFim').value;
+  var lista=pedidos.filter(function(p){
+    var sa=setorAtual(p);
+    var nomes=p.artes.map(function(a){return a.nome;}).join(' ');
+    var hay=_norm(p.num+' '+p.cliente+' '+nomes+' '+(sa?sa.nome:''));
+    var mb=!busca||hay.indexOf(_norm(busca))>=0;
+    var de=p.dataEntrega||'';
+    var dentroP=(!dataInicio&&!dataFim)||(!dataInicio&&de<=dataFim)||(!dataFim&&de>=dataInicio)||(de>=dataInicio&&de<=dataFim);
+    var ms=(sa&&setoresExcluidos.indexOf(sa.id)>=0)?false:true;
+    var mf=filtro==='todos'||(filtro==='sem_matriz'?pedidoSemMatriz(p):risco(p)===filtro);
+    return mb&&mf&&dentroP&&ms;
+  }).sort(function(a,b){if(!a.dataEntrega)return 1;if(!b.dataEntrega)return -1;return new Date(a.dataEntrega)-new Date(b.dataEntrega);});
+  var rotFiltro={todos:'',atrasado:'Atrasados',critico:'Críticos',atencao:'Atenção',ok:'Em fluxo',faturado:'Concluídos',sem_matriz:'Sem matriz'}[filtro]||'';
   var linhas=lista.map(function(p){
     var r=risco(p),cor={atrasado:'#ef4444',critico:'#f97316',atencao:'#a16207',ok:'#3b82f6',faturado:'#1a6b1a'}[r]||'#666';
     var d=dR(p.dataEntrega),dt=d===999?'sem data':d<0?(Math.abs(d)+'d atraso'):d===0?'Hoje':d===1?'Amanha':(d+'d');
@@ -831,10 +844,11 @@ function gerarPDFGeral(){
       '<td style="padding:6px 10px;font-size:11px;color:#888">'+(prox?'→ '+prox.nome:'último')+'</td>'+
       '<td style="padding:6px 10px;text-align:center;font-size:11px">'+(p.dataEntrega?fD(p.dataEntrega):'--')+'</td>'+
       '<td style="padding:6px 10px;text-align:center;font-weight:700;color:'+cor+';font-size:11px">'+dt+'</td></tr>';
-  }).join('')||'<tr><td colspan="7" style="padding:14px;color:#666">Nenhuma amostra.</td></tr>';
-  var nsm=contarCaixasSemMatriz();
-  var subt=dtHoje+(nsm>0?'  ·  ◇ = aguardando matriz ('+nsm+' caixa'+(nsm>1?'s':'')+')':'');
-  pdfWin('Amostras - Label Tag',pdfHead('📋 Amostras em fluxo',subt,lista.length,'amostras')+
+  }).join('')||'<tr><td colspan="7" style="padding:14px;color:#666">Nenhuma amostra neste filtro.</td></tr>';
+  var nsm=0;lista.forEach(function(p){nsm+=artesSemMatriz(p).length;});
+  var subt=dtHoje+(rotFiltro?'  ·  filtro: '+rotFiltro:'')+(nsm>0?'  ·  ◇ = aguardando matriz ('+nsm+' caixa'+(nsm>1?'s':'')+')':'');
+  var titulo='📋 Amostras'+(rotFiltro?' — '+rotFiltro:' em fluxo');
+  pdfWin('Amostras - Label Tag',pdfHead(titulo,subt,lista.length,'amostras')+
     '<table><thead><tr><th>Amostra</th><th>Cliente</th><th>Caixas</th><th>Lista atual</th><th>Próxima</th><th>Entrega</th><th>Prazo</th></tr></thead><tbody>'+linhas+'</tbody></table>');
 }
 function gerarPDFLista(){
