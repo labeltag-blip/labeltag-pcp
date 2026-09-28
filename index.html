@@ -196,7 +196,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Label Tag</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 28/09/2026 20:06</span>
+      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 28/09/2026 20:10</span>
       <a href="painel-amostras.html" class="btn-g" style="text-decoration:none">🌱 Amostras</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -2854,6 +2854,8 @@ function renderConfig(){
 }
 
 function salvarSLA(){
+  var s=prompt('🔒 Digite a senha para alterar os SLAs:');
+  if(s!=='SLA@989'){ if(s!==null)alert('Senha incorreta. Os SLAs não foram alterados.'); return; }
   BOARDS.forEach(function(b){
     var el=document.getElementById('sla-'+b.id);var v=el?parseInt(el.value):1;if(v>0)SLA[b.id]=v;
     var ed=document.getElementById('slad-'+b.id);var vd=ed?parseInt(ed.value):1;if(vd>0)SLA_DIAMANTE[b.id]=vd;
@@ -2864,13 +2866,7 @@ function salvarSLA(){
   setTimeout(function(){el.style.display='none';},2000);
 }
 
-var configLiberada=false; // Config protegida por senha (liberada uma vez por sessão)
 function mudarAba(a,bid){
-  if(a==='config' && !configLiberada){
-    var s=prompt('🔒 Configurações protegidas.\nDigite a senha para editar os SLAs:');
-    if(s!=='SLA@989'){ if(s!==null)alert('Senha incorreta.'); return; }
-    configLiberada=true;
-  }
   aba=a;setorId=bid||null;
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('ativo');});
   document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('ativo');});
