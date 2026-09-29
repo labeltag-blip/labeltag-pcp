@@ -196,7 +196,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Label Tag</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 29/09/2026 13:58</span>
+      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 29/09/2026 14:10</span>
       <a href="painel-amostras.html" class="btn-g" style="text-decoration:none">🌱 Amostras</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -347,11 +347,12 @@ function pulaSetorCond(boardId, labels){
   if(boardId===PREP_FINAL_ID)return !(temSilk||temImpr);   // Prep. Final
   return false;
 }
-var SLA_DEF={'1GFeoJFU':1,'699750a22d02d679968617f9':3,kKxRCcjN:3,dWdRLX04:3,'6aaaa7b66c5ea4d5344b2905':1,'2psxSaAN':3,JdC3HfIg:2,cUWDiSUA:3,'8LcFwJ0v':2,V6wt9KT0:1};
+var SLA_DEF={'1GFeoJFU':2,'699750a22d02d679968617f9':3,kKxRCcjN:3,dWdRLX04:3,'6aaaa7b66c5ea4d5344b2905':1,'2psxSaAN':3,JdC3HfIg:2,cUWDiSUA:3,'8LcFwJ0v':2,V6wt9KT0:1};
+var SLA_DIAMANTE_DEF={'1GFeoJFU':2,'699750a22d02d679968617f9':2,kKxRCcjN:2,dWdRLX04:3,'6aaaa7b66c5ea4d5344b2905':1,'2psxSaAN':2,JdC3HfIg:2,cUWDiSUA:2,'8LcFwJ0v':1,V6wt9KT0:1};
 var API_KEY='',TOKEN='',CLAUDE_KEY='';
 var SLA=JSON.parse(localStorage.getItem('lt_sla')||'null')||SLA_DEF;
 // SLA Diamante: clientes diamante correm mais rápido (SLAs menores por setor). Configurável na aba Config.
-var SLA_DIAMANTE=JSON.parse(localStorage.getItem('lt_sla_diamante')||'null')||JSON.parse(JSON.stringify(SLA_DEF));
+var SLA_DIAMANTE=JSON.parse(localStorage.getItem('lt_sla_diamante')||'null')||JSON.parse(JSON.stringify(SLA_DIAMANTE_DEF));
 // Etiqueta "diamante" em qualquer caixa torna o pedido inteiro diamante
 function ehDiamante(labels){ return (labels||[]).some(function(l){ return _normLbl(l&&l.name?l.name:l).indexOf('diamante')>=0; }); }
 // Etiqueta "Sem matriz": caixa aguardando a matriz chegar do terceiro (casa "sem matriz" e "sem-matriz")
@@ -378,10 +379,13 @@ var KEY_LEITURA='';
 var TOKEN_LEITURA='';
 // Cada líder vê só os cards que têm caixa em QUALQUER um dos setores listados.
 var LIDERES={
-  couto:{nome:'Couto', setores:['699750a22d02d679968617f9','6aaaa7b66c5ea4d5344b2905','kKxRCcjN','JdC3HfIg','cUWDiSUA']},
-  laser:{nome:'Setor Laser', setores:['2psxSaAN']}
+  couto:{nome:'Setores: Preparação | Silk | Zund | Frequência', setores:['699750a22d02d679968617f9','6aaaa7b66c5ea4d5344b2905','kKxRCcjN','JdC3HfIg','cUWDiSUA']},
+  laser:{nome:'Setor Laser', setores:['2psxSaAN']},
+  impressao:{nome:'Setor Impressão', setores:['dWdRLX04']},
+  acabamento:{nome:'Setor Acabamento', setores:['8LcFwJ0v']}
 };
 var setoresLider=null; // null = modo normal (Natieli); array de ids = modo líder
+var liderNome=''; // nome do líder no modo líder (ex: "Setor Laser"), fixo no topo
 // No modo líder: mostra o pedido se ele tem QUALQUER caixa num setor do líder.
 function pedidoNoGrupoLider(p){
   if(!setoresLider)return true;
@@ -421,8 +425,9 @@ function aplicarModoLider(lider){
     lider.setores.forEach(function(sid){ if(oc.indexOf(sid)>=0)manter=true; });
     if(!manter)t.style.display='none';
   });
-  var tit=document.getElementById('htit'); if(tit)tit.textContent='Painel — '+lider.nome;
-  document.title='PCP — '+lider.nome;
+  liderNome=lider.nome;
+  var tit=document.getElementById('htit'); if(tit)tit.textContent='PCP - '+lider.nome;
+  document.title='PCP - '+lider.nome;
 }
 
 function conectar(){
@@ -2904,6 +2909,7 @@ function mudarAba(a,bid){
   else if(a==='relatorio'){document.getElementById('page-relatorio').classList.add('ativo');document.getElementById('htit').textContent='Relatório de Prioridades';idx=14;renderRelatorio();}
   else if(a==='valores'){document.getElementById('page-valores').classList.add('ativo');document.getElementById('htit').textContent='Valores de Faturamento';idx=15;renderValores();}
   else if(a==='config'){document.getElementById('page-config').classList.add('ativo');document.getElementById('htit').textContent='Configurações';idx=16;renderConfig();}
+  if(setoresLider){ var th=document.getElementById('htit'); if(th)th.textContent='PCP - '+liderNome; } // modo líder: nome fixo no topo
   var tabs=document.querySelectorAll('.tab');if(tabs[idx])tabs[idx].classList.add('ativo');
 }
 
@@ -3454,7 +3460,7 @@ function gerarPDFGeral() {
     '</style></head><body>' +
     '<div class="hdr">' +
     '<div><div style="font-size:10px;color:#c8a96e;letter-spacing:2px;text-transform:uppercase">Label Tag</div>' +
-    '<h1>Relatorio PCP</h1>' +
+    '<h1>Relatorio PCP'+(setoresLider?' - '+liderNome:'')+'</h1>' +
     '<div style="font-size:13px;color:#666;margin-top:4px">'+titulo+' &nbsp;|&nbsp; '+hoje+'</div>' +
     (nSemMatriz>0?'<div style="font-size:12px;color:#a16207;margin-top:4px;font-weight:600">◇ = aguardando matriz ('+nSemMatriz+' caixa'+(nSemMatriz>1?'s':'')+')</div>':'') +
     '</div>' +
