@@ -196,7 +196,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Label Tag</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 29/09/2026 14:27</span>
+      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 29/09/2026 19:19</span>
       <a href="painel-amostras.html" class="btn-g" style="text-decoration:none">🌱 Amostras</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -221,6 +221,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div class="tab" onclick="mudarAba('relatorio')">📊 Relatório</div>
     <div class="tab" onclick="mudarAba('valores')">💰 Valores</div>
     <div class="tab" onclick="mudarAba('config')">⚙️ Config</div>
+    <div class="tab" id="tab-caixas" onclick="mudarAba('caixas')">📦 Caixas <a href="painel-caixas.html" target="_blank" onclick="event.stopPropagation()" title="abrir em nova aba" style="text-decoration:none;font-size:11px;color:var(--muted2)">↗</a></div>
   </div>
 
   <div class="main">
@@ -293,6 +294,10 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
         <span id="slaSalvo" style="font-size:11px;color:#22c55e;display:none">✓ Salvo!</span>
         <button class="btn-sair" onclick="sair()">Desconectar</button>
       </div>
+    </div>
+
+    <div class="page" id="page-caixas" style="margin:-16px -20px">
+      <iframe id="iframeCaixas" title="Controle de Caixas" style="width:100%;height:calc(100vh - 100px);border:0;display:block"></iframe>
     </div>
   </div>
 </div>
@@ -2910,8 +2915,16 @@ function mudarAba(a,bid){
   else if(a==='relatorio'){document.getElementById('page-relatorio').classList.add('ativo');document.getElementById('htit').textContent='Relatório de Prioridades';idx=14;renderRelatorio();}
   else if(a==='valores'){document.getElementById('page-valores').classList.add('ativo');document.getElementById('htit').textContent='Valores de Faturamento';idx=15;renderValores();}
   else if(a==='config'){document.getElementById('page-config').classList.add('ativo');document.getElementById('htit').textContent='Configurações';idx=16;renderConfig();}
+  else if(a==='caixas'){
+    document.getElementById('page-caixas').classList.add('ativo');
+    document.getElementById('htit').textContent='📦 Controle de Caixas';
+    var ifr=document.getElementById('iframeCaixas');
+    if(ifr && !ifr.src){ ifr.src='painel-caixas.html?embed=1'; } // lazy: carrega só no 1º clique
+    if(ifr){ var top=ifr.getBoundingClientRect().top; ifr.style.height=Math.max(300,window.innerHeight-top)+'px'; } // altura exata da área útil
+    idx=-1; var tc=document.getElementById('tab-caixas'); if(tc)tc.classList.add('ativo');
+  }
   if(setoresLider){ var th=document.getElementById('htit'); if(th)th.textContent='PCP - '+liderNome; } // modo líder: nome fixo no topo
-  var tabs=document.querySelectorAll('.tab');if(tabs[idx])tabs[idx].classList.add('ativo');
+  var tabs=document.querySelectorAll('.tab');if(idx>=0&&tabs[idx])tabs[idx].classList.add('ativo');
 }
 
 function _aplicarEstadoChips(){
@@ -3613,17 +3626,3 @@ init();
 </script>
 </body>
 </html>
-
-<!-- Atalho: Controle de Caixas -->
-<a href="painel-caixas.html" target="_blank" rel="noopener" id="lt-atalho-caixas"
-   title="Abrir Controle de Caixas">📦 Caixas</a>
-<style>
-#lt-atalho-caixas{
-  position:fixed; right:16px; bottom:16px; z-index:9999;
-  background:#1b1d21; color:#fff; text-decoration:none;
-  font:600 14px/1 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  padding:12px 16px; border-radius:999px;
-  box-shadow:0 4px 14px rgba(0,0,0,.25);
-}
-#lt-atalho-caixas:hover{ background:#d62d2d; }
-</style>
