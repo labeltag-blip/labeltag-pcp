@@ -196,7 +196,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Label Tag</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 29/09/2026 14:10</span>
+      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 29/09/2026 14:16</span>
       <a href="painel-amostras.html" class="btn-g" style="text-decoration:none">🌱 Amostras</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -3210,7 +3210,7 @@ function _montarPDFSetor(bid) {
     '<div style="font-size:12px;color:#666;margin-top:4px">SLA: '+(SLA[bid]||1)+'d | '+dtHoje+'</div></div>' +
     '<div style="text-align:right"><div style="font-size:32px;font-weight:700;color:#c8a96e">'+tasks.length+'</div><div style="font-size:11px;color:#999">pedidos</div></div>' +
     '</div>' +
-    dashboardSetorHtml +
+    (setoresLider?'':dashboardSetorHtml) +
     '<table><thead><tr>' +
     '<th>Pedido</th><th>Cliente</th><th>Caixa</th><th>Etapa</th><th>Entrega</th><th>'+(bid===PLANEJAMENTO_ID?'Tempo Parado':'Prazo Interno')+'</th><th>Prazo Final</th><th>'+(bid===PLANEJAMENTO_ID?'Etapas (tempo em cada lista)':'Proximos Setores')+'</th>' +
     '</tr></thead><tbody>'+linhas+'</tbody></table>' +
