@@ -196,7 +196,7 @@ lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:upperc
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Label Tag</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 29/09/2026 14:22</span>
+      <span style="font-size:11px;color:var(--ouro);font-weight:600;background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap" title="Versão do painel publicada no GitHub">v. 29/09/2026 14:27</span>
       <a href="painel-amostras.html" class="btn-g" style="text-decoration:none">🌱 Amostras</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -379,11 +379,12 @@ var KEY_LEITURA='';
 var TOKEN_LEITURA='';
 // Cada líder vê só os cards que têm caixa em QUALQUER um dos setores listados.
 var LIDERES={
-  couto:{nome:'Setores: Preparação | Silk | Zund | Frequência', setores:['699750a22d02d679968617f9','6aaaa7b66c5ea4d5344b2905','kKxRCcjN','JdC3HfIg','cUWDiSUA']},
+  preparacao:{nome:'Setores: Preparação | Silk | Zund | Frequência', setores:['699750a22d02d679968617f9','6aaaa7b66c5ea4d5344b2905','kKxRCcjN','JdC3HfIg','cUWDiSUA']},
   laser:{nome:'Setor Laser', setores:['2psxSaAN']},
   impressao:{nome:'Setor Impressão', setores:['dWdRLX04']},
   acabamento:{nome:'Setor Acabamento', setores:['8LcFwJ0v']}
 };
+LIDERES.couto=LIDERES.preparacao; // alias legado: ?setor=couto continua funcionando
 var setoresLider=null; // null = modo normal (Natieli); array de ids = modo líder
 var liderNome=''; // nome do líder no modo líder (ex: "Setor Laser"), fixo no topo
 // No modo líder: mostra o pedido se ele tem QUALQUER caixa num setor do líder.
