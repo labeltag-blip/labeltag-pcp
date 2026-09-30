@@ -1440,7 +1440,24 @@ let montado=false;
 async function puxarTudo(){
   if(montado) return; montado=true;
   msg('Carregando dados...'); sync('wait','carregando…');
-  const q=t=>sb.schema('vendas').from(t).select('*');
+  // Busca paginada: o PostgREST corta a resposta no limite do projeto
+  // (Max rows). Sem paginar, a tabela de pedidos vinha truncada e clientes
+  // ativos apareciam como inativos. Ordena pela PK para a paginação ser estável.
+  const PK={clientes:'cod',pedidos:'numero',representantes:'cod',faturamento_mensal:'mes',metas:'rep'};
+  const PAG=1000;
+  async function q(t){
+    let de=0, todos=[];
+    for(;;){
+      const {data,error}=await sb.schema('vendas').from(t).select('*')
+        .order(PK[t],{ascending:true}).range(de,de+PAG-1);
+      if(error) return {data:null,error};
+      todos=todos.concat(data);
+      if(data.length<PAG) break;
+      de+=PAG;
+      if(de>200000) break;   // trava de segurança
+    }
+    return {data:todos,error:null};
+  }
   const [cli,ped,rep,fat,met]=await Promise.all([q('clientes'),q('pedidos'),q('representantes'),q('faturamento_mensal'),q('metas')]);
   for(const r of [cli,ped,rep,fat,met]) if(r.error){montado=false; throw new Error(r.error.message);}
   msg('Calculando...'); sync('wait','calculando…');
