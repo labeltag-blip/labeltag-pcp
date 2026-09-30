@@ -112,7 +112,7 @@ body.embed .pills{flex-direction:row}
 </style>
 </head>
 <body>
-<div id="demo" class="demo" hidden>MODO DEMO — dados fictícios. Configure API_URL para usar a planilha.</div>
+<div id="demo" class="demo" hidden>MODO DEMO — dados fictícios. Configure a chave do Supabase (SUPA_KEY) no código.</div>
 <header>
   <div class="top">
     <div class="marca"><h1>Controle de Caixas</h1></div>
@@ -154,10 +154,18 @@ body.embed .pills{flex-direction:row}
 if (/[?&]embed=1\b/.test(location.search)) document.body.classList.add('embed');
 
 /* ===== CONFIG ===== */
-const API_URL = 'https://script.google.com/macros/s/AKfycbyEiYnOMAXccKCUUOWeHEXqdm8YPF08xFH9otXowOPBqKUgj7A3Nv6MUvFgn439v2TY/exec';
-const TOKEN   = 'labeltag-caixas';  // igual ao TOKEN do Code.gs
-const ALERTA_H = { V: 24, P: 72 };  // horas até marcar caixa como "parada demais"
+// FONTE: 'supabase' (novo) ou 'apps' (volta para o Apps Script/planilha, se precisar)
+const FONTE    = 'supabase';
+const SUPA_URL = 'https://qbdzzngcwxljomqiboqh.supabase.co';
+const SUPA_KEY = 'sb_publishable_JIFQyxCn9MYZwc_MFJfUNA_F3saGuEp';   // anon key ou publishable key (sb_publishable_...). NUNCA a service_role/secret.
+const API_URL  = 'https://script.google.com/macros/s/AKfycbyEiYnOMAXccKCUUOWeHEXqdm8YPF08xFH9otXowOPBqKUgj7A3Nv6MUvFgn439v2TY/exec';
+const TOKEN    = 'labeltag-caixas';  // igual ao TOKEN do Code.gs (só modo 'apps')
+const ALERTA_H = { V: 24, P: 72 };   // horas até marcar caixa como "parada demais"
 const REFRESH_S = 30;
+const RECARGA_TOTAL_MIN = 10;        // no Supabase: a cada 10 min recarrega tudo (segurança); no resto só o que mudou
+
+const USA_SUPA = FONTE === 'supabase';
+const ATIVO = USA_SUPA ? !!SUPA_KEY && !/^COLE_AQUI/.test(SUPA_KEY) : !!API_URL;
 
 /* ===== ESTADO ===== */
 let caixas = [], aba = 'P', filtro = 'T', busca = '', ocupado = false, trello = null;
@@ -168,19 +176,69 @@ const store = {
   set(k,v){ try { localStorage.setItem(k,v); } catch(_) {} }
 };
 
-/* ===== API ===== */
-async function carregar(){
-  if (!API_URL) return demo();
+/* ===== SUPABASE ===== */
+const CAMPOS = 'id,cor,num,em_uso,op,desde,quem,card,atualizado_em';
+let marcaTempo = '', ultimaRecargaTotal = 0;
+function supaHeaders(extra){
+  const h = Object.assign({ apikey: SUPA_KEY, 'Accept-Profile': 'caixas', 'Content-Profile': 'caixas' }, extra || {});
+  if (!/^sb_/.test(SUPA_KEY)) h.Authorization = 'Bearer ' + SUPA_KEY; // chave antiga (JWT)
+  return h;
+}
+async function supaReq(caminho, opts){
+  const r = await fetch(SUPA_URL + caminho, opts);
+  let j = null; try { j = await r.json(); } catch(_) {}
+  if (!r.ok) throw new Error((j && (j.message || j.erro)) || ('HTTP ' + r.status));
+  return j;
+}
+const deSupa = r => ({ id:r.id, cor:r.cor, num:r.num, uso:!!r.em_uso, op:r.op||'', desde:r.desde||'', quem:r.quem||'', card:r.card||'' });
+function aplicar(linhas){
+  const idx = new Map(caixas.map((c,i)=>[c.id,i]));
+  for (const r of linhas) {
+    const c = deSupa(r);
+    if (idx.has(c.id)) caixas[idx.get(c.id)] = c; else { idx.set(c.id, caixas.length); caixas.push(c); }
+    if (r.atualizado_em && (!marcaTempo || r.atualizado_em > marcaTempo)) marcaTempo = r.atualizado_em;
+  }
+}
+async function carregarSupa(){
+  const total = !caixas.length || !marcaTempo || (Date.now() - ultimaRecargaTotal) > RECARGA_TOTAL_MIN * 6e4;
+  const filtroT = total ? '' : '&atualizado_em=gt.' + encodeURIComponent(marcaTempo);
+  const [linhas, st] = await Promise.all([
+    supaReq('/rest/v1/caixas?select=' + CAMPOS + filtroT, { headers: supaHeaders() }),
+    supaReq('/rest/v1/sync_status?select=ultima,erro,avisos&id=eq.1', { headers: supaHeaders() })
+  ]);
+  if (total) { caixas = []; marcaTempo = ''; ultimaRecargaTotal = Date.now(); }
+  aplicar(linhas || []);
+  const s = st && st[0];
+  trello = s ? { ultima: s.ultima || '', erro: s.erro || '', avisos: s.avisos || {} } : null;
+}
+async function enviarSupa(acao, id, op, quem){
+  const corpo = acao === 'ocupar' ? { p_id:id, p_op:op, p_quem:quem } : { p_id:id, p_quem:quem };
   try {
-    const r = await fetch(API_URL + '?token=' + encodeURIComponent(TOKEN));
-    const j = await r.json();
-    if (!j.ok) throw new Error(j.erro);
-    caixas = j.caixas; if (j.trello) trello = j.trello; marcaSync(); render();
+    const r = await supaReq('/rest/v1/rpc/' + acao, {
+      method:'POST', headers: supaHeaders({ 'Content-Type':'application/json' }), body: JSON.stringify(corpo)
+    });
+    if (r) aplicar([r]);
+  } catch (e) { carregarSupa().catch(()=>{}); throw e; }
+}
+
+/* ===== API (escolhe a fonte) ===== */
+async function carregar(){
+  if (!ATIVO) return demo();
+  try {
+    if (USA_SUPA) await carregarSupa();
+    else {
+      const r = await fetch(API_URL + '?token=' + encodeURIComponent(TOKEN));
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.erro);
+      caixas = j.caixas; if (j.trello) trello = j.trello;
+    }
+    marcaSync(); render();
   } catch (e) { marcaSync(e); }
 }
 async function enviar(acao, id, op){
   const quem = store.get('caixas_quem');
-  if (!API_URL) return demoAlterar(acao, id, op, quem);
+  if (!ATIVO) return demoAlterar(acao, id, op, quem);
+  if (USA_SUPA) return enviarSupa(acao, id, op, quem);
   // text/plain evita preflight CORS no Apps Script
   const r = await fetch(API_URL, { method:'POST', body: JSON.stringify({ token:TOKEN, acao, id, op, quem }) });
   const j = await r.json();
@@ -198,14 +256,14 @@ function marcaSync(err){
     el.title = (err.message||err) + ' — toque para tentar de novo';
     return;
   }
-  el.className = 'sync ' + (API_URL ? 'ok' : 'demo');
-  el.innerHTML = (API_URL ? 'Conectado' : 'Demo') + ' <small>' + hora + '</small>';
-  el.title = 'Atualizado às ' + hora + ' — toque para atualizar';
+  el.className = 'sync ' + (ATIVO ? 'ok' : 'demo');
+  el.innerHTML = (ATIVO ? 'Conectado' : 'Demo') + ' <small>' + hora + '</small>';
+  el.title = 'Atualizado às ' + hora + (USA_SUPA ? ' (Supabase)' : ' (planilha)') + ' — toque para atualizar';
   marcaTrello();
 }
 function marcaTrello(rodando){
   const el = $('#trello');
-  if (!API_URL || !trello) { el.hidden = true; return; }
+  if (!ATIVO || !trello) { el.hidden = true; return; }
   el.hidden = false;
   if (rodando) { el.className = 'sync tr rodando'; el.textContent = 'Sincronizando…'; return; }
   const ult = trello.ultima ? new Date(trello.ultima) : null;
@@ -219,18 +277,24 @@ function marcaTrello(rodando){
     : (ult ? 'Última sincronização às ' + hora : 'Ainda não sincronizou') + ' — toque para sincronizar agora';
 }
 async function sincronizarAgora(){
-  if (!API_URL || ocupado) return;
+  if (!ATIVO || ocupado) return;
   ocupado = true; marcaTrello(true);
   try {
-    const r = await fetch(API_URL, { method:'POST', body: JSON.stringify({ token:TOKEN, acao:'sync' }) });
-    const j = await r.json();
-    if (j.caixas) caixas = j.caixas;
-    if (j.trello) trello = j.trello;
+    let j;
+    if (USA_SUPA) {
+      j = await supaReq('/functions/v1/sync-trello', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:'{}' });
+      await carregarSupa();
+    } else {
+      const r = await fetch(API_URL, { method:'POST', body: JSON.stringify({ token:TOKEN, acao:'sync' }) });
+      j = await r.json();
+      if (j.caixas) caixas = j.caixas;
+      if (j.trello) trello = j.trello;
+    }
     if (!j.ok) throw new Error(j.erro);
-    const s = j.resumo || {};
-    toast(`Trello: ${s.caixasTrello ?? 0} caixas em cards, ${s.alteracoes ?? 0} alterações`);
+    if (j.pulado) toast('Trello: sincronizado há poucos segundos');
+    else { const s = j.resumo || {}; toast(`Trello: ${s.caixasTrello ?? 0} caixas em cards, ${s.alteracoes ?? 0} alterações`); }
   } catch (e) { toast('Trello: ' + e.message, true); }
-  finally { ocupado = false; marcaTrello(); render(); }
+  finally { ocupado = false; marcaSync(); render(); }
 }
 
 /* ===== REGRAS ===== */
