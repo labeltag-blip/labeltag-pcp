@@ -10,6 +10,18 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--paper);color:var(--ink);font-family:'IBM Plex Sans',sans-serif;line-height:1.45}
 .num{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+/* indicador de atualizacao — canto superior direito */
+.updBox{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--line);
+  border-radius:7px;padding:6px 11px;background:var(--card)}
+.updLbl{font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;
+  text-transform:uppercase;letter-spacing:.11em;color:var(--muted);display:block}
+.updVal{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;
+  color:var(--ink);font-variant-numeric:tabular-nums;display:block;margin-top:1px}
+#btnUpd{border:0;background:none;cursor:pointer;font-size:15px;color:var(--muted);
+  padding:2px 0 0;line-height:1;transition:color .15s,transform .4s}
+#btnUpd:hover{color:var(--accent)}
+#btnUpd.girando{transform:rotate(360deg)}
+.updSub{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.35}
 .wrap{max-width:1180px;margin:0 auto;padding:0 20px 80px}
 header{border-bottom:3px solid var(--ink);padding:26px 0 18px;margin-bottom:8px;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap}
 .brand{display:flex;align-items:baseline;gap:14px}.brand h1{font-size:26px;font-weight:700;letter-spacing:-.02em}
@@ -146,7 +158,7 @@ tr.danger td{background:#fdf2f2}tr.danger:hover td{background:#fbe9e9}
 <path transform="matrix(1,0,0,-1,1,68.0025)" d="M236.0557 2.8097H238.9995L237.5274 6.7124ZM239.9366 .3271 239.2603 2.1209H235.7949L235.1186 .3271H234.3467L237.1524 7.6269H237.9027L240.7085 .3271ZM227.8293 .2024C226.7243 .2024 225.8093 .5669 225.0867 1.2969 224.3639 2.0271 224.0019 2.9205 224.0019 3.9776 224.0019 5.034 224.3639 5.9275 225.0867 6.6572 225.8093 7.3874 226.7243 7.7525 227.8293 7.7525 228.5036 7.7525 229.1227 7.5909 229.6862 7.2675 230.2486 6.9443 230.6835 6.5081 230.9896 5.9587L230.343 5.5834C230.1134 6.0282 229.773 6.3825 229.3206 6.6467 228.869 6.9109 228.3718 7.043 227.8293 7.043 226.9185 7.043 226.175 6.7479 225.5978 6.1571 225.0207 5.5661 224.7324 4.839 224.7324 3.9776 224.7324 3.1153 225.0207 2.3885 225.5978 1.7977 226.175 1.2067 226.9185 .9111 227.8293 .9111 228.3718 .9111 228.869 1.0437 229.3206 1.3071 229.773 1.5715 230.1134 1.9267 230.343 2.3712L230.9896 2.0064C230.6906 1.457 230.2577 1.0193 229.6911 .6919 229.1241 .3654 228.5036 .2024 227.8293 .2024ZM215.7956 6.9386V3.9353H217.9854C218.3882 3.9353 218.7323 4.083 219.0183 4.3784 219.3026 4.674 219.4455 5.027 219.4455 5.4371 219.4455 5.8538 219.3026 6.209 219.0183 6.501 218.7323 6.7932 218.3882 6.9386 217.9854 6.9386ZM219.5495 .3271 217.8459 3.2474H215.7956V.3271H215.0657V7.6269H217.9854C218.5903 7.6269 219.1062 7.4132 219.5337 6.9857 219.9614 6.558 220.1751 6.0418 220.1751 5.4371 220.1751 4.9439 220.0275 4.504 219.7318 4.1176 219.4364 3.7321 219.0597 3.4733 218.6005 3.3415L220.3838 .3271ZM206.4815 2.8097H209.4259L207.9536 6.7124ZM210.3625 .3271 209.6861 2.1209H206.2208L205.5444 .3271H204.7731L207.5783 7.6269H208.3286L211.1343 .3271ZM200.8417 7.6269V.3271H200.1112V6.5217L197.5567 2.2462H197.4518L194.8972 6.5217V.3271H194.1676V7.6269H195.0625L197.5045 3.5408 199.9463 7.6269ZM182.9758 2.8097H185.9204L184.4484 6.7124ZM186.8576 .3271 186.1812 2.1209H182.7156L182.0395 .3271H181.2674L184.0731 7.6269H184.8237L187.6289 .3271ZM176.8983 .9111C176.3974 .4388 175.7441 .2024 174.9382 .2024 174.1314 .2024 173.478 .4388 172.9772 .9111 172.4763 1.3842 172.2266 2.0166 172.2266 2.8097V7.6269H172.9565V2.8097C172.9565 2.2255 173.1305 1.7629 173.478 1.4221 173.8256 1.0817 174.3123 .9111 174.9382 .9111 175.5638 .9111 176.0499 1.0817 176.3974 1.4221 176.7458 1.7629 176.9193 2.2255 176.9193 2.8097V7.6269H177.6489V2.8097C177.6489 2.0166 177.3992 1.3842 176.8983 .9111ZM165.6255 .2024C164.9582 .2024 164.3868 .3603 163.91 .6766 163.4338 .993 163.1021 1.4292 162.9142 1.9857L163.5398 2.3502C163.6722 1.8989 163.9151 1.5457 164.27 1.292 164.6246 1.038 165.0796 .9111 165.6357 .9111 166.1783 .9111 166.6009 1.031 166.9034 1.2711 167.2055 1.5103 167.3569 1.8286 167.3569 2.2255 167.3569 2.6076 167.218 2.8964 166.9391 3.0903 166.661 3.2854 166.2026 3.4872 165.5631 3.6955 164.8049 3.9458 164.304 4.1477 164.0614 4.3002 163.5052 4.6344 163.2268 5.1174 163.2268 5.7498 163.2268 6.3686 163.4428 6.8576 163.8734 7.2156 164.304 7.5733 164.8361 7.7525 165.4696 7.7525 166.0388 7.7525 166.5329 7.6045 166.9496 7.3091 167.3671 7.0135 167.6767 6.6362 167.8776 6.1778L167.2625 5.8331C166.9289 6.6399 166.3308 7.043 165.4696 7.043 165.0172 7.043 164.6524 6.9318 164.374 6.7099 164.0962 6.4871 163.9568 6.1778 163.9568 5.7813 163.9568 5.4198 164.082 5.1483 164.3326 4.968 164.5829 4.7871 164.9965 4.6026 165.5736 4.4152 165.8378 4.3251 166.0272 4.2608 166.1414 4.2225 166.2568 4.1837 166.4232 4.1219 166.6423 4.0346 166.8614 3.9478 167.0233 3.8707 167.1273 3.8049 167.2313 3.7392 167.3589 3.6488 167.508 3.5337 167.6571 3.4194 167.7654 3.3046 167.8311 3.1898 167.8972 3.0753 167.9567 2.9364 168.008 2.7729 168.061 2.609 168.0866 2.4338 168.0866 2.2462 168.0866 1.6277 167.8603 1.1316 167.4088 .76 166.9572 .3881 166.3622 .2024 165.6255 .2024ZM153.9774 .1814C155.5622 .1814 156.689 1.0159 156.689 2.4233 156.689 3.9665 155.4477 4.3529 154.3422 4.6865 153.2055 5.0306 153.0278 5.26 153.0278 5.5939 153.0278 5.8859 153.2886 6.1466 153.8101 6.1466 154.4774 6.1466 154.8221 5.8226 155.0727 5.3016L156.4801 6.1251C155.9486 7.1994 155.0095 7.7732 153.8101 7.7732 152.5484 7.7732 151.3599 6.9593 151.3599 5.5519 151.3599 4.1545 152.4237 3.6329 153.5077 3.3304 154.6033 3.028 155.02 2.8511 155.02 2.4024 155.02 2.1209 154.8221 1.8079 154.0295 1.8079 153.2055 1.8079 152.7568 2.2144 152.4966 2.8193L151.0574 1.9857C151.4645 .9111 152.4438 .1814 153.9774 .1814ZM143.9558 1.8079C142.7672 1.8079 141.8284 2.6736 141.8284 3.9776 141.8284 5.2809 142.7672 6.1466 143.9558 6.1466 145.1449 6.1466 146.0832 5.2809 146.0832 3.9776 146.0832 2.6736 145.1449 1.8079 143.9558 1.8079ZM143.9558 .1814C146.052 .1814 147.7522 1.8286 147.7522 3.9776 147.7522 6.1251 146.052 7.7732 143.9558 7.7732 141.8598 7.7732 140.1596 6.1251 140.1596 3.9776 140.1596 1.8286 141.8598 .1814 143.9558 .1814ZM136.2288 7.6269H134.5601L132.5784 4.3841 130.5975 7.6269H128.9285V.3271H130.5975V4.5714L132.4848 1.4743H132.6728L134.5601 4.5714V.3271H136.2288ZM120.9095 3.0385 121.7648 5.7186 122.62 3.0385ZM123.4854 .3271H125.3106L122.828 7.6269H120.7015L118.2189 .3271H120.0438L120.4095 1.4743H123.12ZM112.932 7.6269V3.6641L110.1166 7.6269H108.8654V.3271H110.5333V4.2902L113.3495 .3271H114.6008V7.6269ZM102.9529 .3271H104.6208V7.6269H102.9529ZM96.4658 .1814C98.0518 .1814 99.1774 1.0159 99.1774 2.4233 99.1774 3.9665 97.9364 4.3529 96.8315 4.6865 95.6945 5.0306 95.5171 5.26 95.5171 5.5939 95.5171 5.8859 95.7779 6.1466 96.2997 6.1466 96.9667 6.1466 97.3108 5.8226 97.5614 5.3016L98.9694 6.1251C98.4373 7.1994 97.4988 7.7732 96.2997 7.7732 95.0372 7.7732 93.8483 6.9593 93.8483 5.5519 93.8483 4.1545 94.9122 3.6329 95.9973 3.3304 97.0917 3.028 97.5093 2.8511 97.5093 2.4024 97.5093 2.1209 97.3108 1.8079 96.5186 1.8079 95.6945 1.8079 95.2461 2.2144 94.9859 2.8193L93.5464 1.9857C93.9529 .9111 94.9331 .1814 96.4658 .1814ZM87.5815 .1814C89.1663 .1814 90.2928 1.0159 90.2928 2.4233 90.2928 3.9665 89.0518 4.3529 87.9463 4.6865 86.8099 5.0306 86.6324 5.26 86.6324 5.5939 86.6324 5.8859 86.8932 6.1466 87.4148 6.1466 88.0821 6.1466 88.4262 5.8226 88.6765 5.3016L90.0848 6.1251C89.5527 7.1994 88.6141 7.7732 87.4148 7.7732 86.1531 7.7732 84.9643 6.9593 84.9643 5.5519 84.9643 4.1545 86.0278 3.6329 87.1123 3.3304 88.2071 3.028 88.6246 2.8511 88.6246 2.4024 88.6246 2.1209 88.4262 1.8079 87.6334 1.8079 86.8099 1.8079 86.3614 2.2144 86.1004 2.8193L84.6621 1.9857C85.0683 .9111 86.0485 .1814 87.5815 .1814ZM77.1636 3.0385 78.0191 5.7186 78.8743 3.0385ZM79.74 .3271H81.5649L79.0824 7.6269H76.955L74.4732 .3271H76.2982L76.6638 1.4743H79.3743Z"/>
 <path transform="matrix(1,0,0,-1,1,68.0025)" d="M11.5053 27.7294V67.0025H0V16.651H29.4783V27.7294ZM57.8373 52.6133V49.2318C55.4743 51.9602 51.9293 53.6162 47.1095 53.6162 37.6875 53.6162 29.914 45.3368 29.914 34.6326 29.914 23.9046 37.6875 15.6251 47.1095 15.6251 51.9293 15.6251 55.4743 17.2814 57.8373 20.0333V16.651H68.6273V52.6133ZM49.2857 25.8401C44.3109 25.8401 40.7041 29.2215 40.7041 34.6326 40.7041 40.0198 44.3109 43.4013 49.2857 43.4013 54.2305 43.4013 57.8373 40.0198 57.8373 34.6326 57.8373 29.2215 54.2305 25.8401 49.2857 25.8401ZM95.991 53.6162C91.1718 53.6162 87.6266 51.9602 85.2633 49.2318V67.0025H74.4732V16.651H85.2633V20.0333C87.6266 17.2814 91.1718 15.6251 95.991 15.6251 105.4131 15.6251 113.1874 23.9046 113.1874 34.6326 113.1874 45.3368 105.4131 53.6162 95.991 53.6162ZM93.8143 25.8401C88.8701 25.8401 85.2633 29.2215 85.2633 34.6326 85.2633 40.0198 88.8701 43.4013 93.8143 43.4013 98.7897 43.4013 102.3968 40.0198 102.3968 34.6326 102.3968 29.2215 98.7897 25.8401 93.8143 25.8401ZM126.8688 30.318H152.3976C152.6783 31.6706 152.833 33.1169 152.833 34.6326 152.833 45.5006 145.0596 53.6162 134.5496 53.6162 123.1997 53.6162 115.4256 45.3368 115.4256 34.6326 115.4256 23.9046 123.0443 15.6251 135.3577 15.6251 142.1674 15.6251 147.5164 18.144 151.0299 23.042 148.1383 24.6974 145.2461 26.3537 142.3854 28.0091 140.955 26.4234 138.4362 25.2805 135.4819 25.2805 131.5329 25.2805 128.2365 26.5632 126.8688 30.318ZM126.6511 38.3635C127.6464 42.025 130.3829 44.0546 134.4872 44.0546 137.7215 44.0546 140.955 42.5387 142.1059 38.3635ZM156.8755 16.651H167.6656V67.0025H156.8755ZM207.6854 67.0025H180.788 170.2777V55.925H183.2134V16.651H194.7186V55.925H207.6854ZM229.9187 52.6133V49.2318C227.5554 51.9602 224.0101 53.6162 219.1901 53.6162 209.7686 53.6162 201.9946 45.3368 201.9946 34.6326 201.9946 23.9046 209.7686 15.6251 219.1901 15.6251 224.0101 15.6251 227.5554 17.2814 229.9187 20.0333V16.651H240.7085V52.6133ZM221.3668 25.8401C216.392 25.8401 212.7852 29.2215 212.7852 34.6326 212.7852 40.0198 216.392 43.4013 221.3668 43.4013 226.3116 43.4013 229.9187 40.0198 229.9187 34.6326 229.9187 29.2215 226.3116 25.8401 221.3668 25.8401ZM272.9546 52.6133V48.9521C270.5913 51.8902 267.1393 53.6162 262.4443 53.6162 252.2446 53.6162 244.751 45.267 244.751 35.3557 244.751 25.4205 252.2446 17.0714 262.4443 17.0714 267.1393 17.0714 270.5913 18.7971 272.9546 21.7593V17.2114C272.9546 12.1042 269.8449 9.5153 264.839 9.5153 260.081 9.5153 257.9975 11.5214 256.629 14.0394 253.5506 12.2675 250.4718 10.4947 247.4249 8.7219 250.7213 2.8216 256.9711 0 264.4654 0 274.0425 0 283.4646 5.1075 283.4646 17.2114V52.6133ZM264.2477 27.0062C259.1478 27.0062 255.541 30.3877 255.541 35.3557 255.541 40.2996 259.1478 43.6813 264.2477 43.6813 269.3475 43.6813 272.9546 40.2996 272.9546 35.3557 272.9546 30.3877 269.3475 27.0062 264.2477 27.0062"/>
 </g></svg><span class="tag">Painel de Vendas</span><span id="sync" class="wait"><span id="syncDot"></span><span id="syncTxt">conectando…</span></span></div>
-<div class="src" id="fonteDados">Fonte: prints do <b>BI Cigam</b> lidos por OCR · 04/2022 – 06/2026 · 10.269 pedidos</div></header>
+<div class="src"><div class="updBox"><button id="btnUpd" title="Recarregar os dados">&#8635;</button><span><span class="updLbl">Atualizado</span><span class="updVal" id="updVal">—</span></span></div><div class="updSub" id="fonteDados">carregando…</div></div></header>
 <div class="print-only" id="printHead"></div>
 <div class="kpis" id="kpis"></div>
 <div class="tabs">
@@ -266,7 +278,7 @@ tr.danger td{background:#fdf2f2}tr.danger:hover td{background:#fbe9e9}
   <span class="perlbl">De</span><input type="date" id="cliDe" class="dt"><span class="perlbl">Até</span><input type="date" id="cliAte" class="dt">
   <select id="cliUf"></select>
   <select id="cliSeg"></select>
-  <select id="cliFonte"><option value="com">Com vendas</option><option value="todos">Todos (+ sem compras)</option><option value="sem">Só sem compras</option></select><select id="cliStatus"><option value="">Status: todos</option><option value="Ativo">Ativo (até 90 dias)</option><option value="Esfriando">Esfriando (91–180)</option><option value="Inativo">Inativo (+180)</option><option value="Sem compra">Nunca comprou</option></select>
+  <select id="cliFonte"><option value="com">Com vendas</option><option value="todos">Todos (+ sem compras)</option><option value="sem">Só sem compras</option></select><select id="cliStatus"><option value="">Status: todos</option><option value="Ativo">Ativo (até 90 dias)</option><option value="Esfriando">Esfriando (91–180)</option><option value="Inativo">Inativo (+180)</option><option value="Sem compra">Nunca comprou</option><option value="Encerrado">Encerrado (não trabalhamos mais)</option><option value="So amostra">Só amostra (nunca comprou)</option></select>
  </div>
  <div id="cliInfo" class="desc"></div>
  <div class="scrollbox"><table><thead><tr><th class="rank-pos">#</th><th>Cód</th><th>Cliente</th><th>UF</th><th>Segmento</th><th class="r">Valor</th><th class="r">Pedidos</th><th class="r">%</th><th class="r">Último</th><th class="r">Dias inativo</th></tr></thead><tbody id="cliBody"></tbody></table></div>
@@ -538,10 +550,16 @@ function buildD({clientes, pedidos, representantes, faturamento, metas, hoje}) {
   // ---------- pedidos agrupados por cliente ----------
   const porCli = new Map();
   let minD=99999999, maxD=0, totalGeral=0;
+  // Amostra x venda. O Cigam não tem campo para isso: a amostra é lançada
+  // com valor simbólico (R$ 0,05 a R$ 0,30). Vale a coluna 'amostra' do banco
+  // quando ela existir; sem ela, cai na regra do valor.
+  const LIM_AMOSTRA = 1.00;
   for (const p of pedidos) {
     const d = ymd(p.emissao), v = Number(p.valor);
+    const am = (p.amostra===true || p.amostra===false) ? (p.amostra?1:0)
+                                                       : (v < LIM_AMOSTRA ? 1 : 0);
     if (!porCli.has(p.cliente_cod)) porCli.set(p.cliente_cod, []);
-    porCli.get(p.cliente_cod).push([d, v]);
+    porCli.get(p.cliente_cod).push([d, v, am]);
     if (d<minD) minD=d; if (d>maxD) maxD=d;
     totalGeral += v;
   }
@@ -550,23 +568,34 @@ function buildD({clientes, pedidos, representantes, faturamento, metas, hoje}) {
   // ---------- clientes[] com segmentação calculada ----------
   const CL = [];
   for (const c of clientes) {
-    const p = porCli.get(c.cod) || [];
-    const anosSet = new Set(p.map(x=>String(x[0]).slice(0,4)));
+    const p  = porCli.get(c.cod) || [];
+    const pv = p.filter(x=>!x[2]);          // só vendas
+    const pa = p.filter(x=>x[2]);           // só amostras
+    const anosSet = new Set(pv.map(x=>String(x[0]).slice(0,4)));
     const a = {};
     for (const [d,v] of p) { const y=String(d).slice(0,4);
       if(!a[y]) a[y]=[0,0]; a[y][0]+=v; a[y][1]++; }
     for (const y in a) a[y][0]=round2(a[y][0]);
+    const iso = s => s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8);
     let seg='Sem pedidos', dd=null, u='';
-    if (p.length) {
-      const ult=String(p[p.length-1][0]), pri=String(p[0][0]);
-      const iso = s => s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8);
+    // data da última amostra, só para exibição
+    const uam = pa.length ? (()=>{const x=String(pa[pa.length-1][0]);
+                 return x.slice(6,8)+'/'+x.slice(4,6)+'/'+x.slice(2,4);})() : '';
+    if (c.situacao==='encerrado' && p.length) {
+      seg='Encerrado';
+      if (pv.length){ const ult=String(pv[pv.length-1][0]);
+        dd=dias(iso(ult)); u=ult.slice(6,8)+'/'+ult.slice(4,6)+'/'+ult.slice(2,4); }
+    } else if (p.length && !pv.length) {
+      seg='Só amostra';                      // recebeu amostra, nunca comprou
+    } else if (pv.length) {
+      const ult=String(pv[pv.length-1][0]), pri=String(pv[0][0]);
       dd = dias(iso(ult));
       u  = ult.slice(6,8)+'/'+ult.slice(4,6)+'/'+ult.slice(2,4);
       let gap=0;
-      for (let i=1;i<p.length;i++)
-        gap = Math.max(gap, Math.floor((dt(iso(String(p[i][0])))-dt(iso(String(p[i-1][0]))))/864e5));
+      for (let i=1;i<pv.length;i++)
+        gap = Math.max(gap, Math.floor((dt(iso(String(pv[i][0])))-dt(iso(String(pv[i-1][0]))))/864e5));
       const diasPri = dias(iso(pri));
-      if (dd>270 || p.length===1)      seg='Inativos / pontuais';
+      if (dd>270 || pv.length===1)      seg='Inativos / pontuais';
       else if (dd>90)                  seg='Esfriando';
       else if (diasPri<=365)           seg='Novos';
       else if (gap>180)                seg='Reativados';
@@ -575,14 +604,22 @@ function buildD({clientes, pedidos, representantes, faturamento, metas, hoje}) {
     }
     CL.push({cod:c.cod, uf:c.uf||'?', nm:c.fantasia||c.razao||c.cod,
              t:round2(p.reduce((s,x)=>s+x[1],0)), a, u, d:dd, seg, p,
+             nv:pv.length, nam:pa.length, uam,
+             tv:round2(pv.reduce((s,x)=>s+x[1],0)),
              sg:c.segmento_manual||'Geral', rep:repNome[c.rep_cod]||'-',
-             razao:c.razao||'', fant:c.fantasia||'', cnpj:c.cnpj||''});
+             razao:c.razao||'', fant:c.fantasia||'', cnpj:c.cnpj||'',
+             sit:c.situacao||''});
   }
   CL.sort((x,y)=>y.t-x.t);
   // cadastros que nunca compraram ficam só na aba "sem venda":
   // na lista de clientes eles apareciam com dias sem comprar em branco.
   const semPedido = CL.filter(c=>c.p.length===0);
   const comPedido = CL.filter(c=>c.p.length>0);
+  // clientes encerrados (não trabalhamos mais): continuam no histórico de
+  // faturamento e na concentração, mas saem da conta de inativos, da aba
+  // Em risco e da recorrência — senão inflam o número de inativos.
+  const ativos     = comPedido.filter(c=>c.sit!=='encerrado' && c.seg!=='Só amostra');
+  const encerrados = comPedido.filter(c=>c.sit==='encerrado');
 
   // ---------- kpis ----------
   const isoMin = String(minD), isoMax = String(maxD);
@@ -590,7 +627,7 @@ function buildD({clientes, pedidos, representantes, faturamento, metas, hoje}) {
   for (const p of pedidos) if (p.atualizado_em && p.atualizado_em > ultImp) ultImp = p.atualizado_em;
   const atrasos = faturamento.map(f=>Number(f.atraso_medio)).filter(x=>x>0);
   const kpis = {
-    total: round2(totalGeral), nped: pedidos.length, ncli: comPedido.length,
+    total: round2(totalGeral), nped: pedidos.length, ncli: ativos.length,
     ticket: totalGeral/pedidos.length,
     periodo: isoMin.slice(4,6)+'/'+isoMin.slice(0,4)+' – '+isoMax.slice(4,6)+'/'+isoMax.slice(0,4),
     atraso_med: atrasos.reduce((s,x)=>s+x,0)/(atrasos.length||1),
@@ -689,13 +726,13 @@ function buildD({clientes, pedidos, representantes, faturamento, metas, hoje}) {
 
   // ---------- risco ----------
   const inat = {m3:{n:0,valor:0}, m6:{n:0,valor:0}, m9:{n:0,valor:0}};
-  comPedido.forEach(c=>{ if(c.d>90){inat.m3.n++;inat.m3.valor+=c.t;}
+  ativos.forEach(c=>{ if(c.d>90){inat.m3.n++;inat.m3.valor+=c.t;}
     if(c.d>180){inat.m6.n++;inat.m6.valor+=c.t;} if(c.d>270){inat.m9.n++;inat.m9.valor+=c.t;} });
   ['m3','m6','m9'].forEach(k=>inat[k].valor=round2(inat[k].valor));
   const risco = { ref: String(HOJE.getDate()).padStart(2,'0')+'/'+
       String(HOJE.getMonth()+1).padStart(2,'0')+'/'+HOJE.getFullYear(),
     inativos: inat,
-    lista: comPedido.filter(c=>c.d>90).sort((a,b)=>b.t-a.t).slice(0,60)
+    lista: ativos.filter(c=>c.d>90).sort((a,b)=>b.t-a.t).slice(0,60)
       .map(c=>({nome:c.nm, valor:c.t, n:c.p.length, ultimo:c.u, dias:c.d})) };
 
   // ---------- concentração ----------
@@ -744,8 +781,8 @@ function buildD({clientes, pedidos, representantes, faturamento, metas, hoje}) {
 
   // ---------- recorrência ----------
   const ordemSeg = ['Fiéis de longa data','Recorrentes','Reativados','Novos','Esfriando','Inativos / pontuais'];
-  const totCli = comPedido.length, totVal = totalGeral;
-  const segs = ordemSeg.map(s=>{ const g=comPedido.filter(c=>c.seg===s);
+  const totCli = ativos.length, totVal = ativos.reduce((x,c)=>x+c.t,0) || 1;
+  const segs = ordemSeg.map(s=>{ const g=ativos.filter(c=>c.seg===s);
     const v=g.reduce((x,c)=>x+c.t,0);
     return {seg:s, n:g.length, pct:g.length/totCli*100, val:round2(v), pctv:v/totVal*100}; })
     .filter(s=>s.n>0);
@@ -809,7 +846,7 @@ function buildD({clientes, pedidos, representantes, faturamento, metas, hoje}) {
 
   // ---------- clientes cadastrados sem nenhuma venda ----------
   const semvenda = semPedido
-    .map(c=>({cod:c.cod, uf:c.uf, nm:c.nm, razao:c.razao, fant:c.fant, cnpj:c.cnpj, sg:c.sg, rep:c.rep}));
+    .map(c=>({cod:c.cod, uf:c.uf, nm:c.nm, razao:c.razao, fant:c.fant, cnpj:c.cnpj, sg:c.sg, rep:c.rep, sit:c.sit||''}));
 
   // ---------- repmap (nomes de exibição dos representantes) ----------
   const repmap = {};
@@ -817,7 +854,10 @@ function buildD({clientes, pedidos, representantes, faturamento, metas, hoje}) {
     repmap[r.nome] = {d: c ? (c.rep!=='—'?c.rep:c.nome) : r.nome, t: c?c.tipo:'ext', g:''}; });
 
   if(!trimestres.length) trimestres.push({id:'T1',label:'Sem metas cadastradas',meses:['—','—','—'],emCurso:false,reps:[]});
-  return {kpis, crescimento, carteira, risco, concentracao, afaturar,
+  const encerradosLista = encerrados.map(c=>({cod:c.cod, nm:c.nm, uf:c.uf,
+    valor:c.t, n:c.p.length, ultimo:c.u, dias:c.d, rep:c.rep}))
+    .sort((a,b)=>b.valor-a.valor);
+  return {kpis, crescimento, carteira, risco, concentracao, afaturar, encerradosLista,
           faturamento: faturamento_, anual, clientes: comPedido, estados, cenario,
           recorrencia, metas:{trimestres}, vend, repmap, entradas, semvenda};
 }
@@ -1035,18 +1075,27 @@ function renderCli(){
   if(uf)base=base.filter(c=>c.uf===uf);
   if(sgF)base=base.filter(c=>c.sg===sgF);
   base=fRep(base,c=>c,'cliRep','cliRepT');
-  base.forEach(c=>{const v=valPer(c,de,ate); if(v)rows.push({cod:c.cod,nm:c.nm,razao:c.razao,fant:c.fant,cnpj:c.cnpj,uf:c.uf,sg:c.sg,val:v[0],n:v[1],u:c.u,d:c.d,sv:0});});
+  base.forEach(c=>{const v=valPer(c,de,ate); if(v)rows.push({cod:c.cod,nm:c.nm,razao:c.razao,fant:c.fant,cnpj:c.cnpj,uf:c.uf,sg:c.sg,val:v[0],n:v[1],u:c.u,d:c.d,sv:0,sit:c.sit||'',seg:c.seg||'',nam:c.nam||0});});
  }
  if(fonte!=='com' && !filtra){
   let s=D.semvenda||[];
   if(uf)s=s.filter(c=>c.uf===uf);
   if(sgF)s=s.filter(c=>c.sg===sgF);
   s=fRep(s,c=>c,'cliRep','cliRepT');
-  s.forEach(c=>rows.push({cod:c.cod,nm:c.nm,razao:c.razao,fant:c.fant,cnpj:c.cnpj,uf:c.uf,sg:c.sg,val:0,n:0,sv:1}));
+  s.forEach(c=>rows.push({cod:c.cod,nm:c.nm,razao:c.razao,fant:c.fant,cnpj:c.cnpj,uf:c.uf,sg:c.sg,val:0,n:0,sv:1,sit:c.sit||''}));
  }
  if(q)rows=rows.filter(r=>[r.nm,r.razao,r.fant,r.cnpj,String(r.cod)].some(x=>(x||'').toUpperCase().includes(q)));
  if(stF==='Sem compra')rows=rows.filter(r=>r.sv);
- else if(stF)rows=rows.filter(r=>!r.sv && statusDe(r.d)[0]===stF);
+ else if(stF==='Encerrado'){
+   if(document.getElementById('cliFonte').value==='com'){ // inclui os que nunca compraram
+     (D.semvenda||[]).filter(c=>c.sit==='encerrado').forEach(c=>rows.push(
+       {cod:c.cod,nm:c.nm,razao:c.razao,fant:c.fant,cnpj:c.cnpj,uf:c.uf,sg:c.sg,val:0,n:0,sv:1,sit:'encerrado'}));
+   }
+   rows=rows.filter(r=>r.sit==='encerrado');
+ }
+ else if(stF==='So amostra')rows=rows.filter(r=>r.seg==='Só amostra');
+ else if(stF)rows=rows.filter(r=>!r.sv && r.sit!=='encerrado' && r.seg!=='Só amostra'
+                                 && r.d!=null && statusDe(r.d)[0]===stF);
  rows.sort((a,b)=>b.val-a.val);
  const tot=rows.reduce((s,r)=>s+r.val,0);
  const nsem=rows.filter(r=>r.sv).length, ncom=rows.length-nsem;
@@ -1472,11 +1521,23 @@ async function puxarTudo(){
     if(k.importado_em){ const d=new Date(k.importado_em);
       imp=' · importado em '+d.toLocaleDateString('pt-BR')+' às '+
           d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
-    el.innerHTML='Fonte: <b>Cigam</b> via Supabase · dados até <b>'+k.dados_ate+'</b>'+imp+
-                 ' · '+k.nped.toLocaleString('pt-BR')+' pedidos · '+k.ncli.toLocaleString('pt-BR')+' clientes';
+    el.innerHTML='<b>Cigam</b> via Supabase · dados até <b>'+k.dados_ate+'</b>'+imp+
+                 '<br>'+k.nped.toLocaleString('pt-BR')+' pedidos · '+k.ncli.toLocaleString('pt-BR')+' clientes';
   }
+  // carimbo de atualização no canto superior direito
+  (function(){
+    const d=new Date();
+    const v=document.getElementById('updVal');
+    if(v) v.textContent = d.toLocaleDateString('pt-BR')+' · '+
+      d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  })();
   sync('on','conectado');
   setInterval(baterPonto, 60000);
+  const bu=document.getElementById('btnUpd');
+  if(bu) bu.addEventListener('click',function(){
+    bu.classList.add('girando');
+    setTimeout(function(){ location.reload(); },180);
+  });
   window.addEventListener('online', baterPonto);
   window.addEventListener('offline', ()=>sync('off','sem conexão'));
   const lg=$('lg'); if(lg) lg.remove();
