@@ -150,7 +150,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Amostras</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span title="Versão do painel publicada no GitHub" style="font-size:11px;color:var(--ouro);background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap">v. 28/09/2026 20:24</span>
+      <span title="Versão do painel publicada no GitHub" style="font-size:11px;color:var(--ouro);background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap">v. 02/10/2026 11:55</span>
       <a href="index.html" class="btn-g" style="text-decoration:none">📋 Pedidos</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -308,13 +308,53 @@ function tGet(path,params){
   return fetch('https://api.trello.com/1'+path+'?'+p).then(function(r){if(!r.ok)throw new Error(r.status);return r.json();});
 }
 
+// ── Comentários do Trello (actions commentCard) ──
+var comentariosCards={};
+function comentariosDe(cardId){
+  return (comentariosCards[cardId]||[]).map(function(a){
+    return {texto:(a.data&&a.data.text)||'',autor:(a.memberCreator&&a.memberCreator.fullName)||'',data:a.date};
+  }).filter(function(c){return c.texto;}).sort(function(a,b){return new Date(a.data)-new Date(b.data);});
+}
+function fmtComentData(d){if(!d)return '';var x=new Date(d);return x.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+x.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
+function _escC(s){return (s||'').replace(/</g,'&lt;');}
+function contaComentariosPedido(p){var n=0;p.artes.forEach(function(a){n+=comentariosDe(a.id).length;});return n;}
+function htmlComentarios(cardId){
+  var cs=comentariosDe(cardId);if(!cs.length)return '';
+  return '<div style="width:100%;margin-top:6px;border-top:1px solid var(--border);padding-top:5px"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--ouro);margin-bottom:3px">💬 Comentários</div>'+
+    cs.map(function(c){return '<div style="font-size:11px;color:var(--muted2);line-height:1.4;margin-bottom:2px"><span style="color:var(--muted)">'+fmtComentData(c.data)+(c.autor?' · '+c.autor:'')+':</span> '+_escC(c.texto)+'</div>';}).join('')+'</div>';
+}
+function pdfComentarios(cardId,cols){
+  var cs=comentariosDe(cardId);if(!cs.length)return '';
+  return '<tr><td colspan="'+cols+'" style="padding:2px 8px 8px 20px;border-bottom:1px solid #eee"><span style="font-size:9px;font-weight:700;text-transform:uppercase;color:#a16207">💬 Comentários</span>'+
+    cs.map(function(c){return '<div style="font-size:11px;color:#333;line-height:1.4"><span style="color:#999">'+fmtComentData(c.data)+(c.autor?' · '+c.autor:'')+':</span> '+_escC(c.texto)+'</div>';}).join('')+'</td></tr>';
+}
+function pdfComentariosPedido(p,cols){
+  var out='';p.artes.forEach(function(a){var cs=comentariosDe(a.id);if(cs.length)out+=cs.map(function(c){return '<div style="font-size:11px;color:#333;line-height:1.4"><span style="color:#999">Cx'+(caixaNum(a)||'?')+' · '+fmtComentData(c.data)+(c.autor?' · '+c.autor:'')+':</span> '+_escC(c.texto)+'</div>';}).join('');});
+  if(!out)return '';
+  return '<tr><td colspan="'+cols+'" style="padding:2px 8px 8px 20px;border-bottom:1px solid #eee"><span style="font-size:9px;font-weight:700;text-transform:uppercase;color:#a16207">💬 Comentários</span>'+out+'</td></tr>';
+}
+function coletarComentarios(){
+  var ids=[];LISTAS.forEach(function(l){((boards[l.id]&&boards[l.id].cards)||[]).forEach(function(c){ids.push(c.id);});});
+  if(!ids.length)return Promise.resolve();
+  var el=document.getElementById('syncTxt');var prev=el?el.textContent:'';
+  if(el)el.textContent='Buscando comentários ('+ids.length+')...';
+  return Promise.all(ids.map(function(id){
+    return tGet('/cards/'+id+'/actions',{filter:'commentCard',limit:50,fields:'type,date,data,memberCreator'})
+      .then(function(acts){return {id:id,coments:acts||[]};})
+      .catch(function(){return {id:id,coments:[]};});
+  })).then(function(res){
+    comentariosCards={};res.forEach(function(r){comentariosCards[r.id]=r.coments;});
+    if(el)el.textContent=prev;renderTudo();
+  });
+}
+
 function sortPedidos(a,b){
   if(!a.dataEntrega&&!b.dataEntrega)return parseInt(b.num)-parseInt(a.num);
   if(!a.dataEntrega)return 1;if(!b.dataEntrega)return -1;
   return new Date(a.dataEntrega)-new Date(b.dataEntrega);
 }
 
-function sincronizar(){
+function sincronizar(auto){
   document.getElementById('syncTxt').textContent='Sincronizando...';
   boards={};
   LISTAS.forEach(function(l){boards[l.id]={ok:true,qtd:0,cards:[]};});
@@ -347,6 +387,7 @@ function sincronizar(){
     renderTudo();
     if(Object.keys(historicoAmostras).length===0)carregarHistLocal();
     setTimeout(function(){coletarHistorico(90).then(function(){if(document.getElementById('page-dashboard').classList.contains('ativo'))renderDashboard();});},800);
+    if(!auto)setTimeout(function(){coletarComentarios();},1200);
   }).catch(function(e){document.getElementById('syncTxt').textContent='Erro - verifique credenciais / quadro';});
 }
 
@@ -467,6 +508,8 @@ function miniCard(p){
   if(al>0)h+='<span class="chip" style="color:#22c55e">'+al+' artes</span>';
   var sm=artesSemMatriz(p);
   if(sm.length){var cxs=sm.map(caixaNum).filter(Boolean);h+='<span class="chip" style="color:var(--ouro);border:1px solid rgba(200,169,110,.55)" title="Aguardando matriz do terceiro">◇ sem matriz'+(cxs.length?': Cx '+cxs.join(', '):'')+'</span>';}
+  var ncm=contaComentariosPedido(p);
+  if(ncm>0)h+='<span class="chip" style="color:#a16207" title="Comentários no Trello">💬 '+ncm+'</span>';
   h+='</div></div>';
   if(p.artes.length===1){
     var c0=cache[p.artes[0].id],bt=c0?('✅ '+(c0.artes?c0.artes.length:0)+' arte(s)'):'📝 Artes';
@@ -505,6 +548,7 @@ function cardCol(c,l){
     '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span class="mn">#'+num+'</span>'+(cx?'<span style="font-size:9px;color:var(--muted2);background:var(--bg2);border-radius:4px;padding:1px 5px">'+cx+'</span>':'')+(dt?'<span style="margin-left:auto;font-size:10px;font-weight:700;color:'+dc+'">'+dt+'</span>':'')+'</div>'+
     '<div class="mcliente" style="color:var(--text)">'+(cli||'—')+'</div>'+
     (de?'<div style="font-size:10px;color:var(--muted);margin-top:2px">entrega '+fD(de)+'</div>':'')+
+    ((comentariosDe(c.id).length)?'<div style="font-size:10px;color:#a16207;margin-top:2px">💬 '+comentariosDe(c.id).length+' coment.</div>':'')+
     '</a>';
 }
 
@@ -709,14 +753,14 @@ function renderSetor(lid){
     var num=m[1],ped=pedidos.find(function(p){return p.num===num;});
     var de=card.due?card.due.substring(0,10):(ped?ped.dataEntrega:null),d=dR(de);
     var cxM=card.name.match(/CAIXA[\s ]+(\d+)/i);
-    return {num:num,nome:card.name,cliente:ped?ped.cliente:m[2].split(/\s*[-\u2013]\s*/).pop().trim(),cx:cxM?cxM[1]:'',d:d,dl:d-slaPost,url:card.url};
+    return {id:card.id,num:num,nome:card.name,cliente:ped?ped.cliente:m[2].split(/\s*[-\u2013]\s*/).pop().trim(),cx:cxM?cxM[1]:'',d:d,dl:d-slaPost,url:card.url};
   }).filter(Boolean).sort(function(a,b){return a.dl-b.dl;});
   var urg=tasks.filter(function(t){return t.dl<0&&t.d!==999;}),hj=tasks.filter(function(t){return t.dl===0;}),am=tasks.filter(function(t){return t.dl===1;}),nm=tasks.filter(function(t){return t.dl>1&&t.d!==999;}),sd=tasks.filter(function(t){return t.d===999;});
   function tk(t,tpc){
     var cor=tpc==='urgente'?'#ef4444':tpc==='hoje'?'#f97316':tpc==='amanha'?'#eab308':'#3b82f6';
     var dt=t.d===999?'Sem data':t.dl<0?(Math.abs(t.dl)+'d atraso'):t.dl===0?'Hoje':t.dl===1?'Amanha':(t.dl+'d');
     var caminho=proximas.length?proximas.map(function(x){return '<span style="font-size:10px;background:'+x.cor+'18;border:1px solid '+x.cor+'44;color:'+x.cor+';border-radius:4px;padding:1px 6px;white-space:nowrap">'+x.emoji+' '+x.nome+' <span style="opacity:.7">'+(SLA[x.id]||1)+'d</span></span>';}).join('<span style="color:var(--muted);font-size:10px">→</span>'):'<span style="font-size:10px;color:#22c55e">Última etapa</span>';
-    return '<div class="tk '+tpc+'"><span style="font-family:DM Mono,monospace;font-size:11px;color:var(--ouro);min-width:64px;flex-shrink:0">#'+t.num+(t.cx?' Cx'+t.cx:'')+'</span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600">'+t.cliente+'</div><div style="font-size:11px;color:var(--muted)">'+t.nome+'</div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;align-items:center">'+caminho+'</div></div><span style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;color:'+cor+';flex-shrink:0">'+dt+'</span><a href="'+t.url+'" target="_blank" style="font-size:12px;color:var(--ouro);text-decoration:none;opacity:.6;flex-shrink:0">↗</a></div>';
+    return '<div class="tk '+tpc+'" style="flex-wrap:wrap"><span style="font-family:DM Mono,monospace;font-size:11px;color:var(--ouro);min-width:64px;flex-shrink:0">#'+t.num+(t.cx?' Cx'+t.cx:'')+'</span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600">'+t.cliente+'</div><div style="font-size:11px;color:var(--muted)">'+t.nome+'</div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;align-items:center">'+caminho+'</div></div><span style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;color:'+cor+';flex-shrink:0">'+dt+'</span><a href="'+t.url+'" target="_blank" style="font-size:12px;color:var(--ouro);text-decoration:none;opacity:.6;flex-shrink:0">↗</a>'+htmlComentarios(t.id)+'</div>';
   }
   function sec(tit,arr,tpc,cor,bg){if(!arr.length)return '';return '<div style="margin-bottom:20px"><div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 12px;border-radius:6px;background:'+bg+';color:'+cor+';margin-bottom:8px">'+tit+' ('+arr.length+')</div>'+arr.map(function(t){return tk(t,tpc);}).join('')+'</div>';}
   var mediaD=tasks.length?Math.round(tasks.reduce(function(a,t){return a+(t.d===999?0:t.dl);},0)/tasks.length):0;
@@ -747,13 +791,13 @@ function gerarPDFSetor(lid){
     var num=m[1],ped=pedidos.find(function(p){return p.num===num;});
     var de=card.due?card.due.substring(0,10):(ped?ped.dataEntrega:null),d=dR(de);
     var cxM=card.name.match(/CAIXA[\s ]+(\d+)/i);
-    return {num:num,cliente:ped?ped.cliente:m[2].split(/\s*[-\u2013]\s*/).pop().trim(),cx:cxM?cxM[1]:'',de:de,d:d,dl:d-slaPost};
+    return {id:card.id,num:num,cliente:ped?ped.cliente:m[2].split(/\s*[-\u2013]\s*/).pop().trim(),cx:cxM?cxM[1]:'',de:de,d:d,dl:d-slaPost};
   }).filter(Boolean).sort(function(a,b){return a.dl-b.dl;});
   var linhas=tasks.map(function(t){
     var cor=t.d===999?'#999':t.dl<0?'#ef4444':t.dl===0?'#f97316':t.dl===1?'#a16207':'#3b82f6';
     var dtI=t.d===999?'--':t.dl<0?(Math.abs(t.dl)+'d atraso'):t.dl===0?'Hoje':t.dl===1?'Amanha':(t.dl+'d');
     var dtF=t.d===999?'--':t.d<0?(Math.abs(t.d)+'d atraso'):t.d===0?'Hoje':t.d===1?'Amanha':(t.d+'d');
-    return '<tr style="border-bottom:1px solid #eee"><td style="padding:6px 8px;font-family:monospace;color:'+cor+';font-weight:700">#'+t.num+'</td><td style="padding:6px 8px;font-family:monospace;font-size:11px">'+(t.cx?'Cx'+t.cx:'')+'</td><td style="padding:6px 8px;font-weight:600">'+t.cliente+'</td><td style="padding:6px 8px;text-align:center;font-size:11px">'+(t.de?fD(t.de):'--')+'</td><td style="padding:6px 8px;text-align:center;color:'+cor+';font-weight:700;font-size:11px">'+dtI+'</td><td style="padding:6px 8px;text-align:center;color:#888;font-size:11px">'+dtF+'</td></tr>';
+    return '<tr style="border-bottom:1px solid #eee"><td style="padding:6px 8px;font-family:monospace;color:'+cor+';font-weight:700">#'+t.num+'</td><td style="padding:6px 8px;font-family:monospace;font-size:11px">'+(t.cx?'Cx'+t.cx:'')+'</td><td style="padding:6px 8px;font-weight:600">'+t.cliente+'</td><td style="padding:6px 8px;text-align:center;font-size:11px">'+(t.de?fD(t.de):'--')+'</td><td style="padding:6px 8px;text-align:center;color:'+cor+';font-weight:700;font-size:11px">'+dtI+'</td><td style="padding:6px 8px;text-align:center;color:#888;font-size:11px">'+dtF+'</td></tr>'+pdfComentarios(t.id,6);
   }).join('')||'<tr><td colspan="6" style="padding:14px;color:#666">Nenhuma amostra.</td></tr>';
   pdfWin('PCP - '+l.nome,pdfHead(l.emoji+' '+l.nome,'SLA '+(SLA[lid]||1)+'d · '+dtHoje+' · próximas: '+proximas,tasks.length,'amostras')+'<table><thead><tr><th>Amostra</th><th>Caixa</th><th>Cliente</th><th>Entrega</th><th>Prazo interno</th><th>Prazo final</th></tr></thead><tbody>'+linhas+'</tbody></table>');
 }
@@ -864,7 +908,7 @@ function gerarPDFGeral(){
       '<td style="padding:6px 10px;font-size:11px">'+(sa?sa.emoji+' '+sa.nome:'--')+'</td>'+
       '<td style="padding:6px 10px;font-size:11px;color:#888">'+(prox?'→ '+prox.nome:'último')+'</td>'+
       '<td style="padding:6px 10px;text-align:center;font-size:11px">'+(p.dataEntrega?fD(p.dataEntrega):'--')+'</td>'+
-      '<td style="padding:6px 10px;text-align:center;font-weight:700;color:'+cor+';font-size:11px">'+dt+'</td></tr>';
+      '<td style="padding:6px 10px;text-align:center;font-weight:700;color:'+cor+';font-size:11px">'+dt+'</td></tr>'+pdfComentariosPedido(p,7);
   }).join('')||'<tr><td colspan="7" style="padding:14px;color:#666">Nenhuma amostra neste filtro.</td></tr>';
   var nsm=0;lista.forEach(function(p){nsm+=artesSemMatriz(p).length;});
   var subt=dtHoje+(rotFiltro?'  ·  filtro: '+rotFiltro:'')+(nsm>0?'  ·  ◇ = aguardando matriz ('+nsm+' caixa'+(nsm>1?'s':'')+')':'');
@@ -1233,7 +1277,7 @@ function dragScroll(id){
   document.addEventListener('mousemove',function(e){if(!isDown||!k)return;k.scrollLeft=scrollLeft-(e.clientX-startX);});
 })();
 
-setInterval(function(){if(API_KEY&&TOKEN)sincronizar();},3*60*1000);
+setInterval(function(){if(API_KEY&&TOKEN)sincronizar(true);},3*60*1000);
 init();
 </script>
 </body>
