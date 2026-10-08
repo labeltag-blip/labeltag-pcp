@@ -228,7 +228,7 @@ canvas{max-height:300px}
   <div class="topband-inner">
     <div class="brand">
       <span class="dot"></span>
-      <div><h1>Painel de Produção</h1><div class="sec">Setor Laser</div></div>
+      <div><h1>Painel de Produção</h1><div class="sec">Setor Laser</div><!-- VERSAO --><div style="font-size:10px;color:#8a94a2;letter-spacing:.3px;margin-top:1px">v1.0 · 08/10/2026 19:07</div></div>
     </div>
     <div class="ctrl"><label>Data</label><input type="date" id="dataDia"></div>
     <div class="ctrl"><label>Meta R$</label><input type="text" id="meta" class="mono" value="70.000"></div>
@@ -257,6 +257,7 @@ canvas{max-height:300px}
   <button class="tab" data-view="rnc">RNC</button>
   <button class="tab" data-view="obs">Observações</button>
   <button class="tab" data-view="rel">Relatórios</button>
+  <button class="tab" data-view="comp">Comparativo</button>
   <button class="tab" data-view="aba">Abandonos</button>
 </div>
 
@@ -538,6 +539,37 @@ canvas{max-height:300px}
         <tbody id="abaBody"><tr><td colspan="7" class="empty">Clique em "Atualizar" para carregar.</td></tr></tbody>
       </table>
     </div>
+  </div>
+</div>
+
+<div class="view" id="view-comp">
+  <div class="card dash-wide">
+    <h2>📊 COMPARATIVO MENSAL — faturamento e indicadores, mês a mês</h2>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:10px 0">
+      <button class="btn btn-primary" id="btnCompReload">Atualizar</button>
+      <button class="btn btn-ghost" id="btnCompCsv">Exportar CSV</button>
+      <span id="compResumo" style="font-size:13px;color:var(--ink2)"></span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Mês</th>
+          <th class="num">Lançamentos</th>
+          <th class="num">Total Pedidos</th>
+          <th class="num">Total Cortado</th>
+          <th class="num">Diferença</th>
+          <th class="num">% da Meta</th>
+          <th class="num">Dias na Meta</th>
+          <th class="num">Peças Cortadas</th>
+          <th class="num">RNC (qtd)</th>
+          <th class="num">RNC Perda</th>
+          <th class="num">Picote (cart.)</th>
+          <th class="num">Ocupação (h)</th>
+        </tr></thead>
+        <tbody id="compBody"><tr><td colspan="12" class="empty">Clique em "Atualizar" para carregar.</td></tr></tbody>
+      </table>
+    </div>
+    <div class="cfg-hint" style="margin-top:8px">Faturamento = Total Cortado (peças cortadas × valor, sem RNC/abandono). % da Meta medida sobre Total Pedidos. A meta vem da tabela <b>meta_diaria</b> do banco — altere lá quando precisar.</div>
   </div>
 </div>
 
@@ -1488,6 +1520,47 @@ $('#btnCsv').addEventListener('click',()=>{
   const a=document.createElement('a'); a.href=URL.createObjectURL(bl); a.download=`producao_laser_${curDate}.csv`; a.click();
 });
 
+/* ================= comparativo mensal ================= */
+let compDados=[];
+const MES_NOME=['','jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const mesLabel=m=>{ if(!m)return '—'; const p=String(m).split('-'); return (MES_NOME[+p[1]]||p[1])+'/'+p[0]; };
+async function loadComparativo(){
+  const tb=$('#compBody');
+  if(!_sb){ tb.innerHTML='<tr><td colspan="12" class="empty">Supabase não carregou.</td></tr>'; return; }
+  tb.innerHTML='<tr><td colspan="12" class="empty">Carregando…</td></tr>';
+  try{
+    const { data, error } = await _sb.rpc('comparativo_mensal');
+    if(error) throw error;
+    compDados=data||[];
+    if(!compDados.length){ tb.innerHTML='<tr><td colspan="12" class="empty">Sem dados.</td></tr>'; $('#compResumo').textContent=''; return; }
+    const dec1=n=>(+n||0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1});
+    tb.innerHTML=compDados.map(r=>{ const dif=+r.diferenca||0;
+      return `<tr>
+        <td><b>${mesLabel(r.mes)}</b></td>
+        <td class="num">${fmtInt(r.lancamentos)}</td>
+        <td class="num">${fmtBRL0(r.total_pedidos)}</td>
+        <td class="num">${fmtBRL0(r.total_cortado)}</td>
+        <td class="num" style="color:${dif>=0?'var(--pos)':'var(--neg)'}">${(dif>=0?'+':'−')+fmtBRL0(Math.abs(dif))}</td>
+        <td class="num">${dec1(r.pct_meta)}%</td>
+        <td class="num">${fmtInt(r.dias_meta)}</td>
+        <td class="num">${fmtInt(r.pecas_cortadas)}</td>
+        <td class="num">${fmtInt(r.rnc_qtd)}</td>
+        <td class="num">${fmtBRL0(r.rnc_perda)}</td>
+        <td class="num">${fmtInt(r.picote_cartelas)}</td>
+        <td class="num">${dec1(r.ocupacao_h)}</td>
+      </tr>`; }).join('');
+    $('#compResumo').textContent=`${compDados.length} ${compDados.length===1?'mês':'meses'}`;
+  }catch(err){ console.error('comparativo',err); tb.innerHTML='<tr><td colspan="12" class="empty" style="color:#c0392b">Erro ao carregar. Veja o console.</td></tr>'; }
+}
+function exportCompCsv(){
+  if(!compDados.length){ alert('Carregue o comparativo primeiro.'); return; }
+  const head=['Mes','Lancamentos','TotalPedidos','TotalCortado','Diferenca','PctMeta','DiasNaMeta','PecasCortadas','RNC_qtd','RNC_perda','Picote_cartelas','Ocupacao_h'];
+  const rows=compDados.map(r=>[r.mes,r.lancamentos,r.total_pedidos,r.total_cortado,r.diferenca,r.pct_meta,r.dias_meta,r.pecas_cortadas,r.rnc_qtd,r.rnc_perda,r.picote_cartelas,r.ocupacao_h].map(x=>`"${String(x??'')}"`).join(';'));
+  const csv=[head.join(';'),...rows].join('\n');
+  const bl=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(bl); a.download='comparativo_mensal_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+}
+
 /* ================= tabs / data / meta ================= */
 $$('.tab').forEach(t=>t.addEventListener('click',()=>{
   $$('.tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');
@@ -1496,9 +1569,12 @@ $$('.tab').forEach(t=>t.addEventListener('click',()=>{
   if(t.dataset.view==='rnc')loadRncHist();
   if(t.dataset.view==='obs')loadObsHist();
   if(t.dataset.view==='aba')loadAbaHist();
+  if(t.dataset.view==='comp')loadComparativo();
 }));
 $('#btnAbaReload')&&$('#btnAbaReload').addEventListener('click',loadAbaHist);
 $('#btnAbaCsv')&&$('#btnAbaCsv').addEventListener('click',exportAbaCsv);
+$('#btnCompReload')&&$('#btnCompReload').addEventListener('click',loadComparativo);
+$('#btnCompCsv')&&$('#btnCompCsv').addEventListener('click',exportCompCsv);
 $('#relTipo')&&$('#relTipo').addEventListener('change',relUpdateCampos);
 $('#relBuscar')&&$('#relBuscar').addEventListener('click',relBuscar);
 $('#relCsv')&&$('#relCsv').addEventListener('click',relExportCsv);
