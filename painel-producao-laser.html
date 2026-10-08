@@ -228,7 +228,7 @@ canvas{max-height:300px}
   <div class="topband-inner">
     <div class="brand">
       <span class="dot"></span>
-      <div><h1>Painel de Produção</h1><div class="sec">Setor Laser</div><!-- VERSAO --><div style="font-size:10px;color:#8a94a2;letter-spacing:.3px;margin-top:1px">v1.2 · 08/10/2026 19:33</div></div>
+      <div><h1>Painel de Produção</h1><div class="sec">Setor Laser</div><!-- VERSAO --><div style="font-size:10px;color:#8a94a2;letter-spacing:.3px;margin-top:1px">v1.3 · 08/10/2026 19:43</div></div>
     </div>
     <div class="ctrl"><label>Data</label><input type="date" id="dataDia"></div>
     <div class="ctrl"><label>Meta R$</label><input type="text" id="meta" class="mono" value="70.000"></div>
@@ -575,10 +575,14 @@ canvas{max-height:300px}
   <div class="card dash-wide" style="margin-top:14px">
     <h2>🕐 POR PERÍODO DO DIA E MÁQUINA</h2>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0">
-      <button class="btn btn-primary" id="btnPerSemana">Semana (7 dias)</button>
-      <button class="btn btn-ghost" id="btnPerMes">Mês (30 dias)</button>
+      <button class="btn btn-primary" id="btnPerSemana">Semana</button>
+      <button class="btn btn-ghost" id="btnPerMes">Mês</button>
       <button class="btn btn-ghost" id="btnPerDia">Dia</button>
       <input type="date" id="perDia" class="mono" style="padding:6px 8px">
+      <span style="width:1px;height:22px;background:#3a4150;margin:0 4px"></span>
+      <button class="btn btn-ghost" id="btnPerPeriodo">Período</button>
+      <label style="font-size:12px;color:var(--ink2)">De</label><input type="date" id="perDe" class="mono" style="padding:6px 8px">
+      <label style="font-size:12px;color:var(--ink2)">Até</label><input type="date" id="perAte" class="mono" style="padding:6px 8px">
       <span id="perResumo" style="font-size:13px;color:var(--ink2)"></span>
     </div>
     <div id="perResultado"><div class="cfg-hint">Clique em <b>Semana</b>, <b>Mês</b> ou escolha um <b>Dia</b>.</div></div>
@@ -1584,13 +1588,23 @@ function turnoByHour(ini){
   if(m>=911 && m<1276) return 'T2';
   return 'T3';
 }
-function setPerBtn(w){ const a=$('#btnPerSemana'), b=$('#btnPerMes'), c=$('#btnPerDia');
-  if(a)a.className='btn '+(w==='semana'?'btn-primary':'btn-ghost');
-  if(b)b.className='btn '+(w==='mes'?'btn-primary':'btn-ghost');
-  if(c)c.className='btn '+(w==='dia'?'btn-primary':'btn-ghost'); }
+function setPerBtn(w){ const map={semana:'#btnPerSemana',mes:'#btnPerMes',dia:'#btnPerDia',periodo:'#btnPerPeriodo'};
+  Object.keys(map).forEach(k=>{const el=$(map[k]); if(el)el.className='btn '+(k===w?'btn-primary':'btn-ghost');}); }
 function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-function loadPorPeriodo(dias){ loadPorPeriodoRange(ymd(new Date(Date.now()-(dias-1)*86400000)), todayStr()); }
+function daysInMonth(y,m){ return new Date(y,m,0).getDate(); }
+function shiftMesAtras(s){ const p=s.split('-'); let y=+p[0], m=+p[1], d=+p[2]; m-=1; if(m<1){m=12;y-=1;} const dm=daysInMonth(y,m); if(d>dm)d=dm; return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0'); }
+function loadSemana(){ const t=new Date(); const dow=(t.getDay()+6)%7; const seg=new Date(t.getTime()-dow*86400000); loadPorPeriodoRange(ymd(seg), todayStr()); }
+function loadMes(){ const t=new Date(); loadPorPeriodoRange(ymd(new Date(t.getFullYear(),t.getMonth(),1)), todayStr()); }
 function loadPorDia(){ const d=($('#perDia')&&$('#perDia').value)?$('#perDia').value:todayStr(); loadPorPeriodoRange(d,d); }
+function loadPeriodo(){ let de=$('#perDe')&&$('#perDe').value, ate=$('#perAte')&&$('#perAte').value; const t=new Date();
+  if(!de){ de=ymd(new Date(t.getFullYear(),t.getMonth(),1)); if($('#perDe'))$('#perDe').value=de; }
+  if(!ate){ ate=todayStr(); if($('#perAte'))$('#perAte').value=ate; }
+  if(de>ate){ const x=de; de=ate; ate=x; } loadPorPeriodoRange(de,ate); }
+async function sumFaturamento(de,ate){
+  const { data, error } = await _sb.from(TABLE).select('tipo,rnc,abandono,pecascort,valor').neq('status','excluido').gte('data',de).lte('data',ate);
+  if(error) throw error; let s=0;
+  (data||[]).forEach(r=>{ if(r.tipo!=='Picote'&&r.tipo!=='Amostras'&&!r.rnc&&!r.abandono) s+=(parseFloat(r.pecascort)||0)*(parseFloat(r.valor)||0); });
+  return s; }
 async function loadPorPeriodoRange(de,ate){
   const box=$('#perResultado');
   if(!_sb){ box.innerHTML='<div class="cfg-hint">Supabase não carregou.</div>'; return; }
@@ -1614,7 +1628,9 @@ async function loadPorPeriodoRange(de,ate){
       MQ[mq].fat+=fat; MQ[mq].hrs+=hrsSeg; MQ[mq].amo+=amoSeg;
       if(e.ini){ const h=parseInt(String(e.ini).split(':')[0],10); if(!isNaN(h)&&h>=0&&h<24)HR[h]+=fat; }
     });
-    perDados={TN,MQ,HR,nDias:(diasSet.size||1),de,ate,totFat,umDia:(de===ate)};
+    let prevFat=null;
+    try{ prevFat=await sumFaturamento(shiftMesAtras(de), shiftMesAtras(ate)); }catch(e){ console.error('prev',e); }
+    perDados={TN,MQ,HR,nDias:(diasSet.size||1),de,ate,totFat,prevFat,umDia:(de===ate)};
     renderPorPeriodo();
     $('#perResumo').textContent = de===ate
       ? de.split('-').reverse().join('/')
@@ -1622,8 +1638,11 @@ async function loadPorPeriodoRange(de,ate){
   }catch(err){ console.error('porperiodo',err); box.innerHTML='<div class="cfg-hint" style="color:#c0392b">Erro ao carregar. Veja o console.</div>'; }
 }
 function renderPorPeriodo(){
-  if(!perDados)return; const {TN,MQ,HR,nDias,totFat,umDia}=perDados;
-  const hi=`<div style="background:linear-gradient(135deg,#1b2432,#243041);border-radius:10px;padding:14px 18px;margin-bottom:14px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap"><div style="font-size:12px;letter-spacing:.5px;color:#8a94a2">FATURAMENTO ${umDia?'DO DIA':'DO PERÍODO'}</div><div style="font-size:30px;font-weight:800;color:#ff8a3d">${fmtBRL0(totFat)}</div></div>`;
+  if(!perDados)return; const {TN,MQ,HR,nDias,totFat,prevFat,umDia}=perDados;
+  let cmp='';
+  if(prevFat!=null){ const dpct=prevFat>0?((totFat-prevFat)/prevFat*100):null; const up=totFat>=prevFat;
+    cmp=`<div style="font-size:12px;color:#8a94a2;border-left:1px solid #3a4150;padding-left:14px">mês passado (mesmo período)<br><span style="font-size:16px;color:#c7cdd6;font-weight:700">${fmtBRL0(prevFat)}</span> ${dpct!=null?`<span style="color:${up?'#3ad07f':'#ff6a6a'};font-weight:700">${up?'▲':'▼'} ${Math.abs(dpct).toLocaleString('pt-BR',{maximumFractionDigits:1})}%</span>`:''}</div>`; }
+  const hi=`<div style="background:linear-gradient(135deg,#1b2432,#243041);border-radius:10px;padding:14px 18px;margin-bottom:14px;display:flex;align-items:center;gap:18px;flex-wrap:wrap"><div><div style="font-size:12px;letter-spacing:.5px;color:#8a94a2">FATURAMENTO ${umDia?'DO DIA':'DO PERÍODO'}</div><div style="font-size:30px;font-weight:800;color:#ff8a3d">${fmtBRL0(totFat)}</div></div>${cmp}</div>`;
   const rh=(fat,seg)=>seg>0?('R$ '+Math.round(fat/(seg/3600)).toLocaleString('pt-BR')):'—';
   const TLAB={T1:'1º turno (manhã)',T2:'2º turno (tarde)',T3:'3º turno (noite/madrugada)'};
   let h1=`<div class="cfg-hint" style="font-weight:700;margin:4px 0 6px">Por turno:</div><div class="tbl-wrap"><table><thead><tr><th>Turno</th><th class="num">Faturamento</th><th class="num">Horas</th><th class="num">R$/hora</th><th class="num">Tempo amostra</th></tr></thead><tbody>`;
@@ -1653,10 +1672,13 @@ $('#btnAbaReload')&&$('#btnAbaReload').addEventListener('click',loadAbaHist);
 $('#btnAbaCsv')&&$('#btnAbaCsv').addEventListener('click',exportAbaCsv);
 $('#btnCompReload')&&$('#btnCompReload').addEventListener('click',loadComparativo);
 $('#btnCompCsv')&&$('#btnCompCsv').addEventListener('click',exportCompCsv);
-$('#btnPerSemana')&&$('#btnPerSemana').addEventListener('click',()=>{setPerBtn('semana');loadPorPeriodo(7);});
-$('#btnPerMes')&&$('#btnPerMes').addEventListener('click',()=>{setPerBtn('mes');loadPorPeriodo(30);});
+$('#btnPerSemana')&&$('#btnPerSemana').addEventListener('click',()=>{setPerBtn('semana');loadSemana();});
+$('#btnPerMes')&&$('#btnPerMes').addEventListener('click',()=>{setPerBtn('mes');loadMes();});
 $('#btnPerDia')&&$('#btnPerDia').addEventListener('click',()=>{if($('#perDia')&&!$('#perDia').value)$('#perDia').value=todayStr();setPerBtn('dia');loadPorDia();});
 $('#perDia')&&$('#perDia').addEventListener('change',()=>{setPerBtn('dia');loadPorDia();});
+$('#btnPerPeriodo')&&$('#btnPerPeriodo').addEventListener('click',()=>{setPerBtn('periodo');loadPeriodo();});
+$('#perDe')&&$('#perDe').addEventListener('change',()=>{setPerBtn('periodo');loadPeriodo();});
+$('#perAte')&&$('#perAte').addEventListener('change',()=>{setPerBtn('periodo');loadPeriodo();});
 $('#relTipo')&&$('#relTipo').addEventListener('change',relUpdateCampos);
 $('#relBuscar')&&$('#relBuscar').addEventListener('click',relBuscar);
 $('#relCsv')&&$('#relCsv').addEventListener('click',relExportCsv);
