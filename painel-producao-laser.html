@@ -228,7 +228,7 @@ canvas{max-height:300px}
   <div class="topband-inner">
     <div class="brand">
       <span class="dot"></span>
-      <div><h1>Painel de Produção</h1><div class="sec">Setor Laser</div><!-- VERSAO --><div style="font-size:10px;color:#8a94a2;letter-spacing:.3px;margin-top:1px">v1.1 · 08/10/2026 19:27</div></div>
+      <div><h1>Painel de Produção</h1><div class="sec">Setor Laser</div><!-- VERSAO --><div style="font-size:10px;color:#8a94a2;letter-spacing:.3px;margin-top:1px">v1.2 · 08/10/2026 19:33</div></div>
     </div>
     <div class="ctrl"><label>Data</label><input type="date" id="dataDia"></div>
     <div class="ctrl"><label>Meta R$</label><input type="text" id="meta" class="mono" value="70.000"></div>
@@ -577,9 +577,11 @@ canvas{max-height:300px}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0">
       <button class="btn btn-primary" id="btnPerSemana">Semana (7 dias)</button>
       <button class="btn btn-ghost" id="btnPerMes">Mês (30 dias)</button>
+      <button class="btn btn-ghost" id="btnPerDia">Dia</button>
+      <input type="date" id="perDia" class="mono" style="padding:6px 8px">
       <span id="perResumo" style="font-size:13px;color:var(--ink2)"></span>
     </div>
-    <div id="perResultado"><div class="cfg-hint">Clique em <b>Semana</b> ou <b>Mês</b> para carregar.</div></div>
+    <div id="perResultado"><div class="cfg-hint">Clique em <b>Semana</b>, <b>Mês</b> ou escolha um <b>Dia</b>.</div></div>
     <div class="cfg-hint" style="margin-top:8px">Turno pela hora de início (1º 05:30–15:11 · 2º 15:11–21:16 · 3º 21:16–05:30). R$/hora = faturamento ÷ horas de produção. OPs sem hora de início ficam de fora do turno e do mapa de calor.</div>
   </div>
 </div>
@@ -1582,26 +1584,27 @@ function turnoByHour(ini){
   if(m>=911 && m<1276) return 'T2';
   return 'T3';
 }
-function setPerBtn(w){ const a=$('#btnPerSemana'), b=$('#btnPerMes'); if(!a||!b)return;
-  a.className='btn '+(w==='semana'?'btn-primary':'btn-ghost');
-  b.className='btn '+(w==='mes'?'btn-primary':'btn-ghost'); }
-async function loadPorPeriodo(dias){
+function setPerBtn(w){ const a=$('#btnPerSemana'), b=$('#btnPerMes'), c=$('#btnPerDia');
+  if(a)a.className='btn '+(w==='semana'?'btn-primary':'btn-ghost');
+  if(b)b.className='btn '+(w==='mes'?'btn-primary':'btn-ghost');
+  if(c)c.className='btn '+(w==='dia'?'btn-primary':'btn-ghost'); }
+function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function loadPorPeriodo(dias){ loadPorPeriodoRange(ymd(new Date(Date.now()-(dias-1)*86400000)), todayStr()); }
+function loadPorDia(){ const d=($('#perDia')&&$('#perDia').value)?$('#perDia').value:todayStr(); loadPorPeriodoRange(d,d); }
+async function loadPorPeriodoRange(de,ate){
   const box=$('#perResultado');
   if(!_sb){ box.innerHTML='<div class="cfg-hint">Supabase não carregou.</div>'; return; }
   box.innerHTML='<div class="cfg-hint">Carregando…</div>';
-  const ate=todayStr();
-  const d0=new Date(Date.now()-(dias-1)*86400000);
-  const de=d0.getFullYear()+'-'+String(d0.getMonth()+1).padStart(2,'0')+'-'+String(d0.getDate()).padStart(2,'0');
   try{
     const { data, error } = await _sb.from(TABLE).select('*').neq('status','excluido').gte('data',de).lte('data',ate);
     if(error) throw error;
     const es=(data||[]).map(r=>unflatten(r).entry);
     const TN={T1:{fat:0,hrs:0,amo:0},T2:{fat:0,hrs:0,amo:0},T3:{fat:0,hrs:0,amo:0}};
-    const MQ={}; const HR=new Array(24).fill(0); const diasSet=new Set();
+    const MQ={}; const HR=new Array(24).fill(0); const diasSet=new Set(); let totFat=0;
     es.forEach(e=>{
       if(e.data)diasSet.add(e.data);
       const faturavel=(e.tipo!=='Picote'&&e.tipo!=='Amostras'&&!e.rnc&&!e.abandono);
-      const fat=faturavel?(calcEntry(e).cortado||0):0;
+      const fat=faturavel?(calcEntry(e).cortado||0):0; totFat+=fat;
       const hrsSeg=(e.ini&&e.fim)?(e.tefSec||0):0;
       const amoSeg=(e.tipo==='Amostras'&&e.ini&&e.fim)?(e.tefSec||0):0;
       const tn=turnoByHour(e.ini);
@@ -1611,13 +1614,16 @@ async function loadPorPeriodo(dias){
       MQ[mq].fat+=fat; MQ[mq].hrs+=hrsSeg; MQ[mq].amo+=amoSeg;
       if(e.ini){ const h=parseInt(String(e.ini).split(':')[0],10); if(!isNaN(h)&&h>=0&&h<24)HR[h]+=fat; }
     });
-    perDados={TN,MQ,HR,nDias:(diasSet.size||1),de,ate};
+    perDados={TN,MQ,HR,nDias:(diasSet.size||1),de,ate,totFat,umDia:(de===ate)};
     renderPorPeriodo();
-    $('#perResumo').textContent=`${de.split('-').reverse().join('/')} a ${ate.split('-').reverse().join('/')} · ${diasSet.size||0} dias com registro`;
+    $('#perResumo').textContent = de===ate
+      ? de.split('-').reverse().join('/')
+      : `${de.split('-').reverse().join('/')} a ${ate.split('-').reverse().join('/')} · ${diasSet.size||0} dias com registro`;
   }catch(err){ console.error('porperiodo',err); box.innerHTML='<div class="cfg-hint" style="color:#c0392b">Erro ao carregar. Veja o console.</div>'; }
 }
 function renderPorPeriodo(){
-  if(!perDados)return; const {TN,MQ,HR,nDias}=perDados;
+  if(!perDados)return; const {TN,MQ,HR,nDias,totFat,umDia}=perDados;
+  const hi=`<div style="background:linear-gradient(135deg,#1b2432,#243041);border-radius:10px;padding:14px 18px;margin-bottom:14px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap"><div style="font-size:12px;letter-spacing:.5px;color:#8a94a2">FATURAMENTO ${umDia?'DO DIA':'DO PERÍODO'}</div><div style="font-size:30px;font-weight:800;color:#ff8a3d">${fmtBRL0(totFat)}</div></div>`;
   const rh=(fat,seg)=>seg>0?('R$ '+Math.round(fat/(seg/3600)).toLocaleString('pt-BR')):'—';
   const TLAB={T1:'1º turno (manhã)',T2:'2º turno (tarde)',T3:'3º turno (noite/madrugada)'};
   let h1=`<div class="cfg-hint" style="font-weight:700;margin:4px 0 6px">Por turno:</div><div class="tbl-wrap"><table><thead><tr><th>Turno</th><th class="num">Faturamento</th><th class="num">Horas</th><th class="num">R$/hora</th><th class="num">Tempo amostra</th></tr></thead><tbody>`;
@@ -1630,7 +1636,7 @@ function renderPorPeriodo(){
   for(let h=0;h<24;h++){const v=HR[h];const r=v/max;const col=`hsl(${Math.round(210-180*r)} ${Math.round(40+50*r)}% ${Math.round(85-35*r)}%)`;cells+=`<div title="${String(h).padStart(2,'0')}h — ${fmtBRL0(v)}" style="flex:1;height:38px;background:${col};border-radius:3px"></div>`;}
   let labels='';for(let h=0;h<24;h+=3){labels+=`<div style="flex:3;font-size:9px;color:var(--ink2);text-align:left">${String(h).padStart(2,'0')}h</div>`;}
   const h3=`<div class="cfg-hint" style="font-weight:700;margin:16px 0 6px">Mapa de calor — faturamento por hora do dia (mais quente = mais fatura):</div><div style="display:flex;gap:2px">${cells}</div><div style="display:flex;gap:2px;margin-top:3px">${labels}</div>`;
-  $('#perResultado').innerHTML=h1+h2+h3;
+  $('#perResultado').innerHTML=hi+h1+h2+h3;
 }
 
 /* ================= tabs / data / meta ================= */
@@ -1649,6 +1655,8 @@ $('#btnCompReload')&&$('#btnCompReload').addEventListener('click',loadComparativ
 $('#btnCompCsv')&&$('#btnCompCsv').addEventListener('click',exportCompCsv);
 $('#btnPerSemana')&&$('#btnPerSemana').addEventListener('click',()=>{setPerBtn('semana');loadPorPeriodo(7);});
 $('#btnPerMes')&&$('#btnPerMes').addEventListener('click',()=>{setPerBtn('mes');loadPorPeriodo(30);});
+$('#btnPerDia')&&$('#btnPerDia').addEventListener('click',()=>{if($('#perDia')&&!$('#perDia').value)$('#perDia').value=todayStr();setPerBtn('dia');loadPorDia();});
+$('#perDia')&&$('#perDia').addEventListener('change',()=>{setPerBtn('dia');loadPorDia();});
 $('#relTipo')&&$('#relTipo').addEventListener('change',relUpdateCampos);
 $('#relBuscar')&&$('#relBuscar').addEventListener('click',relBuscar);
 $('#relCsv')&&$('#relCsv').addEventListener('click',relExportCsv);
