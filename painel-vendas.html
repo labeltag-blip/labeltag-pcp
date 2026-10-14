@@ -42,6 +42,13 @@ header{border-bottom:3px solid var(--ink);padding:26px 0 18px;margin-bottom:8px;
 .chartbox{position:relative;height:340px}
 .aviso{background:#fff4e6;border:1px solid #f0c89a;color:#92400e;font-size:13px;padding:10px 14px;border-radius:8px;margin-bottom:18px}
 .nota{background:#eef6f5;border:1px solid #bcdcd7;color:#0f766e;font-size:12.5px;padding:10px 14px;border-radius:8px;margin-top:16px}
+/* faixas de atingimento — mesmas três em toda parte: <80% / 80-100% / 100%+ */
+.fx-ok {background:#e7f4ec;color:#15803d;font-weight:600}
+.fx-med{background:#fdf2e0;color:#9a5b12;font-weight:600}
+.fx-bad{background:#fbeaea;color:#b91c1c;font-weight:600}
+.legfaixa{display:flex;gap:18px;margin-top:12px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.legfaixa i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.legfaixa .fx-ok {background:#15803d}.legfaixa .fx-med{background:#c2761b}.legfaixa .fx-bad{background:#b91c1c}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
 th{font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
@@ -66,6 +73,7 @@ td.r,th.r{text-align:right}tr:hover td{background:#faf7f0}
 .st.perdido{background:#fde0e0;color:var(--alert)}.st.queda{background:#fdecd0;color:var(--amber)}
 tr.danger td{background:#fdf2f2}tr.danger:hover td{background:#fbe9e9}
 .dias{font-weight:700}.dias.ok{color:var(--accent2)}.dias.med{color:var(--amber)}.dias.bad{color:var(--alert)}
+.dias.muted{color:var(--muted)}
 .notes{font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:16px;margin-top:30px}.notes b{color:var(--ink)}.notes li{margin:5px 0 5px 18px}
 .ctrl{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
 .ctrl input,.ctrl select{font-family:'IBM Plex Sans',sans-serif;font-size:13px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
@@ -177,10 +185,10 @@ tr.danger td{background:#fdf2f2}tr.danger:hover td{background:#fbe9e9}
  <button class="tab" data-v="coh">Retenção</button>
  <button class="tab" data-v="saz">Sazonalidade</button>
  <button class="tab" data-v="afa">A Faturar</button>
- <button class="tab" data-v="fat">Faturamento</button>
- <button class="tab" data-v="met">Metas · Reps</button>
+ <button class="tab" data-v="fat">Entrada de pedidos</button>
+ <button class="tab" data-v="met">Representantes · trimestre</button>
  <button class="tab" data-v="rea">Realizado 26</button>
- <button class="tab" data-v="vnd">Vendedores</button>
+ <button class="tab" data-v="vnd">Time interno · mês</button>
  <button id="pdfBtn">⤓ Exportar PDF</button>
 </div>
 
@@ -202,7 +210,7 @@ tr.danger td{background:#fdf2f2}tr.danger:hover td{background:#fbe9e9}
  <div class="panel"><h2><span class="dot"></span>Resumo por ano</h2>
  <p class="desc">Visão executiva consolidada. A virada de 2024 marca o início da sua gestão.</p>
  <table><thead><tr><th>Ano</th><th class="r">Faturamento</th><th class="r">Entrada pedidos</th><th class="r">Clientes ativos</th><th class="r">Novos</th><th class="r">Perdidos</th><th class="r">Saldo</th><th class="r">Ticket médio</th></tr></thead><tbody id="tAnual"></tbody></table>
- <div class="nota"><b>Cuidado com os anos parciais:</b> 2022 começa em março e 2026 vai só até junho — por isso o "perdidos" de 2026 está inflado (muitos voltam no 2º semestre). "Novos" = primeira compra naquele ano · "Perdidos" = comprou no ano anterior e não voltou · jan/2024 usa o faturamento que você informou.</div></div>
+ <div class="nota"><b>Cuidado com os anos parciais:</b> 2022 começa em março e o ano corrente vai só até <b id="anoAte">—</b> — por isso o "perdidos" de 2026 está inflado (muitos voltam no 2º semestre). "Novos" = primeira compra naquele ano · "Perdidos" = comprou no ano anterior e não voltou · jan/2024 usa o faturamento que você informou.</div></div>
  <div class="panel"><h2><span class="dot"></span>Ganho × perda de clientes por ano</h2>
  <p class="desc">Barras pra cima = clientes novos · pra baixo = perdidos. Saldo positivo = carteira cresceu.</p>
  <div class="chartbox" style="height:300px"><canvas id="cAnual"></canvas></div></div>
@@ -327,13 +335,13 @@ tr.danger td{background:#fdf2f2}tr.danger:hover td{background:#fbe9e9}
 
 <!-- 6 FATURAMENTO -->
 <section class="view" id="fat">
- <div class="panel"><h2><span class="dot"></span>Faturamento mensal</h2>
- <p class="desc">Notas emitidas por mês. Linha tracejada = início da nova gestão (2024).</p>
+ <div class="panel"><h2><span class="dot"></span>Entrada de pedidos por mês</h2>
+ <p class="desc">O que os clientes pediram em cada mês, pela data de emissão do pedido. Linha tracejada = início da nova gestão (2024).</p>
  <div class="conc" id="fatKpi"></div>
  <div class="chartbox"><canvas id="cFat"></canvas></div>
- <div class="nota"><b>Como ler:</b> o faturamento de cada mês é o <b>acumulado lido no último print daquele mês</b>. Se o último print veio cedo (ex.: <b>out/2023</b>, capturado dia 06) ou o mês está em curso, o valor fica subdimensionado. <b>Jan/2024</b> foi preenchido manualmente (R$ 603.067,65), já que só havia 2 prints.</div></div>
- <div class="panel"><h2><span class="dot"></span>Faturamento anual e crescimento</h2>
- <p class="desc">Total por ano e variação sobre o ano anterior. Barras claras = anos parciais (não entram na conta de crescimento).</p>
+ <div class="nota"><b>Como ler:</b> cada barra soma os pedidos emitidos naquele mês, direto da Relação de Pedidos do Cigam. É o que entrou de trabalho, não o que virou nota — pedido e faturamento podem cair em meses diferentes. O <b>mês corrente</b> ainda está em curso e por isso fica fora da média.</div></div>
+ <div class="panel"><h2><span class="dot"></span>Entrada anual e crescimento</h2>
+ <p class="desc">Total de pedidos por ano e variação sobre o ano anterior. Barras claras = anos parciais (não entram na conta de crescimento).</p>
  <div class="chartbox" style="height:300px"><canvas id="cFatAno"></canvas></div>
  <table style="margin-top:18px"><thead><tr><th>Ano</th><th class="r">Faturamento</th><th class="r">Crescimento vs ano anterior</th></tr></thead><tbody id="tFatAno"></tbody></table>
  <div class="nota"><b>2022</b> (desde março) e <b>2026</b> (até junho) são parciais — o crescimento deles aparece em cinza, como não comparável. Os crescimentos confiáveis são os de <b>2024</b> e <b>2025</b>, anos cheios contra anos cheios.</div></div>
@@ -371,17 +379,18 @@ tr.danger td{background:#fdf2f2}tr.danger:hover td{background:#fbe9e9}
 <!-- METAS -->
 <section class="view" id="met">
  <div class="panel"><h2><span class="dot"></span>Metas por representante</h2>
- <p class="desc">Meta × realizado de cada vendedor, com % de atingimento. Fonte: a planilha de metas (aba Entradas 2026). Verde = bateu a meta (≥100%), amarelo = 70–99%, vermelho = abaixo de 70%.</p>
+ <p class="desc">Meta trimestral de cada praça × o que entrou de pedido nela, direto do Supabase (<b>vendas.metas</b>). Praça com mais de um representante soma os dois — é o caso da VR, Eduardo + Gustavo. Amostra não conta.</p>
  <div class="ctrl"><select id="metTri"></select></div>
  <div class="conc" id="metKpi"></div>
  <div id="metTempo" style="margin:14px 0 2px"></div>
  <div style="margin:18px 0;height:520px"><canvas id="cMet"></canvas></div>
  <div class="scrollbox"><table><thead><tr><th class="rank-pos">#</th><th>Representante</th><th class="r">Meta do tri</th><th class="r">Realizado</th><th class="r">% atingido</th><th>Progresso · ┃ = tempo decorrido</th></tr></thead><tbody id="metBody"></tbody></table></div>
- <div class="nota"><b>Leitura:</b> o 1º trimestre fechou acima da meta no total, mas com enorme dispersão — há reps a 300% (meta baixa demais) e outros a 0% (meta alta demais ou carteira parada). Isso sinaliza que as <b>metas precisam ser recalibradas por rep</b>, não definidas no mesmo patamar. O 2º trimestre ainda está em curso (junho em aberto), por isso o % aparece menor; veja a projeção no ritmo atual.</div></div>
+ <div class="legfaixa"><span><i class="fx-bad"></i>abaixo de 80%</span><span><i class="fx-med"></i>80 a 100%</span><span><i class="fx-ok"></i>bateu (100%+)</span></div>
+ <div class="nota"><b>Leitura:</b> a meta do representante é <b>esticada de propósito</b> — fica 20 a 25% acima da meta global da empresa, como estímulo de prospecção. Por isso ela <b>não fecha</b> com a meta global nem com a do time interno, e não deve ser usada para validar nenhuma das duas.<br>O que vale olhar aqui é a <b>dispersão</b>: praça a 300% tem meta baixa demais, praça a 0% tem meta alta demais ou carteira parada. Nos dois casos a meta não está cobrando nada.<br><b>Esta aba não soma com a do time interno.</b> O mesmo pedido entra nas duas réguas.</div></div>
 </section>
 <section class="view" id="rea">
  <div class="panel"><h2><span class="dot"></span>Realizado 2026 — representantes com meta</h2>
- <p class="desc">Somente vendas realizadas pelos vendedores/territórios com meta. Não inclui venda interna nem clientes sem representante. Fecha com as planilhas de metas. Verde = bateu a meta (≥100%), âmbar = 70–99%, vermelho = abaixo de 70%.</p>
+ <p class="desc">Somente vendas realizadas pelos vendedores/territórios com meta. Não inclui venda interna nem clientes sem representante. Fecha com as planilhas de metas. Verde = bateu (100%+), âmbar = 80 a 100%, vermelho = abaixo de 80%.</p>
  <div class="ctrl"><select id="reaPer"><option value="ano">2026 · Jan–Jun</option><option value="T1">1º trimestre</option><option value="T2">2º trimestre</option></select></div>
  <div class="conc" id="reaKpi"></div>
  <div style="margin:18px 0;height:300px"><canvas id="cReaMes"></canvas></div>
@@ -422,15 +431,16 @@ tr.danger td{background:#fdf2f2}tr.danger:hover td{background:#fbe9e9}
  <div class="nota">83% da receita está em <b>"Geral"</b> — clientes sem setor definido no Cigam. Entre os nichos classificados, <b>Fitness</b> lidera (volume e ticket alto), seguido de Esportivo e Moda casual. O ranking só fica completo quando os cadastros "Geral" forem classificados na fonte.</div></div>
 </section>
 
-<!-- VENDEDORES -->
+<!-- TIME INTERNO -->
 <section class="view" id="vnd">
- <div class="panel"><h2><span class="dot"></span>Vendedores — entradas oficiais</h2>
- <p class="desc">Ranking por vendedor interno, vindo da planilha de Entradas (fonte oficial). Cada vendedor ou vende direto (venda interna) ou responde por um representante externo. Filtre por ano, trimestre, canal e vendedor individual.</p>
- <div class="ctrl"><select id="vndAno"></select><select id="vndTri"></select><select id="vndCanal"></select><select id="vndPessoa"></select></div>
- <div class="conc" id="vndCanais"></div>
- <div style="margin:16px 0;height:420px"><canvas id="cVnd"></canvas></div>
- <div class="scrollbox"><table><thead><tr><th class="rank-pos">#</th><th>Vendedor</th><th>Canal / representante</th><th class="r">Receita</th></tr></thead><tbody id="vndBody"></tbody></table></div>
- <div class="nota">Fonte: abas "Entradas 2025/2026" da sua planilha. O 1º semestre de 2025 está incompleto na origem (vários vendedores só lançados a partir do meio do ano), então 2025 fica abaixo do total real de pedidos. Escolha um vendedor pra ver a evolução mês a mês no gráfico.</div></div>
+ <div class="panel"><h2><span class="dot"></span>Time interno — meta mensal</h2>
+ <p class="desc">Realizado da carteira de cada vendedor interno contra a <b>meta mensal</b> dele. Carteira = tudo que entra pelos representantes que ele atende, mais a venda direta. Amostra não conta. Esta aba <b>não</b> conversa com a de representantes: são duas réguas diferentes, e os totais nunca se somam.</p>
+ <div class="ctrl"><select id="vndPessoa"></select><select id="vndMes"></select></div>
+ <div class="conc" id="vndKpi"></div>
+ <div style="margin:18px 0;height:360px"><canvas id="cVnd"></canvas></div>
+ <div class="scrollbox"><table id="vndGrade"><thead><tr id="vndHead"></tr></thead><tbody id="vndBody"></tbody></table></div>
+ <div class="legfaixa"><span><i class="fx-bad"></i>abaixo de 80%</span><span><i class="fx-med"></i>80 a 100%</span><span><i class="fx-ok"></i>bateu (100%+)</span></div>
+ <div class="nota" id="vndNota"></div></div>
 </section>
 
 <div class="notes"><b>Notas</b>
@@ -532,10 +542,17 @@ const CFG = {
   cenario: {
     antes:  {label:'Gestão anterior · 2022–2023', de:2022, ate:2023},
     depois: {label:'Nova gestão (Daiano) · 2024–2026', de:2024, ate:2026}
-  }
+  },
+  // A partir de que mês o vínculo vendedor_interno de HOJE vale para apurar.
+  // A coluna guarda um valor só, sem data: usá-la em mês anterior credita à
+  // pessoa praças que então eram de outra. Em 2026 a estrutura virou para 3
+  // carteiras em SETEMBRO (a 4ª, de Leia e depois Brenda, foi redistribuída),
+  // então antes disso a apuração por interno não é válida.
+  // Quando o vínculo ganhar vigência (desde/ate), isto sai daqui.
+  vinculoVigenteDesde: { 2026: 9 }
 };
 
-function buildD({clientes, pedidos, representantes, faturamento, metas, hoje}) {
+function buildD({clientes, pedidos, representantes, faturamento, metas, metasInternos, metasGlobais, hoje}) {
   const HOJE = hoje ? new Date(hoje+'T12:00:00') : new Date();
   const ymd  = s => Number(String(s).slice(0,10).replace(/-/g,''));      // 2026-08-31 -> 20260831
   const dt   = s => new Date(String(s).slice(0,10)+'T12:00:00');
@@ -637,17 +654,39 @@ function buildD({clientes, pedidos, representantes, faturamento, metas, hoje}) {
 
   // ---------- faturamento / afaturar (vêm do BI, tabela própria) ----------
   const fatOrd = [...faturamento].sort((a,b)=>a.mes<b.mes?-1:1);
-  const serieFat = fatOrd.filter(f=>f.faturado!=null)
-    .map(f=>({mes:String(f.mes).slice(0,7), valor:Number(f.faturado)}));
-  const fechados = fatOrd.filter(f=>f.faturado!=null && !f.parcial);
+  // A série principal do painel é a ENTRADA DE PEDIDOS, somada dos próprios
+  // pedidos. Não depende de print do BI e não fica defasada.
+  const entMesSerie = {};
+  for (const p of pedidos) {
+    const k = String(p.emissao).slice(0,7);
+    entMesSerie[k] = (entMesSerie[k]||0) + Number(p.valor);
+  }
+  const serieFat = Object.keys(entMesSerie).sort()
+    .map(k=>({mes:k, valor:round2(entMesSerie[k])}));
+  // o mês corrente ainda está em curso: fica fora da média
+  const mesCorrente = String(maxD).slice(0,4)+'-'+String(maxD).slice(4,6);
+  const fechadosS = serieFat.filter(x=>x.mes!==mesCorrente);
+  const melhor = serieFat.reduce((a,b)=>b.valor>a.valor?b:a, {mes:'—',valor:0});
   const faturamento_ = {
     serie: serieFat,
     total: round2(serieFat.reduce((s,x)=>s+x.valor,0)),
-    media: fechados.reduce((s,f)=>s+Number(f.faturado),0)/(fechados.length||1),
-    jan24: Number((fatOrd.find(f=>String(f.mes).slice(0,7)==='2024-01')||{}).faturado)||0
+    media: fechadosS.reduce((s,x)=>s+x.valor,0)/(fechadosS.length||1),
+    melhorMes: melhor.mes, melhorVal: round2(melhor.valor)
   };
+  // ENTRADA = o que entrou de pedido no mês, somado dos próprios pedidos.
+  // Não usamos mais a coluna 'entrada' do BI: ela depende de quando o print
+  // foi tirado (agosto estava com R$ 759 mil em vez de R$ 1,1 mi) e exclui
+  // pedidos por um critério que o relatório não mostra. Quem administra a
+  // produção precisa do pedido que entrou, não do recorte do BI.
+  // 'faturado' e 'atraso' continuam vindo do BI — são nota fiscal, não pedido.
+  const entMes = {};
+  for (const p of pedidos) {
+    const k = String(p.emissao).slice(0,7);
+    entMes[k] = (entMes[k]||0) + Number(p.valor);
+  }
   const serieAF = fatOrd.map(f=>({mes:String(f.mes).slice(0,7),
-    atraso:Number(f.atraso_medio)||0, faturado:Number(f.faturado)||0, entrada:Number(f.entrada)||0}));
+    atraso:Number(f.atraso_medio)||0, faturado:Number(f.faturado)||0,
+    entrada:round2(entMes[String(f.mes).slice(0,7)]||0)}));
   let pico={atraso:0,mes:''}; serieAF.forEach(x=>{ if(x.atraso>pico.atraso) pico={atraso:x.atraso,mes:x.mes}; });
   const afaturar = { serie: serieAF, atual: serieAF.length?serieAF[serieAF.length-1].atraso:0,
     media: kpis.atraso_med, pico: pico.atraso, pico_data: pico.mes };
@@ -844,6 +883,71 @@ function buildD({clientes, pedidos, representantes, faturamento, metas, hoje}) {
       }).sort((a,b)=>b.meta-a.meta) };
   });
 
+  // ---------- time interno: meta MENSAL × carteira ----------
+  // Camada separada da dos representantes, de propósito. O rep tem meta
+  // trimestral esticada (20-25% acima da global, estímulo de prospecção);
+  // o interno tem meta mensal realista, que fecha com a meta global.
+  // O MESMO pedido entra nas duas — os totais nunca se somam.
+  const MESNOME=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const internos = (()=>{
+    const MI=metasInternos||[], MG=metasGlobais||[];
+    if(!MI.length) return {ano:anoAtual, ausente:true, pessoas:[], meses:[], global:[]};
+    const ano = Math.max(...MI.map(m=>+m.ano));
+    // quem atende quem, pela coluna vendedor_interno do representante
+    const deQuem={};
+    representantes.forEach(r=>{ if(r.vendedor_interno) deQuem[r.cod]=String(r.vendedor_interno).toUpperCase(); });
+    // realizado por interno e mês (só venda, amostra fora)
+    const real={};
+    for(const p of pedidos){
+      if(String(p.emissao).slice(0,4)!=String(ano)) continue;
+      if(p.amostra===true || (p.amostra==null && Number(p.valor)<1)) continue;
+      const quem=deQuem[p.rep_cod]; if(!quem) continue;
+      (real[quem] ||= Array(12).fill(0))[+String(p.emissao).slice(5,7)-1]+=Number(p.valor);
+    }
+    // metas por pessoa e mês
+    const meta={};
+    MI.filter(m=>+m.ano===ano).forEach(m=>{
+      (meta[String(m.interno).toUpperCase()] ||= Array(12).fill(null))[+m.mes-1]=Number(m.meta);
+    });
+    // vendedor_interno é UM campo, sem vigência: é a foto de hoje. Aplicá-la a
+    // um mês antigo credita à pessoa praças que naquele mês eram de outra — foi
+    // o que fez o Ezequiel aparecer com 1.629% em abril. Só se apura a partir do
+    // mês em que o vínculo atual passou a valer; antes disso mostra o realizado
+    // mas não calcula %, porque seria número inventado.
+    const CORTE = (CFG.vinculoVigenteDesde && +CFG.vinculoVigenteDesde[ano]) || 1;
+    // Mês em curso: o último com pedido, quando a última emissão não chegou ao
+    // fim do mês. Sem isso, meio mês de outubro conta como meta perdida.
+    let parcial=null, pctTempo=0;
+    { const ult=String(maxD);                                  // AAAAMMDD
+      if(+ult.slice(0,4)===ano){
+        const mi=+ult.slice(4,6)-1, dia=+ult.slice(6,8);
+        const noMes=new Date(ano,mi+1,0).getDate();
+        if(dia<noMes){ parcial=mi; pctTempo=round2(dia/noMes*100); } } }
+    const nomes=[...new Set([...Object.keys(meta),...Object.keys(real)])].sort();
+    const pessoas=nomes.map(nm=>{
+      const mt=meta[nm]||Array(12).fill(null), rl=real[nm]||Array(12).fill(0);
+      const temCarteira = Object.values(deQuem).includes(nm);
+      // mês apurável: dentro da vigência, com meta, e a pessoa tem carteira hoje
+      const apur = i => i>=CORTE-1 && mt[i]!=null && temCarteira && rl[i]>0;
+      const av=[...Array(12).keys()].filter(i=>apur(i) && i!==parcial);
+      return {nome:nm.charAt(0)+nm.slice(1).toLowerCase(),
+        meta:mt, real:rl.map(round2), temCarteira, corte:CORTE,
+        pct:mt.map((m,i)=>apur(i)?round2(rl[i]/m*100):null),
+        bateu:av.filter(i=>rl[i]>=mt[i]).length, avaliados:av.length,
+        totMeta:round2(av.reduce((s,i)=>s+mt[i],0)),
+        totReal:round2(av.reduce((s,i)=>s+rl[i],0))};
+    });
+    const glob=Array(12).fill(null);
+    MG.filter(m=>+m.ano===ano).forEach(m=>{ glob[+m.mes-1]=Number(m.meta); });
+    const soma=Array(12).fill(0).map((_,i)=>round2(pessoas.reduce((s,p)=>s+p.real[i],0)));
+    const somaMeta=Array(12).fill(0).map((_,i)=>{
+      const v=pessoas.map(p=>p.meta[i]).filter(x=>x!=null);
+      return v.length?round2(v.reduce((a,b)=>a+b,0)):null;});
+    return {ano, ausente:false, pessoas, meses:MESNOME, global:glob, soma, somaMeta,
+            corte:CORTE, parcial, pctTempo,
+            semCarteira:pessoas.filter(p=>!p.temCarteira).map(p=>p.nome)};
+  })();
+
   // ---------- clientes cadastrados sem nenhuma venda ----------
   const semvenda = semPedido
     .map(c=>({cod:c.cod, uf:c.uf, nm:c.nm, razao:c.razao, fant:c.fant, cnpj:c.cnpj, sg:c.sg, rep:c.rep, sit:c.sit||''}));
@@ -859,7 +963,7 @@ function buildD({clientes, pedidos, representantes, faturamento, metas, hoje}) {
     .sort((a,b)=>b.valor-a.valor);
   return {kpis, crescimento, carteira, risco, concentracao, afaturar, encerradosLista,
           faturamento: faturamento_, anual, clientes: comPedido, estados, cenario,
-          recorrencia, metas:{trimestres}, vend, repmap, entradas, semvenda};
+          recorrencia, metas:{trimestres}, internos, vend, repmap, entradas, semvenda};
 }
 
 
@@ -944,13 +1048,16 @@ document.getElementById('inat').innerHTML=`
  <div class="c down"><div class="t">Inativos +6 meses<\/div><div class="n">${IN.m6.n}<\/div><div class="v">${BRL0(IN.m6.valor)} parados<\/div><\/div>
  <div class="c down"><div class="t">Inativos +9 meses<\/div><div class="n">${IN.m9.n}<\/div><div class="v">${BRL0(IN.m9.valor)} parados<\/div><\/div>`;
 function nPed(c){return Object.values(c.a).reduce((s,x)=>s+x[1],0);}
-function statusDe(d){return d<=90?['Ativo','ok']:(d<=180?['Esfriando','med']:['Inativo','bad']);}
+function statusDe(d){if(d==null)return['—','muted'];
+ return d<=90?['Ativo','ok']:(d<=180?['Esfriando','med']:['Inativo','bad']);}
 function renderRis(){
  const q=document.getElementById('risBusca').value.trim().toUpperCase();
  const st=document.getElementById('risStatus').value, uf=document.getElementById('risUf').value, sgF=document.getElementById('risSeg').value;
  const deS=document.getElementById('risDe').value, ateS=document.getElementById('risAte').value;
  const de=diNum(deS), ate=diNum(ateS);
- let list=D.clientes;
+ // quem só recebeu amostra nunca comprou, e o encerrado já saiu da carteira:
+ // nenhum dos dois está "em risco".
+ let list=D.clientes.filter(c=>c.seg!=='Só amostra' && c.sit!=='encerrado' && c.d!=null);
  if(q)list=list.filter(c=>c.nm.toUpperCase().includes(q));
  if(uf)list=list.filter(c=>c.uf===uf);
  if(sgF)list=list.filter(c=>c.sg===sgF);
@@ -1020,14 +1127,14 @@ new Chart(cAtr,{type:'line',data:{labels:AF.serie.map(s=>s.mes),datasets:[{label
 // 6 faturamento
 const FT=D.faturamento;
 document.getElementById('fatKpi').innerHTML=`
- <div><div class="b">${BRL0(FT.total)}<\/div><div class="s">Faturado no período (aprox.)<\/div><\/div>
- <div><div class="b">${BRL0(FT.media)}<\/div><div class="s">Média mensal<\/div><\/div>
+ <div><div class="b">${BRL0(FT.total)}<\/div><div class="s">Entrada no período<\/div><\/div>
+ <div><div class="b">${BRL0(FT.media)}<\/div><div class="s">Média mensal (meses fechados)<\/div><\/div>
  <div><div class="b">${FT.serie.length}<\/div><div class="s">Meses<\/div><\/div>
- <div><div class="b">${BRL0(FT.jan24)}<\/div><div class="s">Jan/2024 (manual)<\/div><\/div>`;
-new Chart(cFat,{type:'line',data:{labels:FT.serie.map(s=>s.mes),datasets:[{label:'Faturamento mensal',data:FT.serie.map(s=>s.valor),borderColor:'#0f766e',backgroundColor:'rgba(15,118,110,.08)',fill:true,tension:.3,pointRadius:2,borderWidth:2}]},options:{...baseOpt,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{family:'IBM Plex Mono',size:9},maxRotation:90,minRotation:90}},y:{ticks:{font:{family:'IBM Plex Mono',size:10},callback:v=>(v/1000)+'k'}}}},plugins:[MARCO('2024-01','▸ Nova gestão')]});
+ <div><div class="b">${BRL0(FT.melhorVal)}<\/div><div class="s">Melhor mês · ${FT.melhorMes}<\/div><\/div>`;
+new Chart(cFat,{type:'line',data:{labels:FT.serie.map(s=>s.mes),datasets:[{label:'Entrada de pedidos',data:FT.serie.map(s=>s.valor),borderColor:'#0f766e',backgroundColor:'rgba(15,118,110,.08)',fill:true,tension:.3,pointRadius:2,borderWidth:2}]},options:{...baseOpt,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{family:'IBM Plex Mono',size:9},maxRotation:90,minRotation:90}},y:{ticks:{font:{family:'IBM Plex Mono',size:10},callback:v=>(v/1000)+'k'}}}},plugins:[MARCO('2024-01','▸ Nova gestão')]});
 
 // faturamento anual + crescimento %
-const anosF=D.anual.linhas.map(r=>({ano:r.ano,fat:r.fat,parc:!!D.anual.parciais[r.ano]}));
+const anosF=D.anual.linhas.map(r=>({ano:r.ano,fat:r.entrada,parc:!!D.anual.parciais[r.ano]}));
 anosF.forEach((r,i)=>{if(i>0){r.cr=(r.fat/anosF[i-1].fat-1)*100;r.comp=!r.parc&&!anosF[i-1].parc;}});
 new Chart(cFatAno,{type:'bar',data:{labels:anosF.map(r=>r.ano),datasets:[{data:anosF.map(r=>r.fat),backgroundColor:anosF.map(r=>r.parc?'#d8b89a':'#0f766e')}]},options:{...baseOpt,plugins:{legend:{display:false}}}});
 document.getElementById('tFatAno').innerHTML=anosF.map(r=>{
@@ -1100,7 +1207,7 @@ function renderCli(){
  const tot=rows.reduce((s,r)=>s+r.val,0);
  const nsem=rows.filter(r=>r.sv).length, ncom=rows.length-nsem;
  document.getElementById('cliInfo').textContent=`${rows.length.toLocaleString('pt-BR')} clientes${nsem?` (${ncom.toLocaleString('pt-BR')} com vendas · ${nsem.toLocaleString('pt-BR')} sem compras)`:''} · ${BRL0(tot)}${perTxt(deS,ateS)}`;
- document.getElementById('cliBody').innerHTML=rows.map((r,i)=>`<tr${r.sv?' style="opacity:.6"':''}><td class="rank-pos">${i+1}<\/td><td class="num" style="color:var(--muted)">${r.cod}<\/td><td>${r.fant||r.nm}${r.razao&&r.razao.toUpperCase()!==(r.fant||r.nm).toUpperCase()?`<br><span style="font-size:11px;color:var(--muted)">${r.razao}<\/span>`:''}<\/td><td>${r.uf}<\/td><td>${r.sg}<\/td><td class="r num">${r.sv?'<span style="color:var(--muted)">sem compras<\/span>':BRL(r.val)}<\/td><td class="r num">${r.sv?'—':r.n}<\/td><td class="r num">${r.sv||!tot?'—':(r.val/tot*100).toFixed(2)}<\/td><td class="r num">${r.sv?'—':(filtra?'—':r.u)}<\/td><td class="r num">${r.sv?'—':(filtra?'—':r.d)}<\/td><\/tr>`).join('');
+ document.getElementById('cliBody').innerHTML=rows.map((r,i)=>`<tr${r.sv?' style="opacity:.6"':''}><td class="rank-pos">${i+1}<\/td><td class="num" style="color:var(--muted)">${r.cod}<\/td><td>${r.fant||r.nm}${r.razao&&r.razao.toUpperCase()!==(r.fant||r.nm).toUpperCase()?`<br><span style="font-size:11px;color:var(--muted)">${r.razao}<\/span>`:''}<\/td><td>${r.uf}<\/td><td>${r.sg}<\/td><td class="r num">${r.sv?'<span style="color:var(--muted)">sem compras<\/span>':BRL(r.val)}<\/td><td class="r num">${r.sv?'—':r.n}<\/td><td class="r num">${r.sv||!tot?'—':(r.val/tot*100).toFixed(2)}<\/td><td class="r num">${r.sv?'—':(filtra?'—':(r.u||'<span style="color:var(--muted)">só amostra<\/span>'))}<\/td><td class="r num">${r.sv||r.d==null?'—':(filtra?'—':r.d)}<\/td><\/tr>`).join('');
 }
 document.getElementById('cliBusca').oninput=renderCli;
 document.getElementById('cliFonte').onchange=renderCli;
@@ -1240,12 +1347,18 @@ renderSaz();
  sel.innerHTML=MT.map((t,i)=>`<option value="${i}">${t.label}${t.emCurso?' (em curso)':''}<\/option>`).join('')+'<option value="all">Acumulado · Jan–Jun<\/option>';
  sel.value=MT.length-1;
  let chart=null;
- const cor=p=>p>=100?'#0f766e':(p>=70?'#c2761b':'#b91c1c');
+ const cor=p=>p>=100?'#15803d':(p>=80?'#c2761b':'#b91c1c');
  function agg(){const m={};MT.forEach(t=>t.reps.forEach(r=>{m[r.rep]=m[r.rep]||{rep:r.rep,meta:0,real:0,m:[]};m[r.rep].meta+=r.meta;m[r.rep].real+=r.real;m[r.rep].m=m[r.rep].m.concat(r.m);}));return {id:'ALL',label:'Acumulado',meses:['Jan','Fev','Mar','Abr','Mai','Jun'],emCurso:true,reps:Object.values(m)};}
  function render(){
   const t=sel.value==='all'?agg():MT[+sel.value];
-  const DT={T1:['2026-01-01','2026-03-31'],T2:['2026-04-01','2026-06-30'],ALL:['2026-01-01','2026-06-30']};
-  const per=DT[t.id]||DT.ALL, dIni=new Date(per[0]+'T00:00:00'), dFim=new Date(per[1]+'T23:59:59'), hoje=new Date();
+  // Período derivado do próprio trimestre. Antes era uma tabela que só ia até
+  // junho, então T3 e T4 exibiam "01/01 a 30/06" — data errada no rodapé.
+  const ANO=(D.internos&&D.internos.ano)||new Date().getFullYear();
+  const ti=+String(t.id).replace(/\D/g,'')||1, m0=(ti-1)*3;
+  const p2=n=>String(n).padStart(2,'0');
+  const fimMes=new Date(ANO,m0+3,0).getDate();
+  const per=[`${ANO}-${p2(m0+1)}-01`,`${ANO}-${p2(m0+3)}-${p2(fimMes)}`];
+  const dIni=new Date(per[0]+'T00:00:00'), dFim=new Date(per[1]+'T23:59:59'), hoje=new Date();
   const totDias=Math.round((dFim-dIni)/864e5)+1;
   let restam=Math.ceil((dFim-hoje)/864e5); if(restam<0)restam=0; if(restam>totDias)restam=totDias;
   let pctTempo=(1-restam/totDias)*100; if(pctTempo<0)pctTempo=0; if(pctTempo>100)pctTempo=100;
@@ -1304,8 +1417,15 @@ renderSaz();
  const cliOI25=colCli[13].size, dCli=cliOI25?(cliAtual/cliOI25-1)*100:0;
  let inter=0; colCli[17].forEach(x=>{if(colCli[16].has(x))inter++;});
  const ret=colCli[16].size?inter/colCli[16].size*100:0;
- const t2=D.metas.trimestres[1], mMeta=t2.reps.reduce((s,r)=>s+r.meta,0), mReal=t2.reps.reduce((s,r)=>s+r.real,0), mPct=mMeta?mReal/mMeta*100:0;
- const dFim=new Date('2026-06-30T23:59:59'); let restam=Math.ceil((dFim-H)/864e5); if(restam<0)restam=0;
+ // último trimestre cadastrado, não o segundo: com só um trimestre no banco
+ // o índice fixo [1] era undefined e derrubava a aba inteira.
+ const TT=(D.metas&&D.metas.trimestres)||[];
+ const t2=TT.length?(TT.find(t=>t.emCurso)||TT[TT.length-1]):{reps:[]};
+ const mMeta=t2.reps.reduce((s,r)=>s+r.meta,0), mReal=t2.reps.reduce((s,r)=>s+r.real,0), mPct=mMeta?mReal/mMeta*100:0;
+ // fim do trimestre em curso, em vez de 30/06 fixo
+ const _a=(D.internos&&D.internos.ano)||new Date().getFullYear();
+ const _t=+String((t2&&t2.id)||'T1').replace(/\D/g,'')||1;
+ const dFim=new Date(_a,_t*3,0,23,59,59); let restam=Math.ceil((dFim-H)/864e5); if(restam<0)restam=0;
  const ord=D.clientes.slice().sort((a,b)=>b.t-a.t), totRec=ord.reduce((s,c)=>s+c.t,0);
  const top10=ord.slice(0,10).reduce((s,c)=>s+c.t,0)/totRec*100;
  const inat=D.clientes.filter(c=>c.d>180), inatR=inat.reduce((s,c)=>s+c.t,0);
@@ -1314,7 +1434,7 @@ renderSaz();
  for(const c of D.clientes){if(!c.p.length)continue;const cs=new Set(c.p.map(a=>_ci(a[0])));const n3=[14,15,16].filter(k=>cs.has(k)).length;if(n3>=2&&!cs.has(17)){parados++;paradosR+=c.t;}}
  const perda=D.carteira.perdas[0], afat=D.afaturar.atual;
  const card=(b,s,cor)=>`<div><div class="b"${cor?` style="color:${cor}"`:''}>${b}<\/div><div class="s">${s}<\/div><\/div>`;
- const corM=p=>p>=100?'#0f766e':(p>=70?'#c2761b':'#b91c1c');
+ const corM=p=>p>=100?'#15803d':(p>=80?'#c2761b':'#b91c1c');
  const corR=p=>p>=60?'#0f766e':(p>=45?'#c2761b':'#b91c1c');
  const sg=v=>(v>=0?'+':'')+v.toFixed(0)+'%';
  document.getElementById('indResultado').innerHTML='<div class="conc">'+
@@ -1334,41 +1454,127 @@ renderSaz();
  new Chart(document.getElementById('cInd'),{type:'line',data:{labels:COLN9,datasets:[{label:'Entrada por trimestre',data:colRec.map(x=>Math.round(x)),borderColor:'#0f766e',backgroundColor:'rgba(15,118,110,.10)',fill:true,tension:.3,pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>BRL0(c.parsed.y)+(c.dataIndex===17?' (parcial)':'')}}},scales:{y:{ticks:{callback:v=>'R$ '+(v/1e6).toFixed(1)+'M'}}}}});
 })();
 
-// ===== Vendedores: entradas oficiais =====
+// ===== Time interno: meta MENSAL × carteira =====
 (function(){
- const E=D.entradas;
- const selAno=document.getElementById('vndAno'), selTri=document.getElementById('vndTri'), selCanal=document.getElementById('vndCanal'), selP=document.getElementById('vndPessoa');
- const anos=Object.keys(E).sort().reverse();
- selAno.innerHTML=anos.map(a=>`<option>${a}<\/option>`).join('');
- selTri.innerHTML='<option value="">Ano todo<\/option>'+[1,2,3,4].map(t=>`<option value="${t}">${t}º tri<\/option>`).join('');
- selCanal.innerHTML='<option value="">Todos os canais<\/option><option value="int">Só venda interna<\/option><option value="ext">Só via representante<\/option>';
- const pessoas=[...new Set(anos.flatMap(a=>Object.keys(E[a])))].sort();
- selP.innerHTML='<option value="">Todos os vendedores<\/option>'+pessoas.map(p=>`<option>${p}<\/option>`).join('');
+ const I=D.internos||{};
  const MES=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
- const card=(b,s,cor)=>`<div><div class="b"${cor?` style="color:${cor}"`:''}>${b}<\/div><div class="s">${s}<\/div><\/div>`;
- let chart=null;
- function render(){
-  const ano=selAno.value, tri=selTri.value, canal=selCanal.value, pessoa=selP.value;
-  const dados=E[ano]||{};
-  const meses=tri?[(tri-1)*3,(tri-1)*3+1,(tri-1)*3+2]:[0,1,2,3,4,5,6,7,8,9,10,11];
-  let lista=[], ti=0, te=0;
-  for(const v in dados){const o=dados[v]; const rec=meses.reduce((s,k)=>s+(o.m[k]||0),0); if(o.tipo==='int')ti+=rec; else te+=rec; if(canal&&o.tipo!==canal)continue; if(rec>0)lista.push({v,rep:o.rep,tipo:o.tipo,rec});}
-  lista.sort((a,b)=>b.rec-a.rec);
-  const tot=ti+te||1;
-  document.getElementById('vndCanais').innerHTML='<div class="conc">'+
-    card((te/tot*100).toFixed(0)+'%',`Via representantes · ${BRL0(te)}`)+
-    card((ti/tot*100).toFixed(0)+'%',`Venda interna direta · ${BRL0(ti)}`,'#0f766e')+
-    card(BRL0(ti+te),'Total de entradas no período')+'<\/div>';
-  document.getElementById('vndBody').innerHTML=lista.map((r,i)=>`<tr><td class="rank-pos">${i+1}<\/td><td>${r.v}<\/td><td>${r.tipo==='int'?'<span style="color:#0f766e">venda interna<\/span>':r.rep}<\/td><td class="r num">${BRL0(r.rec)}<\/td><\/tr>`).join('')||'<tr><td colspan="4" style="color:var(--muted);padding:10px">sem dados<\/td><\/tr>';
-  if(chart)chart.destroy();
-  if(pessoa&&dados[pessoa]){
-   chart=new Chart(document.getElementById('cVnd'),{type:'bar',data:{labels:MES,datasets:[{label:pessoa,data:dados[pessoa].m.map(x=>Math.round(x)),backgroundColor:'#0f766e'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},title:{display:true,text:pessoa+' — '+ano+' (mês a mês)'},tooltip:{callbacks:{label:c=>BRL0(c.parsed.y)}}},scales:{y:{ticks:{callback:v=>'R$ '+(v/1000)+'k'}}}}});
-  } else {
-   const top=lista.slice(0,15);
-   chart=new Chart(document.getElementById('cVnd'),{type:'bar',data:{labels:top.map(r=>r.v),datasets:[{label:'Receita',data:top.map(r=>Math.round(r.rec)),backgroundColor:top.map(r=>r.tipo==='int'?'#0f766e':'#c2761b')}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},title:{display:true,text:'Ranking de vendedores — '+ano+(tri?' · '+tri+'º tri':' (ano)')},tooltip:{callbacks:{label:c=>BRL0(c.parsed.x)}}},scales:{x:{ticks:{callback:v=>'R$ '+(v/1000)+'k'}}}}});
-  }
+ const selP=document.getElementById('vndPessoa'), selM=document.getElementById('vndMes');
+ const nota=document.getElementById('vndNota');
+
+ if(I.ausente || !I.pessoas || !I.pessoas.length){
+   document.getElementById('vndKpi').innerHTML='';
+   document.getElementById('vndBody').innerHTML=
+     '<tr><td style="padding:14px;color:var(--muted)">Sem metas mensais cadastradas.<\/td><\/tr>';
+   nota.innerHTML='A tabela <b>vendas.metas_internos<\/b> ainda não existe ou está vazia. '+
+     'Rode o <b>19_metas_mensais_internos.sql<\/b> no Supabase e recarregue.';
+   selP.style.display=selM.style.display='none';
+   return;
  }
- [selAno,selTri,selCanal,selP].forEach(s=>s.onchange=render);
+
+ // meses que têm meta de alguém — é o alcance da grade
+ const temMeta=[...Array(12).keys()].filter(i=>I.pessoas.some(p=>p.meta[i]!=null));
+ selP.innerHTML='<option value="">Todo o time<\/option>'+
+   I.pessoas.map(p=>`<option>${p.nome}<\/option>`).join('');
+ selM.innerHTML='<option value="">Todos os meses<\/option>'+
+   temMeta.map(i=>`<option value="${i}">${MES[i]}<\/option>`).join('');
+
+ const card=(b,s,cor)=>`<div><div class="b"${cor?` style="color:${cor}"`:''}>${b}<\/div><div class="s">${s}<\/div><\/div>`;
+ // faixas combinadas com a aba de representantes
+ const fx = p => p==null ? '' : (p>=100 ? 'fx-ok' : (p>=80 ? 'fx-med' : 'fx-bad'));
+ const COR = p => p==null ? '#d9d9d4' : (p>=100 ? '#15803d' : (p>=80 ? '#c2761b' : '#b91c1c'));
+ let chart=null;
+
+ function render(){
+  const pessoa=selP.value, mesSel=selM.value===''?null:+selM.value;
+  const alvo = pessoa ? I.pessoas.filter(p=>p.nome===pessoa) : I.pessoas;
+  const meses = mesSel==null ? temMeta : [mesSel];
+
+  // KPIs do recorte
+  let mt=0, rl=0, bat=0, av=0, parc=0;
+  alvo.forEach(p=>meses.forEach(i=>{
+    if(p.pct[i]==null) return;                 // só mês apurável entra no KPI
+    if(i===I.parcial){ parc+=p.real[i]; return; }   // mês em curso fica de fora
+    mt+=p.meta[i]; rl+=p.real[i]; av++; if(p.real[i]>=p.meta[i]) bat++;
+  }));
+  const pct = mt ? rl/mt*100 : null;
+  document.getElementById('vndKpi').innerHTML=
+    card(pct==null?'—':pct.toFixed(0)+'%','Realizado sobre a meta do recorte',COR(pct))+
+    card(BRL0(rl),'Entrada de pedido · meta '+BRL0(mt))+
+    card(av?bat+' de '+av:'—','Metas batidas (pessoa × mês)')+
+    (I.parcial!=null && (mesSel==null || mesSel===I.parcial)
+      ? card(BRL0(parc), MES[I.parcial]+' em curso · '+I.pctTempo.toFixed(0)+'% do mês, fora do cálculo')
+      : card(I.ano,'Ano apurado'));
+
+  // grade pessoa × mês
+  document.getElementById('vndHead').innerHTML=
+    '<th>Vendedor<\/th>'+temMeta.map(i=>`<th class="r">${MES[i]}<\/th>`).join('')+
+    '<th class="r">Acum.<\/th><th class="r">Bateu<\/th>';
+  document.getElementById('vndBody').innerHTML=alvo.map(p=>{
+    const cels=temMeta.map(i=>{
+      if(p.meta[i]==null) return '<td class="r num" style="color:#c9c9c4" title="sem meta cadastrada">—<\/td>';
+      if(!p.temCarteira) return '<td class="r num" style="color:#a9a9a4" title="'+p.nome+' não tem representante atribuído hoje">s/ carteira<\/td>';
+      if(i < p.corte-1) return `<td class="r num" style="color:#a9a9a4;background:#f2f1ec" title="Estrutura anterior: a carteira de hoje não valia neste mês. Realizado bruto ${BRL0(p.real[i])}, meta ${BRL0(p.meta[i])}">n/a<\/td>`;
+      if(!(p.real[i]>0)) return '<td class="r num" style="color:#c9c9c4">·<\/td>';
+      const v=p.pct[i];
+      // mês em curso não entra na faixa de cor: comparar meio mês com meta cheia
+      // pinta de vermelho quem está no ritmo. Mostra o ritmo projetado.
+      if(i===I.parcial){
+        const proj = I.pctTempo ? v/I.pctTempo*100 : null;
+        return `<td class="r num" style="color:#8a7f72;background:#faf8f2" title="${BRL0(p.real[i])} de ${BRL0(p.meta[i])} · mês em curso, ${I.pctTempo.toFixed(0)}% do tempo">`+
+               `${v.toFixed(0)}%<span style="font-size:10px;opacity:.75"> · ritmo ${proj==null?'—':proj.toFixed(0)+'%'}<\/span><\/td>`;
+      }
+      return `<td class="r num ${fx(v)}" title="${BRL0(p.real[i])} de ${BRL0(p.meta[i])}">${v.toFixed(0)}%<\/td>`;
+    }).join('');
+    const acum=p.totMeta?p.totReal/p.totMeta*100:null;
+    return `<tr><td><b>${p.nome}<\/b><\/td>${cels}`+
+      `<td class="r num ${fx(acum)}">${acum==null?'—':acum.toFixed(0)+'%'}<\/td>`+
+      `<td class="r num">${p.avaliados?p.bateu+'/'+p.avaliados:'—'}<\/td><\/tr>`;
+  }).join('');
+
+  // gráfico: meta × realizado mês a mês
+  if(chart)chart.destroy();
+  // Com o time todo, a soma das carteiras é o total da empresa e vale para todo
+  // mês — quem atendia o quê não muda o total. Com UMA pessoa, só vale dentro
+  // da vigência do vínculo, igual à tabela.
+  const janela = pessoa ? temMeta.filter(i=>i>=I.corte-1) : temMeta;
+  const lab=janela.map(i=>MES[i]);
+  const rMeta=janela.map(i=>{const v=alvo.map(p=>p.meta[i]).filter(x=>x!=null);
+                              return v.length?Math.round(v.reduce((a,b)=>a+b,0)):null;});
+  const rReal=janela.map(i=>Math.round(alvo.reduce((s,p)=>s+(p.real[i]||0),0)));
+  chart=new Chart(document.getElementById('cVnd'),{
+    data:{labels:lab,datasets:[
+      {type:'bar',label:'Realizado',data:rReal,
+       backgroundColor:janela.map((i,k)=> i===I.parcial ? '#b8a68a'    // mês em curso: neutro
+                                        : COR(rMeta[k]?rReal[k]/rMeta[k]*100:null)),order:2},
+      {type:'line',label:'Meta',data:rMeta,borderColor:'#2a2a28',borderWidth:2,
+       pointRadius:3,pointBackgroundColor:'#2a2a28',fill:false,tension:0,order:1}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom'},
+        title:{display:true,text:(pessoa||'Time interno')+' — meta mensal × realizado · '+I.ano
+               +(I.parcial!=null?'  (último mês em curso)':'')},
+        tooltip:{callbacks:{label:c=>c.dataset.label+': '+BRL0(c.parsed.y)}}},
+      scales:{y:{ticks:{callback:v=>'R$ '+(v/1000)+'k'}}}}});
+
+  // leitura
+  const MESFULL=['janeiro','fevereiro','março','abril','maio','junho','julho',
+                 'agosto','setembro','outubro','novembro','dezembro'];
+  const fora=I.pessoas.filter(p=>p.avaliados && p.bateu/p.avaliados<0.5);
+  nota.innerHTML='<b>Como ler:<\/b> cada célula é o realizado do mês sobre a meta <i>daquele<\/i> mês. '+
+    '<b>—<\/b> = sem meta cadastrada · <b>·<\/b> = sem venda no mês.'+
+    (fora.length?' Abaixo de metade dos meses batidos: <b>'+fora.map(p=>p.nome).join(', ')+'<\/b>.':'')+
+    (I.corte>1 ? '<br><b>Por que os meses antes de '+MESFULL[I.corte-1]+' aparecem como n/a:<\/b> '+
+      'quem atende qual representante está gravado em um campo só, sem data de início. '+
+      'É a foto de hoje. Aplicá-la a um mês anterior credita à pessoa praças que naquele mês '+
+      'eram de outra — chega a dar 1.600% de atingimento. O realizado bruto está no tooltip de '+
+      'cada célula; só o percentual fica suspenso. Isso se resolve quando o vínculo ganhar '+
+      'vigência (desde/até), e aí a série inteira volta.' : '')+
+    (I.semCarteira&&I.semCarteira.length ? '<br><b>'+I.semCarteira.join(' e ')+'<\/b>: tem meta no '+
+      'período mas nenhum representante atribuído hoje, então não há o que apurar.' : '')+
+    '<br><b>Esta aba não soma com a de representantes.<\/b> O mesmo pedido entra nas duas: lá conta '+
+    'para a meta trimestral do representante, aqui para a meta mensal de quem atende a carteira. '+
+    'Somar os dois totais contaria cada pedido duas vezes.';
+ }
+ [selP,selM].forEach(s=>s.onchange=render);
  render();
 })();
 
@@ -1403,7 +1609,7 @@ renderSaz();
   const rows=ALL.filter(r=>r.metaP>0||r.realP>0).sort((a,b)=>b.realP-a.realP);
   const totReal=rows.reduce((a,b)=>a+b.realP,0), totMeta=rows.reduce((a,b)=>a+b.metaP,0);
   const acima=rows.filter(r=>r.pct>=100).length, pctG=totMeta?totReal/totMeta*100:0;
-  const cor=p=>p>=100?'#0f766e':p>=70?'#c2761b':'#b91c1c';
+  const cor=p=>p>=100?'#15803d':p>=80?'#c2761b':'#b91c1c';
   document.getElementById('reaKpi').innerHTML=
    '<div class="kpi"><div class="b">'+BRL0(totReal)+'<\/div><div class="s">Realizado '+rot(per)+'<\/div><\/div>'+
    '<div class="kpi"><div class="b">'+BRL0(totMeta)+'<\/div><div class="s">Meta '+rot(per)+'<\/div><\/div>'+
@@ -1492,14 +1698,17 @@ async function puxarTudo(){
   // Busca paginada: o PostgREST corta a resposta no limite do projeto
   // (Max rows). Sem paginar, a tabela de pedidos vinha truncada e clientes
   // ativos apareciam como inativos. Ordena pela PK para a paginação ser estável.
-  const PK={clientes:'cod',pedidos:'numero',representantes:'cod',faturamento_mensal:'mes',metas:'rep'};
+  const PK={clientes:'cod',pedidos:'numero',representantes:'cod',faturamento_mensal:'mes',metas:'rep',
+            metas_internos:'interno',metas_globais:'mes'};
   const PAG=1000;
-  async function q(t){
+  async function q(t,opcional){
     let de=0, todos=[];
     for(;;){
       const {data,error}=await sb.schema('vendas').from(t).select('*')
         .order(PK[t],{ascending:true}).range(de,de+PAG-1);
-      if(error) return {data:null,error};
+      // Tabela opcional que ainda não existe no banco não derruba o painel:
+      // a aba correspondente aparece vazia, com aviso.
+      if(error) return opcional ? {data:[],error:null,ausente:true} : {data:null,error};
       todos=todos.concat(data);
       if(data.length<PAG) break;
       de+=PAG;
@@ -1507,13 +1716,25 @@ async function puxarTudo(){
     }
     return {data:todos,error:null};
   }
-  const [cli,ped,rep,fat,met]=await Promise.all([q('clientes'),q('pedidos'),q('representantes'),q('faturamento_mensal'),q('metas')]);
+  const [cli,ped,rep,fat,met,mint,mglob]=await Promise.all([
+    q('clientes'),q('pedidos'),q('representantes'),q('faturamento_mensal'),q('metas'),
+    q('metas_internos',true),q('metas_globais',true)]);
   for(const r of [cli,ped,rep,fat,met]) if(r.error){montado=false; throw new Error(r.error.message);}
   msg('Calculando...'); sync('wait','calculando…');
-  window.D=buildD({clientes:cli.data,pedidos:ped.data,representantes:rep.data,faturamento:fat.data,metas:met.data});
+  window.D=buildD({clientes:cli.data,pedidos:ped.data,representantes:rep.data,faturamento:fat.data,
+                   metas:met.data,metasInternos:mint.data,metasGlobais:mglob.data});
   const s=document.createElement('script');
   s.textContent=$('APP').textContent.split('<\\/').join('</');
   document.body.appendChild(s);
+  (function(){
+    const a=document.getElementById('anoAte'); if(!a||!window.D) return;
+    const mm=['janeiro','fevereiro','março','abril','maio','junho',
+              'julho','agosto','setembro','outubro','novembro','dezembro'];
+    const d=String(window.D.kpis.dados_ate||'');
+    const m=d.match(/(\d{2})\/(\d{2})\/(\d{4})/) || d.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if(!m) return;
+    a.textContent = mm[+m[2]-1] || '—';
+  })();
   const el=document.getElementById('fonteDados');
   if(el){
     const k=window.D.kpis;
