@@ -552,7 +552,7 @@ const CFG = {
   vinculoVigenteDesde: { 2026: 9 }
 };
 
-function buildD({clientes, pedidos, representantes, faturamento, metas, metasInternos, metasGlobais, hoje}) {
+function buildD({clientes, pedidos, representantes, faturamento, metas, metasInternos, metasGlobais, vigencias, hoje}) {
   const HOJE = hoje ? new Date(hoje+'T12:00:00') : new Date();
   const ymd  = s => Number(String(s).slice(0,10).replace(/-/g,''));      // 2026-08-31 -> 20260831
   const dt   = s => new Date(String(s).slice(0,10)+'T12:00:00');
@@ -893,15 +893,31 @@ function buildD({clientes, pedidos, representantes, faturamento, metas, metasInt
     const MI=metasInternos||[], MG=metasGlobais||[];
     if(!MI.length) return {ano:anoAtual, ausente:true, pessoas:[], meses:[], global:[]};
     const ano = Math.max(...MI.map(m=>+m.ano));
-    // quem atende quem, pela coluna vendedor_interno do representante
+    // Quem atendia quem, EM CADA DATA. A tabela vendas.interno_representante
+    // guarda o vínculo com vigência (desde/ate); a coluna vendedor_interno é só
+    // a foto de hoje e vira fallback quando a tabela ainda não existe.
+    const VIG=(vigencias||[]).filter(v=>v.rep_cod && v.interno);
+    const porRep={};
+    VIG.forEach(v=>{ (porRep[v.rep_cod] ||= []).push(
+      {q:String(v.interno).toUpperCase(), de:String(v.desde).slice(0,10),
+       ate:v.ate?String(v.ate).slice(0,10):'9999-12-31'}); });
+    const temVig = Object.keys(porRep).length>0;
     const deQuem={};
     representantes.forEach(r=>{ if(r.vendedor_interno) deQuem[r.cod]=String(r.vendedor_interno).toUpperCase(); });
+    // interno responsável por um pedido, na data em que ele foi emitido
+    const quemEm=(cod,data)=>{
+      const L=porRep[cod];
+      if(!L) return temVig ? null : deQuem[cod];
+      const d=String(data).slice(0,10);
+      const h=L.find(v=>d>=v.de && d<=v.ate);
+      return h ? h.q : null;
+    };
     // realizado por interno e mês (só venda, amostra fora)
     const real={};
     for(const p of pedidos){
       if(String(p.emissao).slice(0,4)!=String(ano)) continue;
       if(p.amostra===true || (p.amostra==null && Number(p.valor)<1)) continue;
-      const quem=deQuem[p.rep_cod]; if(!quem) continue;
+      const quem=quemEm(p.rep_cod, p.emissao); if(!quem) continue;
       (real[quem] ||= Array(12).fill(0))[+String(p.emissao).slice(5,7)-1]+=Number(p.valor);
     }
     // metas por pessoa e mês
@@ -914,7 +930,9 @@ function buildD({clientes, pedidos, representantes, faturamento, metas, metasInt
     // o que fez o Ezequiel aparecer com 1.629% em abril. Só se apura a partir do
     // mês em que o vínculo atual passou a valer; antes disso mostra o realizado
     // mas não calcula %, porque seria número inventado.
-    const CORTE = (CFG.vinculoVigenteDesde && +CFG.vinculoVigenteDesde[ano]) || 1;
+    // Com o histórico gravado, todo mês é apurável. O corte só vale como rede de
+    // segurança para quando a tabela de vigência ainda não existir.
+    const CORTE = temVig ? 1 : ((CFG.vinculoVigenteDesde && +CFG.vinculoVigenteDesde[ano]) || 1);
     // Mês em curso: o último com pedido, quando a última emissão não chegou ao
     // fim do mês. Sem isso, meio mês de outubro conta como meta perdida.
     let parcial=null, pctTempo=0;
@@ -926,7 +944,8 @@ function buildD({clientes, pedidos, representantes, faturamento, metas, metasInt
     const nomes=[...new Set([...Object.keys(meta),...Object.keys(real)])].sort();
     const pessoas=nomes.map(nm=>{
       const mt=meta[nm]||Array(12).fill(null), rl=real[nm]||Array(12).fill(0);
-      const temCarteira = Object.values(deQuem).includes(nm);
+      const temCarteira = temVig ? (rl.some(x=>x>0) || Object.values(deQuem).includes(nm))
+                                  : Object.values(deQuem).includes(nm);
       // mês apurável: dentro da vigência, com meta, e a pessoa tem carteira hoje
       const apur = i => i>=CORTE-1 && mt[i]!=null && temCarteira && rl[i]>0;
       const av=[...Array(12).keys()].filter(i=>apur(i) && i!==parcial);
@@ -944,7 +963,7 @@ function buildD({clientes, pedidos, representantes, faturamento, metas, metasInt
       const v=pessoas.map(p=>p.meta[i]).filter(x=>x!=null);
       return v.length?round2(v.reduce((a,b)=>a+b,0)):null;});
     return {ano, ausente:false, pessoas, meses:MESNOME, global:glob, soma, somaMeta,
-            corte:CORTE, parcial, pctTempo,
+            corte:CORTE, parcial, pctTempo, comVigencia:temVig,
             semCarteira:pessoas.filter(p=>!p.temCarteira).map(p=>p.nome)};
   })();
 
@@ -1573,6 +1592,10 @@ renderSaz();
       'eram de outra — chega a dar 1.600% de atingimento. O realizado bruto está no tooltip de '+
       'cada célula; só o percentual fica suspenso. Isso se resolve quando o vínculo ganhar '+
       'vigência (desde/até), e aí a série inteira volta.' : '')+
+    (I.comVigencia ? '<br>Cada pedido conta para quem atendia aquela praça <i>na data em que ele '+
+      'entrou<\/i>, não para quem atende hoje. Por isso o Ezequiel aparece pequeno at\u00e9 agosto '+
+      '(s\u00f3 a carteira pr\u00f3pria) e salta em setembro, quando assumiu as quatro pra\u00e7as que eram '+
+      'da Leia e depois da Brenda.' : '')+
     (I.semCarteira&&I.semCarteira.length ? '<br><b>'+I.semCarteira.join(' e ')+'<\/b>: tem meta no '+
       'período mas nenhum representante atribuído hoje, então não há o que apurar.' : '')+
     '<br><b>Esta aba não soma com a de representantes.<\/b> O mesmo pedido entra nas duas: lá conta '+
@@ -1704,7 +1727,7 @@ async function puxarTudo(){
   // (Max rows). Sem paginar, a tabela de pedidos vinha truncada e clientes
   // ativos apareciam como inativos. Ordena pela PK para a paginação ser estável.
   const PK={clientes:'cod',pedidos:'numero',representantes:'cod',faturamento_mensal:'mes',metas:'rep',
-            metas_internos:'interno',metas_globais:'mes'};
+            metas_internos:'interno',metas_globais:'mes',interno_representante:'rep_cod'};
   const PAG=1000;
   async function q(t,opcional){
     let de=0, todos=[];
@@ -1721,13 +1744,13 @@ async function puxarTudo(){
     }
     return {data:todos,error:null};
   }
-  const [cli,ped,rep,fat,met,mint,mglob]=await Promise.all([
+  const [cli,ped,rep,fat,met,mint,mglob,vig]=await Promise.all([
     q('clientes'),q('pedidos'),q('representantes'),q('faturamento_mensal'),q('metas'),
-    q('metas_internos',true),q('metas_globais',true)]);
+    q('metas_internos',true),q('metas_globais',true),q('interno_representante',true)]);
   for(const r of [cli,ped,rep,fat,met]) if(r.error){montado=false; throw new Error(r.error.message);}
   msg('Calculando...'); sync('wait','calculando…');
   window.D=buildD({clientes:cli.data,pedidos:ped.data,representantes:rep.data,faturamento:fat.data,
-                   metas:met.data,metasInternos:mint.data,metasGlobais:mglob.data});
+                   metas:met.data,metasInternos:mint.data,metasGlobais:mglob.data,vigencias:vig.data});
   const s=document.createElement('script');
   s.textContent=$('APP').textContent.split('<\\/').join('</');
   document.body.appendChild(s);
