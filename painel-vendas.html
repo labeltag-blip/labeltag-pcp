@@ -1558,10 +1558,15 @@ renderSaz();
   // leitura
   const MESFULL=['janeiro','fevereiro','março','abril','maio','junho','julho',
                  'agosto','setembro','outubro','novembro','dezembro'];
-  const fora=I.pessoas.filter(p=>p.avaliados && p.bateu/p.avaliados<0.5);
+  // Só aponta quem fica atrás quando há amostra para isso. Com 1 ou 2 meses
+  // avaliados, "abaixo de metade" é um ponto solto que lê como julgamento.
+  const fora=I.pessoas.filter(p=>p.avaliados>=3 && p.bateu/p.avaliados<0.5);
   nota.innerHTML='<b>Como ler:<\/b> cada célula é o realizado do mês sobre a meta <i>daquele<\/i> mês. '+
     '<b>—<\/b> = sem meta cadastrada · <b>·<\/b> = sem venda no mês.'+
     (fora.length?' Abaixo de metade dos meses batidos: <b>'+fora.map(p=>p.nome).join(', ')+'<\/b>.':'')+
+    (()=>{const n=Math.max(...I.pessoas.map(p=>p.avaliados||0));
+          return n>0&&n<3 ? ' <b>Atenção:</b> só '+n+(n===1?' mês fechado é apurável':' meses fechados são apuráveis')+
+            ' por enquanto, então os percentuais ainda não dizem nada sobre desempenho — são um ponto na curva.' : '';})()+
     (I.corte>1 ? '<br><b>Por que os meses antes de '+MESFULL[I.corte-1]+' aparecem como n/a:<\/b> '+
       'quem atende qual representante está gravado em um campo só, sem data de início. '+
       'É a foto de hoje. Aplicá-la a um mês anterior credita à pessoa praças que naquele mês '+
