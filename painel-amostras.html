@@ -150,7 +150,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <div><div class="hsub">Label Tag</div><div class="htit" id="htit">PCP Amostras</div></div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:10px;color:var(--muted)"><span class="dot"></span><span id="syncTxt">Conectando...</span></span>
-      <span title="Versão do painel publicada no GitHub" style="font-size:11px;color:var(--ouro);background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap">v. 02/10/2026 11:55</span>
+      <span title="Versão do painel publicada no GitHub" style="font-size:11px;color:var(--ouro);background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.35);border-radius:6px;padding:3px 8px;white-space:nowrap">v. 16/10/2026 10:26</span>
       <a href="index.html" class="btn-g" style="text-decoration:none">📋 Pedidos</a>
       <button class="btn-o" onclick="sincronizar()">↻ Atualizar</button>
     </div>
@@ -271,6 +271,31 @@ LISTAS.forEach(function(l){SLA_DEF[l.id]=1;}); // placeholder — ajuste em Conf
 var API_KEY='',TOKEN='';
 var SLA=JSON.parse(localStorage.getItem('am_sla')||'null')||Object.assign({},SLA_DEF);
 var slaLiberado=false; // liberação de edição dos SLAs por sessão (senha)
+
+// ── SLA compartilhado via Supabase (fonte única para todos os navegadores) ──
+var SUPA_URL='https://qbdzzngcwxljomqiboqh.supabase.co';
+var SUPA_KEY='sb_publishable_JIFQyxCn9MYZwc_MFJfUNA_F3saGuEp'; // chave publishable (pública) — NUNCA a service_role
+var SLA_PAINEL='amostras';
+function carregarSLASupa(){
+  if(!SUPA_URL||!SUPA_KEY)return Promise.resolve();
+  return fetch(SUPA_URL+'/rest/v1/pcp_config?painel=eq.'+SLA_PAINEL+'&select=config',{headers:{apikey:SUPA_KEY}})
+    .then(function(r){return r.ok?r.json():null;})
+    .then(function(rows){
+      var cfg=rows&&rows[0]&&rows[0].config;if(!cfg||!cfg.sla||typeof cfg.sla!=='object')return;
+      SLA=Object.assign({},SLA_DEF,cfg.sla); // completa listas faltantes com o padrão
+      try{localStorage.setItem('am_sla',JSON.stringify(SLA));}catch(e){}
+      var app=document.getElementById('app');if(app&&app.style.display!=='none')renderTudo();
+    })
+    .catch(function(){}); // falhou -> mantém localStorage/padrão
+}
+function gravarSLASupa(){
+  if(!SUPA_URL||!SUPA_KEY)return Promise.resolve(false);
+  return fetch(SUPA_URL+'/rest/v1/pcp_config',{
+    method:'POST',
+    headers:{apikey:SUPA_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
+    body:JSON.stringify({painel:SLA_PAINEL,config:{sla:SLA},atualizado_em:new Date().toISOString()})
+  }).then(function(r){return r.ok;}).catch(function(){return false;});
+}
 var cache=JSON.parse(localStorage.getItem('am_ordens')||'{}');
 var pedidos=[],boards={},filtro='todos',aba='geral',setorId=null;
 var setoresExcluidos=[CONCLUIDO_ID]; // Aguardando Envio (concluído) oculto por padrão na Visão Geral
@@ -298,6 +323,7 @@ function mostrarApp(){
   document.getElementById('loginWrap').style.display='none';
   document.getElementById('app').style.display='block';
   montarTabs();
+  carregarSLASupa(); // puxa o SLA compartilhado (re-renderiza quando chega)
   sincronizar();
 }
 function sair(){if(!confirm('Desconectar? (não afeta o login do PCP)'))return;localStorage.removeItem('am_key');localStorage.removeItem('am_token');location.reload();}
@@ -739,8 +765,15 @@ function salvarSLA(){
   if(!slaLiberado){alert('Clique em um campo de SLA e digite a senha antes de salvar.');return;}
   LISTAS.forEach(function(l){var el=document.getElementById('sla-'+l.id);var v=el?parseInt(el.value):1;if(!isNaN(v)&&v>=0)SLA[l.id]=v;});
   localStorage.setItem('am_sla',JSON.stringify(SLA));
-  var el=document.getElementById('slaSalvo');el.style.display='inline';setTimeout(function(){el.style.display='none';},2000);
+  var el=document.getElementById('slaSalvo');
+  if(el){el.textContent='Salvando...';el.style.color='var(--muted2)';el.style.display='inline';}
   renderTudo();
+  gravarSLASupa().then(function(ok){
+    if(!el)return;
+    el.textContent=ok?'✓ Salvo para todos!':'✓ Salvo local (nuvem falhou)';
+    el.style.color=ok?'#22c55e':'#eab308';
+    setTimeout(function(){el.style.display='none';el.textContent='✓ Salvo!';el.style.color='#22c55e';},2800);
+  });
 }
 
 // ── Visão por lista (setor) ──
