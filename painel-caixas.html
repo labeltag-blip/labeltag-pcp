@@ -372,6 +372,18 @@ function semaforoSetor(c){
 }
 const atrasadaSetor = c => semaforoSetor(c) === 'vermelho';
 const sevSetor = c => { const s = semaforoSetor(c); return s==='vermelho'?3:s==='amarelo'?2:s==='verde'?1:0; };
+const NOME_SETOR = {'1GFeoJFU':'Planejamento','699750a22d02d679968617f9':'Prep. Inicial','kKxRCcjN':'Silk','dWdRLX04':'Impressão','6aaaa7b66c5ea4d5344b2905':'Prep. Final','2psxSaAN':'Corte Laser','JdC3HfIg':'Corte Zund','cUWDiSUA':'Frequência','8LcFwJ0v':'Acabamento','V6wt9KT0':'Faturamento'};
+// Texto do tooltip (hover) da caixa na grade
+function tituloCaixa(c){
+  const nome=(c.cor==='V'?'Vermelha ':'Preta ')+c.num;
+  if(!c.uso) return nome+' — livre';
+  const p=[nome];
+  if(c.setor && NOME_SETOR[c.setor]) p.push('📍 '+NOME_SETOR[c.setor]); else p.push('em uso');
+  if(c.op) p.push('OP '+c.op);
+  if(c.due){ const d=new Date(c.due); if(!isNaN(+d)) p.push('entrega '+d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})); }
+  const s=semaforoSetor(c); if(s) p.push(s==='vermelho'?'🔴 atrasada':s==='amarelo'?'🟡 no limite':'🟢 no prazo');
+  return p.join('  •  ');
+}
 
 /* ===== REGRAS ===== */
 const horas = c => c.uso && c.desde ? (Date.now() - new Date(c.desde)) / 36e5 : 0;
@@ -424,7 +436,7 @@ function render(){
   if (q) l = l.filter(casa);
   main.innerHTML = l.length ? '<div class="grid">' + l.map(c=>{
     const s = semaforoSetor(c);
-    return `<div class="cx ${c.cor} ${c.uso?'uso':''} ${s?'sem-'+s:''} ${c.card?'tl':''}" data-id="${c.id}">${c.num}</div>`;
+    return `<div class="cx ${c.cor} ${c.uso?'uso':''} ${s?'sem-'+s:''} ${c.card?'tl':''}" data-id="${c.id}" title="${esc(tituloCaixa(c))}">${c.num}</div>`;
   }).join('') + '</div>' : '<div class="vazio">Nada encontrado</div>';
 }
 function avisosHtml(){
