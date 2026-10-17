@@ -128,7 +128,7 @@ body.embed .pills{flex-direction:row}
     <div class="kpi v"><b id="kVl">–</b><span>Vermelhas livres</span></div>
     <div class="kpi"><b id="kPl">–</b><span>Pretas livres</span></div>
     <div class="kpi"><b id="kU">–</b><span>Em uso</span></div>
-    <div class="kpi al"><b id="kA">–</b><span>Atrasadas no setor</span></div>
+    <div class="kpi al"><b id="kA">–</b><span>Em atraso p/ entrega</span></div>
   </div>
   <div class="tabs">
     <button data-t="V">🔴 Vermelhas</button>
@@ -180,7 +180,7 @@ const store = {
 };
 
 /* ===== SUPABASE ===== */
-const CAMPOS = 'id,cor,num,em_uso,op,desde,quem,card,setor,lista,desde_setor,atualizado_em';
+const CAMPOS = 'id,cor,num,em_uso,op,desde,quem,card,setor,due,labels,atualizado_em';
 let marcaTempo = '', ultimaRecargaTotal = 0;
 function supaHeaders(extra){
   const h = Object.assign({ apikey: SUPA_KEY, 'Accept-Profile': 'caixas', 'Content-Profile': 'caixas' }, extra || {});
@@ -193,7 +193,7 @@ async function supaReq(caminho, opts){
   if (!r.ok) throw new Error((j && (j.message || j.erro)) || ('HTTP ' + r.status));
   return j;
 }
-const deSupa = r => ({ id:r.id, cor:r.cor, num:r.num, uso:!!r.em_uso, op:r.op||'', desde:r.desde||'', quem:r.quem||'', card:r.card||'', setor:r.setor||'', lista:r.lista||'', desde_setor:r.desde_setor||'' });
+const deSupa = r => ({ id:r.id, cor:r.cor, num:r.num, uso:!!r.em_uso, op:r.op||'', desde:r.desde||'', quem:r.quem||'', card:r.card||'', setor:r.setor||'', due:r.due||'', labels:r.labels||'' });
 function aplicar(linhas){
   const idx = new Map(caixas.map((c,i)=>[c.id,i]));
   for (const r of linhas) {
@@ -300,47 +300,74 @@ async function sincronizarAgora(){
   finally { ocupado = false; marcaSync(); render(); }
 }
 
-/* ===== SLA / SEMÁFORO POR SETOR ===== */
-const EXP_H = 10;       // horas úteis por dia (expediente 8–18)
-const PERIODO_H = 5;    // 1 meio período = 5h úteis
-const PLAN_ID = '1GFeoJFU';
-let SLA_SETOR = {}, SLA_PLAN_C = {};
+/* ===== SLA / SEMÁFORO POR RISCO DE ENTREGA (prazo interno) ===== */
+const CORTES = ['2psxSaAN','JdC3HfIg','cUWDiSUA'];
+const PREP_FINAL_ID = '6aaaa7b66c5ea4d5344b2905';
+const ORDEM_SETOR = {'1GFeoJFU':1,'699750a22d02d679968617f9':2,'kKxRCcjN':3,'dWdRLX04':4,'6aaaa7b66c5ea4d5344b2905':5,'2psxSaAN':6,'JdC3HfIg':7,'cUWDiSUA':8,'8LcFwJ0v':9,'V6wt9KT0':10};
+let SLA_SETOR = {}, SLA_DIA = {};
 async function carregarSLA(){
   try {
     const r = await fetch(SUPA_URL + '/rest/v1/pcp_config?painel=eq.pedidos&select=config', { headers: { apikey: SUPA_KEY } });
     if (!r.ok) return;
     const rows = await r.json(); const cfg = rows && rows[0] && rows[0].config;
-    if (cfg) { if (cfg.sla) SLA_SETOR = cfg.sla; if (cfg.sla_plan) SLA_PLAN_C = cfg.sla_plan; }
+    if (cfg) { if (cfg.sla) SLA_SETOR = cfg.sla; if (cfg.sla_diamante) SLA_DIA = cfg.sla_diamante; }
   } catch (_) {}
 }
-// horas ÚTEIS entre dois instantes: só seg–sex, só 8h–18h
-function horasUteisEntre(ini, fim){
-  const a = +new Date(ini), b = +new Date(fim); if (!(b > a)) return 0;
-  const H0 = 8, H1 = 18; let total = 0; const d = new Date(a); d.setHours(0,0,0,0);
-  while (+d <= b){
-    const dow = d.getDay();
-    if (dow !== 0 && dow !== 6){
-      const w0 = new Date(d); w0.setHours(H0,0,0,0); const w1 = new Date(d); w1.setHours(H1,0,0,0);
-      const lo = Math.max(a, +w0), hi = Math.min(b, +w1); if (hi > lo) total += (hi - lo) / 36e5;
-    }
-    d.setDate(d.getDate() + 1);
-  }
-  return total;
+const _norm = s => (s||'').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+const LBL_LASER=['laser'], LBL_ZUND=['zund','lamina'], LBL_FREQ=['frequencia'];
+const _tem = (n,arr) => arr.some(t => n.indexOf(t)>=0);
+function ehDiamante(labels){ return (labels||[]).some(l => _norm(l).indexOf('diamante')>=0); }
+function slaSetor(id, dia){ return dia ? (SLA_DIA[id]||SLA_SETOR[id]||1) : (SLA_SETOR[id]||1); }
+function rotaCorte(labels){
+  let L=false,Z=false,F=false;
+  (labels||[]).forEach(l=>{ const n=_norm(l); if(_tem(n,LBL_LASER))L=true; if(_tem(n,LBL_ZUND))Z=true; if(_tem(n,LBL_FREQ))F=true; });
+  const n=(L?1:0)+(Z?1:0)+(F?1:0);
+  if(n>=2)return 'ambos'; if(L)return 'laser'; if(Z)return 'zund'; if(F)return 'freq'; return '';
 }
+function viaCorte(labels, setorAtual){
+  if(CORTES.indexOf(setorAtual)>=0) return setorAtual;      // já está num corte -> é esse
+  const r=rotaCorte(labels);
+  if(r==='laser')return '2psxSaAN'; if(r==='zund')return 'JdC3HfIg'; if(r==='freq')return 'cUWDiSUA';
+  let menor=null,ms=Infinity; CORTES.forEach(c=>{ const s=SLA_SETOR[c]||1; if(s<ms){ms=s;menor=c;} }); return menor;
+}
+function pulaSetorCond(id, labels){
+  const s=(labels||[]).map(_norm).join(' '); const silk=s.indexOf('silk')>=0, impr=s.indexOf('impress')>=0;
+  if(id==='kKxRCcjN')return !silk; if(id==='dWdRLX04')return !impr; if(id===PREP_FINAL_ID)return !(silk||impr); return false;
+}
+// soma dos SLAs (dias) dos setores que ainda FALTAM, a partir do atual (exclui o atual) — igual ao PCP
+function getSlaPost(ordem, labels, setorAtual){
+  const via=viaCorte(labels, setorAtual), dia=ehDiamante(labels);
+  let soma=0;
+  for(const id in ORDEM_SETOR){
+    const o=ORDEM_SETOR[id]; if(o<=ordem)continue;
+    if(CORTES.indexOf(id)>=0 && id!==via)continue;         // só o corte da rota
+    if(pulaSetorCond(id, labels))continue;                 // Silk/Impressão/Prep.Final só se aplicável
+    soma += slaSetor(id, dia);
+  }
+  return soma;
+}
+// dias úteis (seg–sex) de hoje até a data (negativo se já passou)
+function diasUteisAte(iso){
+  if(!iso)return 999;
+  const h=new Date(); h.setHours(0,0,0,0);
+  const alvo=new Date(iso); alvo.setHours(0,0,0,0);
+  if(isNaN(+alvo))return 999;
+  let dias=0; const atual=new Date(h); const sinal=alvo>=h?1:-1;
+  while(atual.toDateString()!==alvo.toDateString()){
+    atual.setDate(atual.getDate()+sinal);
+    const dow=atual.getDay(); if(dow!==0&&dow!==6)dias+=sinal;
+  }
+  return dias;
+}
+// Semáforo por RISCO DE ENTREGA: folga = dias úteis até a entrega - soma dos SLAs do caminho que falta
 // 'verde' | 'amarelo' | 'vermelho' | '' (sem dados p/ avaliar)
 function semaforoSetor(c){
-  if (!c.uso || !c.setor || !c.desde_setor) return '';
-  const elapsed = horasUteisEntre(c.desde_setor, new Date().toISOString());
-  let slaH, limiar;
-  if (c.setor === PLAN_ID){
-    const p = (SLA_PLAN_C[c.lista] != null) ? SLA_PLAN_C[c.lista] : 1; // meios períodos
-    slaH = p * PERIODO_H; limiar = Math.min(PERIODO_H, slaH/2);        // amarelo: falta < meio período (no máx. metade do prazo)
-  } else {
-    const dias = (SLA_SETOR[c.setor] != null) ? SLA_SETOR[c.setor] : 1;
-    slaH = dias * EXP_H; limiar = Math.min(EXP_H, slaH/2);             // amarelo: falta < 1 dia útil (no máx. metade do prazo)
-  }
-  if (elapsed > slaH) return 'vermelho';
-  if (slaH - elapsed < limiar) return 'amarelo';
+  if(!c.uso || !c.setor || !c.due) return '';
+  const ordem=ORDEM_SETOR[c.setor]; if(!ordem) return '';
+  const labels=(c.labels||'').split('|').map(s=>s.trim()).filter(Boolean);
+  const folga=diasUteisAte(c.due) - getSlaPost(ordem, labels, c.setor);
+  if(folga < 0) return 'vermelho';   // não dá pra entregar no prazo nem no ritmo do SLA
+  if(folga < 1) return 'amarelo';    // folga menor que 1 dia útil
   return 'verde';
 }
 const atrasadaSetor = c => semaforoSetor(c) === 'vermelho';
@@ -419,7 +446,7 @@ function abrir(id){
   let h = `<h2>${cor} ${c.num}</h2>`;
   if (c.uso) {
     const sfc = semaforoSetor(c);
-    const seloSetor = sfc==='vermelho'?' — 🔴 atrasada no setor':sfc==='amarelo'?' — 🟡 apertada no setor':sfc==='verde'?' — 🟢 em dia no setor':'';
+    const seloSetor = sfc==='vermelho'?' — 🔴 atrasada p/ entrega':sfc==='amarelo'?' — 🟡 no limite p/ entrega':sfc==='verde'?' — 🟢 no prazo':'';
     h += `<div class="st">Em uso há ${fmtTempo(horas(c))}${seloSetor}</div>
       <dl><dt>OP</dt><dd>${esc(c.op)||'—'}</dd><dt>Por</dt><dd>${esc(c.quem)}</dd>
       <dt>Desde</dt><dd>${c.desde?new Date(c.desde).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'—'}</dd></dl>`;
