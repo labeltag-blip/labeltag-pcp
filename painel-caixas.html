@@ -366,9 +366,9 @@ function semaforoSetor(c){
   const ordem=ORDEM_SETOR[c.setor]; if(!ordem) return '';
   const labels=(c.labels||'').split('|').map(s=>s.trim()).filter(Boolean);
   const folga=diasUteisAte(c.due) - getSlaPost(ordem, labels, c.setor);
-  if(folga < 0) return 'vermelho';   // não dá pra entregar no prazo nem no ritmo do SLA
-  if(folga < 1) return 'amarelo';    // folga menor que 1 dia útil
-  return 'verde';
+  if(folga < 0) return 'vermelho';   // urgente/atrasado (prazo interno negativo)
+  if(folga < 2) return 'amarelo';    // "hoje/amanhã" (folga 0 ou 1) — alinhado aos degraus do relatório
+  return 'verde';                    // "próximos dias" (folga 2+)
 }
 const atrasadaSetor = c => semaforoSetor(c) === 'vermelho';
 const sevSetor = c => { const s = semaforoSetor(c); return s==='vermelho'?3:s==='amarelo'?2:s==='verde'?1:0; };
