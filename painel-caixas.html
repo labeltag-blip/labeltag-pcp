@@ -73,7 +73,10 @@ main{padding:12px 16px 90px}
 .cx{position:relative;border-radius:8px;padding:10px 0;text-align:center;font-weight:700;font-variant-numeric:tabular-nums;cursor:pointer;border:1px solid var(--livre-bd);background:var(--livre);color:var(--livre-tx);user-select:none}
 .cx.uso{background:var(--uso-p);color:var(--uso-p-tx);border-color:var(--uso-p)}
 .cx.V.uso{background:var(--verm);border-color:var(--verm);color:#fff}
-.cx.al::after{content:"";position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:var(--alerta);box-shadow:0 0 0 2px var(--card)}
+.cx.sem-verde::after,.cx.sem-amarelo::after,.cx.sem-vermelho::after{content:"";position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;box-shadow:0 0 0 2px #fff,0 0 2px 2px rgba(0,0,0,.28)}
+.cx.sem-verde::after{background:#22c55e}
+.cx.sem-amarelo::after{background:#eab308}
+.cx.sem-vermelho::after{background:#ef4444}
 .cx.hi{outline:3px solid var(--acc);outline-offset:1px}
 .lista{display:flex;flex-direction:column;gap:6px}
 .item{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;cursor:pointer}
@@ -125,7 +128,7 @@ body.embed .pills{flex-direction:row}
     <div class="kpi v"><b id="kVl">–</b><span>Vermelhas livres</span></div>
     <div class="kpi"><b id="kPl">–</b><span>Pretas livres</span></div>
     <div class="kpi"><b id="kU">–</b><span>Em uso</span></div>
-    <div class="kpi al"><b id="kA">–</b><span>Paradas demais</span></div>
+    <div class="kpi al"><b id="kA">–</b><span>Atrasadas no setor</span></div>
   </div>
   <div class="tabs">
     <button data-t="V">🔴 Vermelhas</button>
@@ -177,7 +180,7 @@ const store = {
 };
 
 /* ===== SUPABASE ===== */
-const CAMPOS = 'id,cor,num,em_uso,op,desde,quem,card,atualizado_em';
+const CAMPOS = 'id,cor,num,em_uso,op,desde,quem,card,setor,lista,desde_setor,atualizado_em';
 let marcaTempo = '', ultimaRecargaTotal = 0;
 function supaHeaders(extra){
   const h = Object.assign({ apikey: SUPA_KEY, 'Accept-Profile': 'caixas', 'Content-Profile': 'caixas' }, extra || {});
@@ -190,7 +193,7 @@ async function supaReq(caminho, opts){
   if (!r.ok) throw new Error((j && (j.message || j.erro)) || ('HTTP ' + r.status));
   return j;
 }
-const deSupa = r => ({ id:r.id, cor:r.cor, num:r.num, uso:!!r.em_uso, op:r.op||'', desde:r.desde||'', quem:r.quem||'', card:r.card||'' });
+const deSupa = r => ({ id:r.id, cor:r.cor, num:r.num, uso:!!r.em_uso, op:r.op||'', desde:r.desde||'', quem:r.quem||'', card:r.card||'', setor:r.setor||'', lista:r.lista||'', desde_setor:r.desde_setor||'' });
 function aplicar(linhas){
   const idx = new Map(caixas.map((c,i)=>[c.id,i]));
   for (const r of linhas) {
@@ -297,6 +300,52 @@ async function sincronizarAgora(){
   finally { ocupado = false; marcaSync(); render(); }
 }
 
+/* ===== SLA / SEMÁFORO POR SETOR ===== */
+const EXP_H = 10;       // horas úteis por dia (expediente 8–18)
+const PERIODO_H = 5;    // 1 meio período = 5h úteis
+const PLAN_ID = '1GFeoJFU';
+let SLA_SETOR = {}, SLA_PLAN_C = {};
+async function carregarSLA(){
+  try {
+    const r = await fetch(SUPA_URL + '/rest/v1/pcp_config?painel=eq.pedidos&select=config', { headers: { apikey: SUPA_KEY } });
+    if (!r.ok) return;
+    const rows = await r.json(); const cfg = rows && rows[0] && rows[0].config;
+    if (cfg) { if (cfg.sla) SLA_SETOR = cfg.sla; if (cfg.sla_plan) SLA_PLAN_C = cfg.sla_plan; }
+  } catch (_) {}
+}
+// horas ÚTEIS entre dois instantes: só seg–sex, só 8h–18h
+function horasUteisEntre(ini, fim){
+  const a = +new Date(ini), b = +new Date(fim); if (!(b > a)) return 0;
+  const H0 = 8, H1 = 18; let total = 0; const d = new Date(a); d.setHours(0,0,0,0);
+  while (+d <= b){
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6){
+      const w0 = new Date(d); w0.setHours(H0,0,0,0); const w1 = new Date(d); w1.setHours(H1,0,0,0);
+      const lo = Math.max(a, +w0), hi = Math.min(b, +w1); if (hi > lo) total += (hi - lo) / 36e5;
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return total;
+}
+// 'verde' | 'amarelo' | 'vermelho' | '' (sem dados p/ avaliar)
+function semaforoSetor(c){
+  if (!c.uso || !c.setor || !c.desde_setor) return '';
+  const elapsed = horasUteisEntre(c.desde_setor, new Date().toISOString());
+  let slaH, limiar;
+  if (c.setor === PLAN_ID){
+    const p = (SLA_PLAN_C[c.lista] != null) ? SLA_PLAN_C[c.lista] : 1; // meios períodos
+    slaH = p * PERIODO_H; limiar = Math.min(PERIODO_H, slaH/2);        // amarelo: falta < meio período (no máx. metade do prazo)
+  } else {
+    const dias = (SLA_SETOR[c.setor] != null) ? SLA_SETOR[c.setor] : 1;
+    slaH = dias * EXP_H; limiar = Math.min(EXP_H, slaH/2);             // amarelo: falta < 1 dia útil (no máx. metade do prazo)
+  }
+  if (elapsed > slaH) return 'vermelho';
+  if (slaH - elapsed < limiar) return 'amarelo';
+  return 'verde';
+}
+const atrasadaSetor = c => semaforoSetor(c) === 'vermelho';
+const sevSetor = c => { const s = semaforoSetor(c); return s==='vermelho'?3:s==='amarelo'?2:s==='verde'?1:0; };
+
 /* ===== REGRAS ===== */
 const horas = c => c.uso && c.desde ? (Date.now() - new Date(c.desde)) / 36e5 : 0;
 const emAlerta = c => c.uso && horas(c) >= ALERTA_H[c.cor];
@@ -314,7 +363,7 @@ function render(){
   $('#kVl').textContent = V.filter(c=>!c.uso).length;
   $('#kPl').textContent = P.filter(c=>!c.uso).length;
   $('#kU').textContent  = caixas.filter(c=>c.uso).length;
-  $('#kA').textContent  = caixas.filter(emAlerta).length;
+  $('#kA').textContent  = caixas.filter(atrasadaSetor).length;
 
   const q = busca.trim().toLowerCase();
   const casa = c => !q || String(c.num) === q || String(c.num).startsWith(q) || (c.op && c.op.toLowerCase().includes(q));
@@ -332,12 +381,12 @@ function render(){
 
   const main = $('#main');
   if (aba === 'U') {
-    const l = caixas.filter(c=>c.uso && casa(c)).sort((a,b)=> (emAlerta(b)-emAlerta(a)) || (b.cor==='V')-(a.cor==='V') || horas(b)-horas(a));
+    const l = caixas.filter(c=>c.uso && casa(c)).sort((a,b)=> (sevSetor(b)-sevSetor(a)) || (b.cor==='V')-(a.cor==='V') || horas(b)-horas(a));
     main.innerHTML = avisosHtml() + (l.length ? '<div class="lista">' + l.map(c=>`
-      <div class="item ${emAlerta(c)?'al':''}" data-id="${c.id}">
+      <div class="item ${atrasadaSetor(c)?'al':''}" data-id="${c.id}">
         <div class="tag ${c.cor}">${rotulo(c)}</div>
         <div class="inf"><div>${esc(c.op)||'<i>sem OP</i>'}</div><div>${c.card?'<span class="chip" style="margin-left:0">TRELLO</span>':esc(c.quem)}</div></div>
-        <div class="tempo">${emAlerta(c)?'⚠ ':''}${fmtTempo(horas(c))}</div>
+        <div class="tempo">${atrasadaSetor(c)?'⚠ ':''}${fmtTempo(horas(c))}</div>
       </div>`).join('') + '</div>'
       : '<div class="vazio">Nenhuma caixa em uso</div>');
     return;
@@ -346,9 +395,10 @@ function render(){
   if (filtro === 'L') l = l.filter(c=>!c.uso);
   if (filtro === 'O') l = l.filter(c=>c.uso);
   if (q) l = l.filter(casa);
-  main.innerHTML = l.length ? '<div class="grid">' + l.map(c=>
-    `<div class="cx ${c.cor} ${c.uso?'uso':''} ${emAlerta(c)?'al':''} ${c.card?'tl':''}" data-id="${c.id}">${c.num}</div>`
-  ).join('') + '</div>' : '<div class="vazio">Nada encontrado</div>';
+  main.innerHTML = l.length ? '<div class="grid">' + l.map(c=>{
+    const s = semaforoSetor(c);
+    return `<div class="cx ${c.cor} ${c.uso?'uso':''} ${s?'sem-'+s:''} ${c.card?'tl':''}" data-id="${c.id}">${c.num}</div>`;
+  }).join('') + '</div>' : '<div class="vazio">Nada encontrado</div>';
 }
 function avisosHtml(){
   const a = trello && trello.avisos; if (!a) return '';
@@ -368,7 +418,9 @@ function abrir(id){
   const cor = c.cor==='V' ? '🔴 Vermelha' : '⚫ Preta';
   let h = `<h2>${cor} ${c.num}</h2>`;
   if (c.uso) {
-    h += `<div class="st">Em uso há ${fmtTempo(horas(c))}${emAlerta(c)?' — ⚠ acima do limite':''}</div>
+    const sfc = semaforoSetor(c);
+    const seloSetor = sfc==='vermelho'?' — 🔴 atrasada no setor':sfc==='amarelo'?' — 🟡 apertada no setor':sfc==='verde'?' — 🟢 em dia no setor':'';
+    h += `<div class="st">Em uso há ${fmtTempo(horas(c))}${seloSetor}</div>
       <dl><dt>OP</dt><dd>${esc(c.op)||'—'}</dd><dt>Por</dt><dd>${esc(c.quem)}</dd>
       <dt>Desde</dt><dd>${c.desde?new Date(c.desde).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'—'}</dd></dl>`;
     if (c.card) {
@@ -420,7 +472,8 @@ $('#main').onclick = e => { const el=e.target.closest('[data-id]'); if(el) abrir
 $('#fab').onclick = () => { const nx = proximaLivre(aba); if (nx) abrir(nx.id); };
 $('#ov').onclick = e => { if (e.target.id==='ov') fechar(); };
 document.addEventListener('keydown', e => { if (e.key==='Escape') fechar(); });
-setInterval(()=>{ if(!ocupado && !$('#ov').classList.contains('on') && !document.hidden) carregar(); }, REFRESH_S*1000);
+let _slaTick = 0;
+setInterval(()=>{ if(!ocupado && !$('#ov').classList.contains('on') && !document.hidden){ if((++_slaTick % 20)===0) carregarSLA(); carregar(); } }, REFRESH_S*1000);
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) carregar(); });
 
 /* ===== DEMO (sem API_URL) ===== */
@@ -442,6 +495,7 @@ function demoAlterar(acao,id,op,quem){
   else { if(!c.uso) throw new Error(id+' já livre'); Object.assign(c,{uso:false,op:'',quem:'',desde:''}); }
 }
 
+carregarSLA().then(()=>{ if(caixas.length) render(); }).catch(()=>{});
 carregar();
 </script>
 </body>
