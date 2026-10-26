@@ -49,6 +49,13 @@ header{border-bottom:3px solid var(--ink);padding:26px 0 18px;margin-bottom:8px;
 .legfaixa{display:flex;gap:18px;margin-top:12px;font-size:12px;color:var(--muted);flex-wrap:wrap}
 .legfaixa i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px}
 .legfaixa .fx-ok {background:#15803d}.legfaixa .fx-med{background:#c2761b}.legfaixa .fx-bad{background:#b91c1c}
+/* célula da grade do time interno: valor à esquerda, % à direita */
+#vndGrade td.num{white-space:nowrap;padding-left:8px;padding-right:8px}
+#vndGrade .cv{float:left;font-weight:400;opacity:.62;font-size:12px}
+#vndGrade .cp{font-weight:600}
+#vndGrade .cr{clear:both;font-size:10px;opacity:.7;text-align:right;line-height:1.1}
+#vndGrade th{white-space:nowrap}
+@media (max-width:1100px){ #vndGrade .cv{float:none;display:block;text-align:right} }
 table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
 th{font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
@@ -187,7 +194,6 @@ tr.danger td{background:#fdf2f2}tr.danger:hover td{background:#fbe9e9}
  <button class="tab" data-v="afa">A Faturar</button>
  <button class="tab" data-v="fat">Entrada de pedidos</button>
  <button class="tab" data-v="met">Representantes · trimestre</button>
- <button class="tab" data-v="rea">Realizado 26</button>
  <button class="tab" data-v="vnd">Time interno · mês</button>
  <button id="pdfBtn">⤓ Exportar PDF</button>
 </div>
@@ -387,18 +393,7 @@ tr.danger td{background:#fdf2f2}tr.danger:hover td{background:#fbe9e9}
  <div class="scrollbox"><table><thead><tr><th class="rank-pos">#</th><th>Representante</th><th class="r">Meta do tri</th><th class="r">Realizado</th><th class="r">% atingido</th><th>Progresso · ┃ = tempo decorrido</th></tr></thead><tbody id="metBody"></tbody></table></div>
  <div class="legfaixa"><span><i class="fx-bad"></i>abaixo de 80%</span><span><i class="fx-med"></i>80 a 100%</span><span><i class="fx-ok"></i>bateu (100%+)</span></div>
  <div class="nota"><b>Leitura:</b> a meta do representante é <b>esticada de propósito</b> — fica 20 a 25% acima da meta global da empresa, como estímulo de prospecção. Por isso ela <b>não fecha</b> com a meta global nem com a do time interno, e não deve ser usada para validar nenhuma das duas.<br>O que vale olhar aqui é a <b>dispersão</b>: praça a 300% tem meta baixa demais, praça a 0% tem meta alta demais ou carteira parada. Nos dois casos a meta não está cobrando nada.<br><b>Esta aba não soma com a do time interno.</b> O mesmo pedido entra nas duas réguas.</div></div>
-</section>
-<section class="view" id="rea">
- <div class="panel"><h2><span class="dot"></span>Realizado 2026 — representantes com meta</h2>
- <p class="desc">Somente vendas realizadas pelos vendedores/territórios com meta. Não inclui venda interna nem clientes sem representante. Fecha com as planilhas de metas. Verde = bateu (100%+), âmbar = 80 a 100%, vermelho = abaixo de 80%.</p>
- <div class="ctrl"><select id="reaPer"><option value="ano">2026 · Jan–Jun</option><option value="T1">1º trimestre</option><option value="T2">2º trimestre</option></select></div>
- <div class="conc" id="reaKpi"></div>
- <div style="margin:18px 0;height:300px"><canvas id="cReaMes"></canvas></div>
- <div style="margin:22px 0 6px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Ranking por representante</div>
- <div style="margin:6px 0 18px;height:520px"><canvas id="cReaRank"></canvas></div>
- <div class="scrollbox"><table><thead><tr id="reaHead"></tr></thead><tbody id="reaBody"></tbody></table></div>
- <div class="nota"><b>Como ler:</b> este painel é só o realizado dos representantes com meta — fecha com as suas planilhas (1º tri R$ 3,68 mi · 2º tri R$ 3,86 mi). É a régua de performance de representante, separada da entrada de pedidos total. Quando mandar o 3º e o 4º trimestre, é só adicionar aqui.</div></div>
- <div class="panel">
+<div class="panel">
   <div class="dqbar no-print">
     <div class="dqhint"><b>Quadro para enviar aos representantes.</b> Só quem bateu a meta e o % atingido — sem valores. Acompanha o período escolhido acima.</div>
     <button id="dqPng">⤓ Baixar imagem</button>
@@ -419,6 +414,7 @@ tr.danger td{background:#fdf2f2}tr.danger:hover td{background:#fbe9e9}
   </div>
  </div>
 </section>
+
 
 
 <!-- SEGMENTOS -->
@@ -868,20 +864,48 @@ function buildD({clientes, pedidos, representantes, faturamento, metas, metasInt
   const nomeTri = {1:['1º Tri · Jan–Mar',['Jan','Fev','Mar']],2:['2º Tri · Abr–Jun',['Abr','Mai','Jun']],
                    3:['3º Tri · Jul–Set',['Jul','Ago','Set']],4:['4º Tri · Out–Dez',['Out','Nov','Dez']]};
   const triAtual = Math.floor((maxD%10000/100-1)/3)+1;
-  const trimestres = Object.keys(porTri).sort().map(t=>{
-    const ti=+t, base=(ti-1)*3;
-    return { id:'T'+ti, label:nomeTri[ti][0], meses:nomeTri[ti][1], emCurso: ti===triAtual,
-      reps: porTri[t].map(m=>{
-        const mm=[0,0,0];
-        const cods = String(m.rep_cod||'').split(',').map(s=>s.trim()).filter(Boolean);
-        if (cods.length) for (const p of pedidos) {
-          if (!cods.includes(p.rep_cod)) continue;
-          if (String(p.emissao).slice(0,4)!=String(anoAtual)) continue;
-          const k=+String(p.emissao).slice(5,7)-1-base;
-          if (k>=0 && k<3) mm[k]+=Number(p.valor); }
-        return {rep:m.rep, meta:Number(m.meta), real:round2(mm[0]+mm[1]+mm[2]), m:mm.map(round2)};
-      }).sort((a,b)=>b.meta-a.meta) };
-  });
+  // Todo trimestre que já começou aparece, tenha meta cadastrada ou não.
+  // Antes a lista vinha de Object.keys(porTri) — só trimestres COM meta —
+  // então um trimestre sem meta sumia do seletor junto com o realizado dele.
+  // Agora a meta é o que falta no trimestre, não o que o faz existir.
+  const nomeRep = {};
+  representantes.forEach(r=>{ if(r.praca) nomeRep[r.cod]=r.praca; });
+  const trimestres = [];
+  for (let ti=1; ti<=Math.max(triAtual, ...Object.keys(porTri).map(Number), 1); ti++){
+    const base=(ti-1)*3;
+    const mts = porTri[ti] || [];
+    const vistos = new Set();
+    const reps = mts.map(m=>{
+      const mm=[0,0,0];
+      const cods = String(m.rep_cod||'').split(',').map(s=>s.trim()).filter(Boolean);
+      cods.forEach(c=>vistos.add(c));
+      if (cods.length) for (const p of pedidos) {
+        if (!cods.includes(p.rep_cod)) continue;
+        if (String(p.emissao).slice(0,4)!=String(anoAtual)) continue;
+        const k=+String(p.emissao).slice(5,7)-1-base;
+        if (k>=0 && k<3) mm[k]+=Number(p.valor); }
+      return {rep:m.rep, meta:Number(m.meta), real:round2(mm[0]+mm[1]+mm[2]), m:mm.map(round2)};
+    });
+    // Praças sem meta só entram quando o trimestre NÃO tem meta nenhuma — aí é
+    // melhor mostrar o realizado do que uma tela vazia. Num trimestre com metas,
+    // elas poluiriam a aba com carteira interna e quebrariam a separação entre
+    // a régua do representante e a do time interno.
+    const semMeta = {};
+    if (!mts.length) for (const p of pedidos){
+      if (String(p.emissao).slice(0,4)!=String(anoAtual)) continue;
+      if (vistos.has(p.rep_cod)) continue;
+      const k=+String(p.emissao).slice(5,7)-1-base;
+      if (k<0 || k>=3) continue;
+      if (p.amostra===true || (p.amostra==null && Number(p.valor)<1)) continue;
+      const nm = nomeRep[p.rep_cod] || p.rep_cod || '(sem representante)';
+      (semMeta[nm] ||= {rep:nm, meta:0, real:0, m:[0,0,0], semMeta:true});
+      semMeta[nm].m[k]+=Number(p.valor); semMeta[nm].real+=Number(p.valor);
+    }
+    Object.values(semMeta).forEach(r=>{ r.real=round2(r.real); r.m=r.m.map(round2); reps.push(r); });
+    trimestres.push({ id:'T'+ti, label:nomeTri[ti][0], meses:nomeTri[ti][1],
+      emCurso: ti===triAtual, semMetas: !mts.length,
+      reps: reps.sort((a,b)=> b.meta-a.meta || b.real-a.real) });
+  }
 
   // ---------- time interno: meta MENSAL × carteira ----------
   // Camada separada da dos representantes, de propósito. O rep tem meta
@@ -1363,11 +1387,25 @@ renderSaz();
 // ===== Metas por representante =====
 (function(){
  const MT=D.metas.trimestres, sel=document.getElementById('metTri');
- sel.innerHTML=MT.map((t,i)=>`<option value="${i}">${t.label}${t.emCurso?' (em curso)':''}<\/option>`).join('')+'<option value="all">Acumulado · Jan–Jun<\/option>';
+ // o rótulo do acumulado vem dos trimestres que existem, não "Jan-Jun" fixo
+ const MZ12=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+ const tri1=Math.min(...MT.map(t=>+String(t.id).replace(/\D/g,'')||1));
+ const triN=Math.max(...MT.map(t=>+String(t.id).replace(/\D/g,'')||1));
+ const ANOT=(D.internos&&D.internos.ano)||new Date().getFullYear();
+ const rotAcum='Ano todo · '+ANOT+' ('+MZ12[(tri1-1)*3]+'–'+MZ12[triN*3-1]+')';
+ sel.innerHTML=MT.map((t,i)=>`<option value="${i}">${t.label}${t.emCurso?' (em curso)':''}<\/option>`).join('')+`<option value="all">${rotAcum}<\/option>`;
  sel.value=MT.length-1;
  let chart=null;
  const cor=p=>p>=100?'#15803d':(p>=80?'#c2761b':'#b91c1c');
- function agg(){const m={};MT.forEach(t=>t.reps.forEach(r=>{m[r.rep]=m[r.rep]||{rep:r.rep,meta:0,real:0,m:[]};m[r.rep].meta+=r.meta;m[r.rep].real+=r.real;m[r.rep].m=m[r.rep].m.concat(r.m);}));return {id:'ALL',label:'Acumulado',meses:['Jan','Fev','Mar','Abr','Mai','Jun'],emCurso:true,reps:Object.values(m)};}
+ // O ano todo soma os trimestres. Entram só as praças COM meta em algum deles,
+ // pelo mesmo motivo dos trimestres individuais: praça sem meta no numerador,
+ // sem nada no denominador, infla o atingimento do período.
+ function agg(){const m={};
+   MT.forEach(t=>t.reps.forEach(r=>{
+     if(!(r.meta>0)) return;
+     m[r.rep]=m[r.rep]||{rep:r.rep,meta:0,real:0,m:[]};
+     m[r.rep].meta+=r.meta; m[r.rep].real+=r.real; m[r.rep].m=m[r.rep].m.concat(r.m);}));
+   return {id:'ALL',label:rotAcum,meses:MZ12.slice((tri1-1)*3,triN*3),emCurso:true,reps:Object.values(m)};}
  function render(){
   const t=sel.value==='all'?agg():MT[+sel.value];
   // Período derivado do próprio trimestre. Antes era uma tabela que só ia até
@@ -1383,22 +1421,30 @@ renderSaz();
   let pctTempo=(1-restam/totDias)*100; if(pctTempo<0)pctTempo=0; if(pctTempo>100)pctTempo=100;
   const encerrado=restam===0;
   const reps=t.reps.slice().sort((a,b)=>(b.real/(b.meta||1))-(a.real/(a.meta||1)));
-  const tm=reps.reduce((s,r)=>s+r.meta,0), tr=reps.reduce((s,r)=>s+r.real,0), pct=tm?tr/tm*100:0;
-  const bateram=reps.filter(r=>r.meta&&r.real>=r.meta).length;
+  // O atingimento compara só o que tem meta. Somar a venda de praça sem meta
+  // no numerador, sem nada no denominador, infla o percentual do trimestre.
+  const comM=reps.filter(r=>r.meta>0), semM=reps.filter(r=>!(r.meta>0));
+  const tm=comM.reduce((s,r)=>s+r.meta,0), tr=comM.reduce((s,r)=>s+r.real,0), pct=tm?tr/tm*100:0;
+  const trSem=semM.reduce((s,r)=>s+r.real,0);
+  const bateram=comM.filter(r=>r.real>=r.meta).length;
   const decor=t.meses.filter((_,k)=>reps.some(r=>r.m[k]>0)).length||3;
   const proj=decor<3?tr/decor*3:tr;
-  let kpi=`<div><div class="b">${BRL0(tm)}<\/div><div class="s">Meta do trimestre<\/div><\/div>`+
-          `<div><div class="b">${BRL0(tr)}<\/div><div class="s">Realizado<\/div><\/div>`+
-          `<div><div class="b" style="color:${cor(pct)}">${pct.toFixed(0)}%<\/div><div class="s">Atingido<\/div><\/div>`+
-          `<div><div class="b">${bateram}/${reps.length}<\/div><div class="s">Reps na meta<\/div><\/div>`;
-  if(t.emCurso)kpi+=`<div><div class="b" style="color:${cor(proj/tm*100)}">${(proj/tm*100).toFixed(0)}%<\/div><div class="s">Projeção (ritmo de ${decor} ${decor>1?'meses':'mês'})<\/div><\/div>`;
+  let kpi=`<div><div class="b">${tm?BRL0(tm):'—'}<\/div><div class="s">${tm?'Meta do trimestre':'Sem metas cadastradas'}<\/div><\/div>`+
+          `<div><div class="b">${BRL0(tr+trSem)}<\/div><div class="s">Realizado${trSem?' · '+BRL0(trSem)+' sem meta':''}<\/div><\/div>`+
+          `<div><div class="b" style="color:${tm?cor(pct):'#8a7f72'}">${tm?pct.toFixed(0)+'%':'—'}<\/div><div class="s">Atingido${trSem&&tm?' (só o que tem meta)':''}<\/div><\/div>`+
+          `<div><div class="b">${tm?bateram+'/'+comM.length:'—'}<\/div><div class="s">Reps na meta<\/div><\/div>`;
+  if(t.emCurso&&tm)kpi+=`<div><div class="b" style="color:${cor(proj/tm*100)}">${(proj/tm*100).toFixed(0)}%<\/div><div class="s">Projeção (ritmo de ${decor} ${decor>1?'meses':'mês'})<\/div><\/div>`;
   kpi+=`<div><div class="b" style="color:${encerrado?'#8a7f72':'#1c1c1c'}">${encerrado?'Encerrado':restam+' dias'}<\/div><div class="s">${encerrado?'trimestre fechado':'faltam pro fim · '+pctTempo.toFixed(0)+'% do tempo usado'}<\/div><\/div>`;
   document.getElementById('metKpi').innerHTML=kpi;
   document.getElementById('metTempo').innerHTML=encerrado
    ? `<div style="font-size:13px;color:#8a7f72">⏱ Trimestre encerrado — período de ${per[0].split('-').reverse().join('/')} a ${per[1].split('-').reverse().join('/')}<\/div>`
    : `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><span style="font-size:12px;color:#8a7f72;min-width:115px">⏱ Tempo do trimestre<\/span><div style="flex:1;min-width:200px;position:relative;background:#e8e2d6;border-radius:6px;height:20px;overflow:hidden"><div style="height:100%;width:${pctTempo.toFixed(1)}%;background:#b8966a"><\/div><\/div><span style="font-size:14px;font-weight:700;white-space:nowrap;color:${restam<=15?'#b91c1c':'#1c1c1c'}">faltam ${restam} dias<\/span><span style="font-size:12px;color:#8a7f72;white-space:nowrap">(${pctTempo.toFixed(0)}% do tempo já usado)<\/span><\/div>`;
-  document.getElementById('metBody').innerHTML=reps.map((r,i)=>{const p=r.meta?r.real/r.meta*100:0;const noRitmo=p>=pctTempo;const seta=(!encerrado)?` <span title="${noRitmo?'no ritmo ou adiantado':'atrás do ritmo'}" style="color:${noRitmo?'#0f766e':'#b91c1c'}">${noRitmo?'▲':'▼'}<\/span>`:'';const marca=(!encerrado&&pctTempo>0&&pctTempo<100)?`<div title="${pctTempo.toFixed(0)}% do tempo decorrido" style="position:absolute;top:-3px;bottom:-3px;left:${pctTempo.toFixed(1)}%;width:2px;background:#1c1c1c"><\/div>`:'';return `<tr><td class="rank-pos">${i+1}<\/td><td>${r.rep}<\/td><td class="r num">${BRL0(r.meta)}<\/td><td class="r num">${BRL0(r.real)}<\/td><td class="r num" style="color:${cor(p)};font-weight:700">${p.toFixed(0)}%${seta}<\/td><td><div style="position:relative;background:#e8e2d6;border-radius:4px;height:14px;width:150px"><div style="height:100%;width:${Math.min(100,p)}%;background:${cor(p)};border-radius:4px"><\/div>${marca}<\/div><\/td><\/tr>`}).join('');
-  const labels=reps.map(r=>r.rep), data=reps.map(r=>r.meta?Math.round(r.real/r.meta*100):0);
+  window.__metT = t;                     // o pôster desenha a partir daqui
+  if(window.__dq) window.__dq();
+  document.getElementById('metBody').innerHTML=reps.map((r,i)=>{const semM=!(r.meta>0);const p=semM?null:r.real/r.meta*100;const noRitmo=!semM&&p>=pctTempo;const seta=(!encerrado)?` <span title="${noRitmo?'no ritmo ou adiantado':'atrás do ritmo'}" style="color:${noRitmo?'#0f766e':'#b91c1c'}">${noRitmo?'▲':'▼'}<\/span>`:'';const marca=(!encerrado&&pctTempo>0&&pctTempo<100)?`<div title="${pctTempo.toFixed(0)}% do tempo decorrido" style="position:absolute;top:-3px;bottom:-3px;left:${pctTempo.toFixed(1)}%;width:2px;background:#1c1c1c"><\/div>`:'';return `<tr><td class="rank-pos">${i+1}<\/td><td>${r.rep}<\/td><td class="r num">${BRL0(r.meta)}<\/td><td class="r num">${BRL0(r.real)}<\/td><td class="r num" style="color:${semM?'#a9a9a4':cor(p)};font-weight:${semM?'400':'700'}" title="${semM?'praça sem meta neste trimestre':''}">${semM?'sem meta':p.toFixed(0)+'%'+seta}<\/td><td><div style="position:relative;background:#e8e2d6;border-radius:4px;height:14px;width:150px"><div style="height:100%;width:${semM?0:Math.min(100,p)}%;background:${semM?'#d9d9d4':cor(p)};border-radius:4px"><\/div>${marca}<\/div><\/td><\/tr>`}).join('');
+  // o gráfico é de % de atingimento: praça sem meta não tem o que plotar
+  const comGraf=reps.filter(r=>r.meta>0);
+  const labels=comGraf.map(r=>r.rep), data=comGraf.map(r=>Math.round(r.real/r.meta*100));
   if(chart)chart.destroy();
   chart=new Chart(document.getElementById('cMet'),{type:'bar',data:{labels,datasets:[{label:'% da meta',data,backgroundColor:data.map(cor)}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.x+'% da meta'}}},scales:{x:{title:{display:true,text:'% da meta (100% = bateu)'}}}}});
  }
@@ -1500,6 +1546,8 @@ renderSaz();
  const card=(b,s,cor)=>`<div><div class="b"${cor?` style="color:${cor}"`:''}>${b}<\/div><div class="s">${s}<\/div><\/div>`;
  // faixas combinadas com a aba de representantes
  const fx = p => p==null ? '' : (p>=100 ? 'fx-ok' : (p>=80 ? 'fx-med' : 'fx-bad'));
+ // valor compacto para caber na grade: 629k, 33k, 950 (o real exato fica no tooltip)
+ const KV = v => v>=1000 ? Math.round(v/1000).toLocaleString('pt-BR')+'k' : Math.round(v);
  const COR = p => p==null ? '#d9d9d4' : (p>=100 ? '#15803d' : (p>=80 ? '#c2761b' : '#b91c1c'));
  let chart=null;
 
@@ -1527,7 +1575,7 @@ renderSaz();
   // grade pessoa × mês
   document.getElementById('vndHead').innerHTML=
     '<th>Vendedor<\/th>'+temMeta.map(i=>`<th class="r">${MES[i]}<\/th>`).join('')+
-    '<th class="r">Acum.<\/th><th class="r">Bateu<\/th>';
+    '<th class="r">Acumulado<\/th><th class="r">Bateu<\/th>';
   document.getElementById('vndBody').innerHTML=alvo.map(p=>{
     const cels=temMeta.map(i=>{
       if(p.meta[i]==null) return '<td class="r num" style="color:#c9c9c4" title="sem meta cadastrada">—<\/td>';
@@ -1540,14 +1588,17 @@ renderSaz();
       if(i===I.parcial){
         const proj = I.pctTempo ? v/I.pctTempo*100 : null;
         return `<td class="r num" style="color:#8a7f72;background:#faf8f2" title="${BRL0(p.real[i])} de ${BRL0(p.meta[i])} · mês em curso, ${I.pctTempo.toFixed(0)}% do tempo">`+
-               `${v.toFixed(0)}%<span style="font-size:10px;opacity:.75"> · ritmo ${proj==null?'—':proj.toFixed(0)+'%'}<\/span><\/td>`;
+               `<span class="cv">${KV(p.real[i])}<\/span><span class="cp">${v.toFixed(0)}%<\/span>`+
+               `<div class="cr">ritmo ${proj==null?'—':proj.toFixed(0)+'%'}<\/div><\/td>`;
       }
-      return `<td class="r num ${fx(v)}" title="${BRL0(p.real[i])} de ${BRL0(p.meta[i])}">${v.toFixed(0)}%<\/td>`;
+      return `<td class="r num ${fx(v)}" title="realizado ${BRL0(p.real[i])} · meta ${BRL0(p.meta[i])}">`+
+             `<span class="cv">${KV(p.real[i])}<\/span><span class="cp">${v.toFixed(0)}%<\/span><\/td>`;
     }).join('');
     const acum=p.totMeta?p.totReal/p.totMeta*100:null;
     return `<tr><td><b>${p.nome}<\/b><\/td>${cels}`+
-      `<td class="r num ${fx(acum)}">${acum==null?'—':acum.toFixed(0)+'%'}<\/td>`+
-      `<td class="r num">${p.avaliados?p.bateu+'/'+p.avaliados:'—'}<\/td><\/tr>`;
+      `<td class="r num ${fx(acum)}" title="realizado ${BRL0(p.totReal)} · meta ${BRL0(p.totMeta)}">`+
+      (acum==null?'—':`<span class="cv">${KV(p.totReal)}<\/span><span class="cp">${acum.toFixed(0)}%<\/span>`)+
+      `<\/td><td class="r num">${p.avaliados?p.bateu+'/'+p.avaliados:'—'}<\/td><\/tr>`;
   }).join('');
 
   // gráfico: meta × realizado mês a mês
@@ -1607,63 +1658,28 @@ renderSaz();
 })();
 
 
-/* ===== Realizado 2026 (representantes com meta) ===== */
+/* ===== Pôster "bateram a meta" — vive na aba de representantes =====
+   Antes isto ficava numa aba própria (Realizado 26) que lia só T1 e T2,
+   com os meses fixos no código: desde que o T3 e o T4 entraram no banco,
+   ela estava cega para eles. Agora o pôster acompanha o trimestre
+   escolhido na aba Representantes, qualquer que seja. */
 (function(){
- const T=(D.metas&&D.metas.trimestres)||[];
- const MZ=['Jan','Fev','Mar','Abr','Mai','Jun'];
- function build(){
-  const reps={};
-  T.forEach(t=>{
-   const off=t.id==='T1'?0:(t.id==='T2'?3:null); if(off===null)return;
-   (t.reps||[]).forEach(r=>{
-    if(!reps[r.rep])reps[r.rep]={rep:r.rep,m:[0,0,0,0,0,0],metaT1:0,metaT2:0};
-    (r.m||[]).forEach((v,i)=>{reps[r.rep].m[off+i]=v||0;});
-    if(t.id==='T1')reps[r.rep].metaT1=r.meta||0; else reps[r.rep].metaT2=r.meta||0;
-   });
-  });
-  return Object.values(reps);
- }
- const ALL=build();
- const rot=p=>p==='T1'?'1º tri':p==='T2'?'2º tri':'2026 · Jan–Jun';
- const selPer=document.getElementById('reaPer');
- let ch1=null,ch2=null;
- function render(){
-  const per=selPer.value, mi=per==='T1'?[0,3]:per==='T2'?[3,6]:[0,6];
-  ALL.forEach(r=>{
-   r.realP=r.m.slice(mi[0],mi[1]).reduce((a,b)=>a+b,0);
-   r.metaP=per==='T1'?r.metaT1:per==='T2'?r.metaT2:(r.metaT1+r.metaT2);
-   r.pct=r.metaP?r.realP/r.metaP*100:0;
-  });
-  const rows=ALL.filter(r=>r.metaP>0||r.realP>0).sort((a,b)=>b.realP-a.realP);
-  const totReal=rows.reduce((a,b)=>a+b.realP,0), totMeta=rows.reduce((a,b)=>a+b.metaP,0);
-  const acima=rows.filter(r=>r.pct>=100).length, pctG=totMeta?totReal/totMeta*100:0;
-  const cor=p=>p>=100?'#15803d':p>=80?'#c2761b':'#b91c1c';
-  document.getElementById('reaKpi').innerHTML=
-   '<div class="kpi"><div class="b">'+BRL0(totReal)+'<\/div><div class="s">Realizado '+rot(per)+'<\/div><\/div>'+
-   '<div class="kpi"><div class="b">'+BRL0(totMeta)+'<\/div><div class="s">Meta '+rot(per)+'<\/div><\/div>'+
-   '<div class="kpi"><div class="b" style="color:'+cor(pctG)+'">'+pctG.toFixed(0)+'%<\/div><div class="s">Atingimento geral<\/div><\/div>'+
-   '<div class="kpi"><div class="b">'+acima+'/'+rows.length+'<\/div><div class="s">Reps na meta (≥100%)<\/div><\/div>';
-  const labels=MZ.slice(mi[0],mi[1]);
-  const serie=labels.map((_,i)=>ALL.reduce((a,r)=>a+r.m[mi[0]+i],0));
-  if(ch1)ch1.destroy();
-  ch1=new Chart(document.getElementById('cReaMes'),{type:'bar',data:{labels,datasets:[{label:'Realizado',data:serie.map(Math.round),backgroundColor:'#0f766e'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},title:{display:true,text:'Realizado mês a mês — '+rot(per)},tooltip:{callbacks:{label:c=>BRL0(c.parsed.y)}}},scales:{y:{ticks:{callback:v=>'R$ '+(v/1000)+'k'}}}}});
-  if(ch2)ch2.destroy();
-  ch2=new Chart(document.getElementById('cReaRank'),{type:'bar',data:{labels:rows.map(r=>r.rep),datasets:[{label:'Realizado',data:rows.map(r=>Math.round(r.realP)),backgroundColor:rows.map(r=>cor(r.pct))}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},title:{display:true,text:'Realizado por representante — '+rot(per)},tooltip:{callbacks:{label:c=>BRL0(c.parsed.x)+' · '+rows[c.dataIndex].pct.toFixed(0)+'% da meta'}}},scales:{x:{ticks:{callback:v=>'R$ '+(v/1000)+'k'}}}}});
-  const sm=mi, ml=MZ.slice(sm[0],sm[1]);
-  document.getElementById('reaHead').innerHTML='<th class="rank-pos">#<\/th><th>Representante<\/th><th class="r">Meta<\/th><th class="r">Realizado<\/th><th class="r">%<\/th>'+ml.map(m=>'<th class="r">'+m+'<\/th>').join('');
-  document.getElementById('reaBody').innerHTML=rows.map((r,i)=>{
-   const c=cor(r.pct), cells=ml.map((_,j)=>'<td class="r num">'+(r.m[sm[0]+j]?BRL0(r.m[sm[0]+j]):'—')+'<\/td>').join('');
-   return '<tr><td class="rank-pos">'+(i+1)+'<\/td><td>'+r.rep+'<\/td><td class="r num">'+BRL0(r.metaP)+'<\/td><td class="r num">'+BRL0(r.realP)+'<\/td><td class="r num" style="color:'+c+';font-weight:600">'+r.pct.toFixed(0)+'%<\/td>'+cells+'<\/tr>';
-  }).join('');
-  renderDQ(per);
- }
+ const selTri=document.getElementById('metTri');
+ if(!selTri) return;
+ // o trimestre vem resolvido da aba (índice ou "acumulado"), sem duplicar lógica
  function dqBar(seed){let s=0;for(const c of seed)s=(s*31+c.charCodeAt(0))>>>0;let o='';for(let i=0;i<30;i++){s=(s*1103515245+12345)>>>0;const w=1+(s>>16)%3;const bk=(s>>8)%10>3;o+='<i style="width:'+w+'px;height:'+(bk?100:0)+'%"><\/i>';}return o;}
- function renderDQ(per){
-  const win=ALL.filter(r=>r.metaP>0&&r.realP>=r.metaP).map(r=>({rep:r.rep,pct:r.pct})).sort((a,b)=>b.pct-a.pct);
-  const PL={T1:'1º Trimestre 2026',T2:'2º Trimestre 2026',ANO:'2026 · Janeiro a Junho'};
-  document.getElementById('dqPeriod').textContent=PL[per];
-  const tot=ALL.filter(r=>r.metaP>0).length;
-  document.getElementById('dqSub').textContent=win.length+' de '+tot+' representantes superaram a meta '+(per==='ANO'?'do semestre':'do trimestre')+'.';
+ function renderDQ(){
+  const t=window.__metT;
+  if(!t) return;
+  const reps=t.reps||[];
+  const win=reps.filter(r=>r.meta>0&&r.real>=r.meta)
+                .map(r=>({rep:r.rep,pct:r.real/r.meta*100}))
+                .sort((a,b)=>b.pct-a.pct);
+  const per=t.id||'T1';
+  document.getElementById('dqPeriod').textContent=t.label||'';
+  const tot=reps.filter(r=>r.meta>0).length;
+  document.getElementById('dqSub').textContent=win.length+' de '+tot+
+    ' representantes superaram a meta '+(per==='ALL'?'no período':'do trimestre')+'.';
   const g=document.getElementById('dqGrid');
   if(!win.length){g.innerHTML='<div class="dqempty">Nenhum representante bateu a meta neste período.<\/div>';}
   else g.innerHTML=win.map((r,i)=>{
@@ -1689,10 +1705,19 @@ renderSaz();
   document.getElementById('dqMeta').textContent='Meta comercial · apurado em '+('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear()+' · Label Tag';
  }
  const dqBtn=document.getElementById('dqPng');
- if(dqBtn)dqBtn.onclick=async()=>{const t=dqBtn.textContent;dqBtn.textContent='Gerando...';try{await document.fonts.ready;const c=await html2canvas(document.getElementById('dqPoster'),{scale:2,backgroundColor:null,useCORS:true});const a=document.createElement('a');a.download='bateram-a-meta-'+selPer.value+'-2026.png';a.href=c.toDataURL('image/png');a.click();}catch(e){alert('Não consegui gerar a imagem automaticamente. Use um print da tela ou o Exportar PDF.');}dqBtn.textContent=t;};
- selPer.onchange=render; render();
- const tb=document.querySelector('.tab[data-v="rea"]');
- if(tb)tb.addEventListener('click',()=>setTimeout(()=>{if(ch1)ch1.resize();if(ch2)ch2.resize();},60));
+ if(dqBtn)dqBtn.onclick=async()=>{
+   const t=dqBtn.textContent; dqBtn.textContent='Gerando...';
+   try{
+     await document.fonts.ready;
+     const c=await html2canvas(document.getElementById('dqPoster'),{scale:2,backgroundColor:null,useCORS:true});
+     const a=document.createElement('a');
+     a.download='bateram-a-meta-'+((window.__metT&&window.__metT.id)||'T')+'-2026.png';
+     a.href=c.toDataURL('image/png'); a.click();
+   }catch(e){ alert('Não consegui gerar a imagem automaticamente. Use um print da tela ou o Exportar PDF.'); }
+   dqBtn.textContent=t;
+ };
+ window.__dq = renderDQ;        // a aba chama isto a cada render
+ renderDQ();                    // primeira pintura, com o trimestre já escolhido
 })();
 
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
