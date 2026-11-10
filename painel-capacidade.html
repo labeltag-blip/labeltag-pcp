@@ -135,16 +135,18 @@
   .lancnums{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);gap:8px}
   .lancLista{max-height:160px;overflow-y:auto;margin-bottom:8px}
   .lancItem{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)}
-  .lancItem .ld{flex:1;min-width:0;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lancItem .lcli{flex:1;min-width:0;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lancItem .lped{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;white-space:nowrap}
   .lancItem .lv{font-size:12.5px;font-weight:600;white-space:nowrap;font-family:'DM Mono',monospace}
   .lancItem .lx{cursor:pointer;background:none;border:none;color:var(--muted);font-size:18px;line-height:1;padding:0 2px}
   .lancItem .lx:hover{color:var(--critico)}
-  .lancAdd{display:flex;gap:6px;align-items:center}
-  .lancAdd input{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit}
-  .lancAdd #lancDesc{flex:1;min-width:0}
-  .lancAdd #lancVal{width:112px;font-family:'DM Mono',monospace;text-align:right}
+  .lancAdd{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .lancAdd input{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 9px;font-size:12.5px;font-family:inherit}
+  .lancAdd #lancCli,.lancAdd #lancPed{width:calc(50% - 3px)}
+  .lancAdd #lancVal{flex:1;min-width:92px;font-family:'DM Mono',monospace;text-align:right}
   .lancAdd input:focus{outline:none;border-color:var(--ouro)}
-  .lancAdd #lancAddBtn{cursor:pointer;background:var(--ouro);border:none;color:#fff;width:36px;height:36px;border-radius:8px;font-size:20px;font-weight:700;flex:none}
+  .lancAdd #lancAddBtn{cursor:pointer;background:var(--ouro);border:none;color:#fff;width:34px;height:34px;border-radius:8px;font-size:20px;font-weight:700;flex:none}
+  .hintmini{font-size:10.5px;color:var(--muted);margin-top:5px}
   .ocup{font-size:10px;font-weight:600;margin-top:2px}
   .ocupbar{height:4px;border-radius:3px;background:var(--bg3);overflow:hidden;margin-top:3px}
   .ocupbar>div{height:100%}
@@ -173,7 +175,7 @@
   </header>
   <h1>Capacidade Produtiva</h1>
   <p class="sub">Calendário dos dias úteis que a fábrica vai trabalhar. Defina a capacidade de cada dia conforme o momento da empresa — o valor fica salvo e compartilhado entre os computadores.</p>
-  <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin:-10px 0 18px;display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:var(--ok);display:inline-block"></span>Última atualização no ar: <b style="color:var(--text);font-weight:600">10/11/2026 16:18</b></div>
+  <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin:-10px 0 18px;display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:var(--ok);display:inline-block"></span>Última atualização no ar: <b style="color:var(--text);font-weight:600">10/11/2026 17:38</b></div>
 
   <div class="top">
     <div class="card mnav">
@@ -251,11 +253,12 @@
     <div class="lancResumo" id="lancResumo"></div>
     <div class="lancLista" id="lancLista"></div>
     <div class="lancAdd">
-      <input id="lancDesc" placeholder="Cliente / nº do pedido">
+      <input id="lancCli" placeholder="Nº cliente">
+      <input id="lancPed" placeholder="Nº pedido">
       <input id="lancVal" type="text" inputmode="numeric" placeholder="R$ 0,00">
       <button id="lancAddBtn" title="Adicionar">+</button>
     </div>
-    <div class="hint">Dá pra colar vários de uma vez no campo de valor (uma coluna do Excel).</div>
+    <div class="hintmini">Colar vários (colunas do Excel: cliente, pedido, valor).</div>
 
     </div>
     </div>
@@ -347,7 +350,7 @@
       capDia={};
       (res[1].data||[]).forEach(function(r){ capDia[r.dia]={trabalha:(r.trabalha==null?null:!!r.trabalha),cap_override:(r.cap_override==null?null:Number(r.cap_override))}; });
       lancPorDia={};
-      ((res[2]&&res[2].data)||[]).forEach(function(r){ (lancPorDia[r.dia]=lancPorDia[r.dia]||[]).push({id:r.id,valor:Number(r.valor)||0,descricao:r.descricao||''}); });
+      ((res[2]&&res[2].data)||[]).forEach(function(r){ (lancPorDia[r.dia]=lancPorDia[r.dia]||[]).push({id:r.id,valor:Number(r.valor)||0,cliente:r.cliente||'',pedido:r.pedido||''}); });
       render();
     }).catch(function(e){ toast('Falha de conexão: '+e.message,'erro'); render(); });
   }
@@ -457,7 +460,8 @@
       '<span style="color:'+(resta<0?'var(--critico)':'var(--muted)')+'">'+(resta<0?'estourou '+fmtBRL.format(-resta):'cabe +'+fmtBRL.format(resta))+'</span></div>';
     var arr=lancPorDia[is]||[];
     document.getElementById('lancLista').innerHTML = arr.length ? arr.map(function(x){
-      return '<div class="lancItem"><span class="ld">'+(x.descricao?esc(x.descricao):'<i style="color:var(--muted)">sem descrição</i>')+'</span>'+
+      var ident=(x.cliente||x.pedido)?('<span class="lcli">'+(x.cliente?esc(x.cliente):'')+'</span>'+(x.pedido?'<span class="lped">#'+esc(x.pedido)+'</span>':'')):'<span class="lcli"><i style="color:var(--muted)">sem identificação</i></span>';
+      return '<div class="lancItem">'+ident+
         '<span class="lv">'+fmtBRL.format(x.valor)+'</span>'+
         '<button class="lx" data-id="'+x.id+'" title="Remover">&times;</button></div>';
     }).join('') : '<div class="hint" style="padding:6px 0">Nenhum pedido lançado neste dia.</div>';
@@ -465,12 +469,12 @@
     self.querySelectorAll('.lx').forEach(function(b){ b.addEventListener('click',function(){ removeLancamento(b.getAttribute('data-id'),is); }); });
   }
 
-  function addLancamento(is,valor,desc){
+  function addLancamento(is,valor,cli,ped){
     valor=Math.round(Number(valor)||0); if(valor<=0) return Promise.resolve();
     var id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():('id'+Date.now()+Math.random().toString(16).slice(2));
-    var dc=(desc||'').trim()||null;
-    (lancPorDia[is]=lancPorDia[is]||[]).push({id:id,valor:valor,descricao:dc||''});
-    return SB.from('cap_lanc').insert({id:id,dia:is,valor:valor,descricao:dc,criado_em:new Date().toISOString()}).then(function(res){
+    var c=(cli||'').trim()||null, pp=(ped||'').trim()||null;
+    (lancPorDia[is]=lancPorDia[is]||[]).push({id:id,valor:valor,cliente:c||'',pedido:pp||''});
+    return SB.from('cap_lanc').insert({id:id,dia:is,valor:valor,cliente:c,pedido:pp,criado_em:new Date().toISOString()}).then(function(res){
       if(res&&res.error){ toast('Erro ao lançar: '+res.error.message,'erro'); }
     });
   }
@@ -484,11 +488,11 @@
   function addUmLanc(){
     if(!editIso) return;
     var v=parseNum(document.getElementById('lancVal').value);
-    var dsc=document.getElementById('lancDesc').value;
+    var cli=document.getElementById('lancCli').value, ped=document.getElementById('lancPed').value;
     if(v<=0){ toast('Informe um valor','erro'); return; }
-    addLancamento(editIso,v,dsc).then(function(){
-      document.getElementById('lancVal').value=''; document.getElementById('lancDesc').value='';
-      renderLancamentos(editIso); render(); document.getElementById('lancDesc').focus();
+    addLancamento(editIso,v,cli,ped).then(function(){
+      document.getElementById('lancVal').value=''; document.getElementById('lancCli').value=''; document.getElementById('lancPed').value='';
+      renderLancamentos(editIso); render(); document.getElementById('lancCli').focus();
     });
   }
   function colarLanc(txt){
@@ -496,9 +500,11 @@
     var linhas=(txt||'').split(/[\r\n]+/).filter(function(l){return l.trim();});
     var ps=[];
     linhas.forEach(function(l){
-      var parts=l.split(/\t|;/), val=0, dsc='';
-      parts.forEach(function(p){ var n=parseNum(p); if(n>0&&!val){val=n;} else if(p.trim()){ dsc=(dsc?dsc+' ':'')+p.trim(); } });
-      if(val>0) ps.push(addLancamento(editIso,val,dsc));
+      var parts=l.split(/\t|;/), val=0, vi=-1;
+      for(var k=parts.length-1;k>=0;k--){ var n=parseNum(parts[k]); if(n>0){ val=n; vi=k; break; } }
+      if(val<=0) return;
+      var textos=[]; for(var j=0;j<parts.length;j++){ if(j!==vi && parts[j].trim()) textos.push(parts[j].trim()); }
+      ps.push(addLancamento(editIso,val,textos[0]||'',textos[1]||''));
     });
     if(!ps.length) return;
     Promise.all(ps).then(function(){ renderLancamentos(editIso); render(); toast(ps.length+' lançamento(s) colado(s)','ok'); });
@@ -645,11 +651,15 @@
   document.getElementById('btnDistribuir').addEventListener('click',distribuirIgual);
   document.getElementById('lancAddBtn').addEventListener('click',addUmLanc);
   document.getElementById('lancVal').addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); addUmLanc(); } });
-  document.getElementById('lancDesc').addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); document.getElementById('lancVal').focus(); } });
-  document.getElementById('lancVal').addEventListener('paste',function(e){
+  document.getElementById('lancCli').addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); document.getElementById('lancPed').focus(); } });
+  document.getElementById('lancPed').addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); document.getElementById('lancVal').focus(); } });
+  function pasteMultiLanc(e){
     var txt=((e.clipboardData||window.clipboardData).getData('text')||'');
     if(/[\r\n]/.test(txt.trim())){ e.preventDefault(); colarLanc(txt); }
-  });
+  }
+  document.getElementById('lancCli').addEventListener('paste',pasteMultiLanc);
+  document.getElementById('lancPed').addEventListener('paste',pasteMultiLanc);
+  document.getElementById('lancVal').addEventListener('paste',pasteMultiLanc);
   document.getElementById('mdFechar').addEventListener('click',fecharModal);
   document.getElementById('ov').addEventListener('click',function(e){ if(e.target===this) fecharModal(); });
 
