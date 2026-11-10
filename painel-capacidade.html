@@ -58,6 +58,8 @@
   .cfg .salvar{cursor:pointer;background:var(--ouro);border:none;color:#fff;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;font-family:inherit}
   .cfg .salvar:hover{filter:brightness(1.08)}
   :root[data-theme="claro"] .cfg .salvar{color:#fffdf8}
+  .cfg .salvar2{cursor:pointer;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;font-family:inherit}
+  .cfg .salvar2:hover{border-color:var(--ouro);color:var(--ouro)}
 
   /* resumo */
   .resumo{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
@@ -117,6 +119,7 @@
   .b-salvar{background:var(--ouro);color:#fff;border-color:var(--ouro)!important}
   .b-padrao{background:var(--bg3);color:var(--text)}
   .b-fechar{background:none;color:var(--muted)}
+  .b-espalhar{background:var(--info);color:#fff;border-color:var(--info)!important}
 
   .status{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--bg2);border:1px solid var(--border);
     border-radius:10px;padding:9px 16px;font-size:12px;font-weight:600;box-shadow:0 6px 20px #0004;opacity:0;transition:.2s;pointer-events:none;z-index:60}
@@ -142,6 +145,7 @@
   </header>
   <h1>Capacidade Produtiva</h1>
   <p class="sub">Calendário dos dias úteis que a fábrica vai trabalhar. Defina a capacidade de cada dia conforme o momento da empresa — o valor fica salvo e compartilhado entre os computadores.</p>
+  <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin:-10px 0 18px;display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:var(--ok);display:inline-block"></span>Última atualização no ar: <b style="color:var(--text);font-weight:600">10/11/2026 15:32</b></div>
 
   <div class="top">
     <div class="card mnav">
@@ -163,6 +167,7 @@
         <div class="in"><input id="metaMes" type="text" inputmode="numeric" placeholder="R$ 0,00"></div>
       </div>
       <button class="salvar" id="btnSalvarMes">Salvar mês</button>
+      <button class="salvar2" id="btnDistribuir" title="Reparte o total do mês em dias iguais, desfazendo ajustes manuais de valor (folgas mantidas)">Distribuir igual</button>
     </div>
   </div>
 
@@ -195,10 +200,13 @@
     <div class="mdcap" id="mdCapBox">
       <label>Capacidade produtiva do dia</label>
       <div class="in"><input id="mdCap" type="text" inputmode="numeric" placeholder="R$ 0,00"></div>
-      <div class="hint" id="mdHint">Deixe em branco para usar o padrão do mês.</div>
+      <div class="hint" id="mdHint"><b>Só nesse dia</b>: muda apenas este dia (o total do mês sobe/desce). <b>Espalhar nos próximos</b>: mantém o total, jogando a diferença nos dias úteis daqui pra frente.</div>
     </div>
     <div class="mdbtns">
-      <button class="b-salvar" id="mdSalvar">Salvar</button>
+      <button class="b-salvar" id="mdSoDia">Só nesse dia</button>
+      <button class="b-espalhar" id="mdEspalhar">Espalhar nos próximos</button>
+    </div>
+    <div class="mdbtns" style="margin-top:8px">
       <button class="b-padrao" id="mdPadrao">Usar padrão</button>
       <button class="b-fechar" id="mdFechar">Fechar</button>
     </div>
@@ -354,26 +362,106 @@
   }
   function fecharModal(){ document.getElementById('ov').classList.remove('on'); editIso=null; }
 
-  function salvarDia(usarPadrao){
+  function salvarDia(modo){
     if(!editIso) return;
     var d=new Date(editIso+'T12:00:00');
     var trab=document.getElementById('mdTrab').checked;
-    var capVal=usarPadrao?null:valorDe(document.getElementById('mdCap'));
-    if(!capVal) capVal=null;
-    // se o dia bate com o padrão (mesmo trabalha e sem override), remove a linha para não poluir
-    var ehPadraoTrab=(trab===trabalhaPadrao(d,editIso));
-    if(ehPadraoTrab && capVal==null){
-      SB.from('cap_dia').delete().eq('dia',editIso).then(function(res){
+    var agora=new Date().toISOString();
+
+    // "Usar padrão": remove o ajuste deste dia
+    if(modo==='padrao'){
+      var ehPad=(trab===trabalhaPadrao(d,editIso));
+      if(ehPad){
+        SB.from('cap_dia').delete().eq('dia',editIso).then(function(res){
+          if(res.error){ toast('Erro ao salvar: '+res.error.message,'erro'); return; }
+          delete capDia[editIso]; toast('Dia no padrão','ok'); fecharModal(); render();
+        });
+      } else {
+        SB.from('cap_dia').upsert({dia:editIso,trabalha:trab,cap_override:null,atualizado_em:agora},{onConflict:'dia'}).then(function(res){
+          if(res.error){ toast('Erro ao salvar: '+res.error.message,'erro'); return; }
+          capDia[editIso]={trabalha:trab,cap_override:null}; toast('Dia no padrão','ok'); fecharModal(); render();
+        });
+      }
+      return;
+    }
+
+    // Dia marcado como folga (não trabalha): grava a folga
+    if(!trab){
+      SB.from('cap_dia').upsert({dia:editIso,trabalha:false,cap_override:null,atualizado_em:agora},{onConflict:'dia'}).then(function(res){
         if(res.error){ toast('Erro ao salvar: '+res.error.message,'erro'); return; }
-        delete capDia[editIso]; toast('Dia no padrão','ok'); fecharModal(); render();
+        capDia[editIso]={trabalha:false,cap_override:null}; toast('Dia marcado como folga','ok'); fecharModal(); render();
       });
       return;
     }
-    var reg={dia:editIso,trabalha:trab,cap_override:capVal,atualizado_em:new Date().toISOString()};
-    SB.from('cap_dia').upsert(reg,{onConflict:'dia'}).then(function(res){
-      if(res.error){ toast('Erro ao salvar: '+res.error.message,'erro'); return; }
-      capDia[editIso]={trabalha:trab,cap_override:capVal};
-      toast('Dia salvo','ok'); fecharModal(); render();
+
+    var capVal=valorDe(document.getElementById('mdCap'));
+    if(!capVal){ toast('Informe o valor do dia','erro'); return; }
+
+    // "Só nesse dia": grava o override; o total do mês muda
+    if(modo==='so'){
+      SB.from('cap_dia').upsert({dia:editIso,trabalha:true,cap_override:capVal,atualizado_em:agora},{onConflict:'dia'}).then(function(res){
+        if(res.error){ toast('Erro ao salvar: '+res.error.message,'erro'); return; }
+        capDia[editIso]={trabalha:true,cap_override:capVal}; toast('Dia salvo (só este dia)','ok'); fecharModal(); render();
+      });
+      return;
+    }
+
+    // "Espalhar nos próximos": mantém o total, joga a diferença nos dias a preencher (de hoje em diante)
+    if(modo==='espalhar'){
+      var valAntes=capEfetiva(d,editIso,ref);
+      var D=valAntes-capVal; // sobra(+) ou falta(-) a redistribuir
+      var hojeIso=iso(hoje);
+      var alvos=diasDoMes(ref).filter(function(dd){
+        var is2=iso(dd);
+        if(is2===editIso) return false;
+        if(is2<hojeIso) return false;                 // o que passou, passou
+        if(!trabalhaEfetivo(dd,is2)) return false;
+        var rr=capDia[is2];
+        if(rr&&rr.cap_override!=null) return false;    // respeita dias ajustados à mão
+        return true;
+      });
+      if(!alvos.length){ toast('Sem dias livres à frente para espalhar','erro'); return; }
+      var porDia=D/alvos.length;
+      var regs=[{dia:editIso,trabalha:true,cap_override:capVal,atualizado_em:agora}];
+      alvos.forEach(function(dd){
+        var is2=iso(dd);
+        var novo=Math.round(capEfetiva(dd,is2,ref)+porDia); if(novo<0)novo=0;
+        var tr=(capDia[is2]&&capDia[is2].trabalha!=null)?capDia[is2].trabalha:null;
+        regs.push({dia:is2,trabalha:tr,cap_override:novo,atualizado_em:agora});
+      });
+      SB.from('cap_dia').upsert(regs,{onConflict:'dia'}).then(function(res){
+        if(res.error){ toast('Erro ao espalhar: '+res.error.message,'erro'); return; }
+        regs.forEach(function(rg){ capDia[rg.dia]={trabalha:rg.trabalha,cap_override:rg.cap_override}; });
+        toast('Diferença espalhada nos próximos dias','ok'); fecharModal(); render();
+      });
+      return;
+    }
+  }
+
+  // Distribuir igual: desfaz ajustes de valor do mês (mantém folgas), voltando a dias iguais
+  function distribuirIgual(){
+    if(!window.confirm('Isto reparte o total do mês em dias iguais e desfaz os ajustes manuais de valor deste mês (as folgas/feriados são mantidos). Continuar?')) return;
+    var agora=new Date().toISOString();
+    var dels=[], ups=[];
+    diasDoMes(ref).forEach(function(dd){
+      var is2=iso(dd), r=capDia[is2];
+      if(!r) return;
+      if(r.trabalha===false){
+        if(r.cap_override!=null) ups.push({dia:is2,trabalha:false,cap_override:null,atualizado_em:agora});
+      } else {
+        dels.push(is2);
+      }
+    });
+    var ps=[];
+    if(dels.length) ps.push(SB.from('cap_dia').delete().in('dia',dels));
+    if(ups.length) ps.push(SB.from('cap_dia').upsert(ups,{onConflict:'dia'}));
+    if(!ps.length){ toast('Já está em dias iguais','ok'); return; }
+    Promise.all(ps).then(function(rs){
+      var err=null; rs.forEach(function(r){ if(r&&r.error)err=r.error; });
+      if(err){ toast('Erro ao redistribuir: '+err.message,'erro'); return; }
+      dels.forEach(function(is2){ delete capDia[is2]; });
+      ups.forEach(function(u){ capDia[u.dia]={trabalha:false,cap_override:null}; });
+      toast('Mês redistribuído em dias iguais','ok'); render();
     });
   }
 
@@ -408,8 +496,10 @@
   document.getElementById('mNext').addEventListener('click',function(){ ref=new Date(ref.getFullYear(),ref.getMonth()+1,1); carregarMes(); });
   document.getElementById('btnSalvarMes').addEventListener('click',salvarMes);
   document.getElementById('mdTrab').addEventListener('change',sincModalTrab);
-  document.getElementById('mdSalvar').addEventListener('click',function(){ salvarDia(false); });
-  document.getElementById('mdPadrao').addEventListener('click',function(){ salvarDia(true); });
+  document.getElementById('mdSoDia').addEventListener('click',function(){ salvarDia('so'); });
+  document.getElementById('mdEspalhar').addEventListener('click',function(){ salvarDia('espalhar'); });
+  document.getElementById('mdPadrao').addEventListener('click',function(){ salvarDia('padrao'); });
+  document.getElementById('btnDistribuir').addEventListener('click',distribuirIgual);
   document.getElementById('mdFechar').addEventListener('click',fecharModal);
   document.getElementById('ov').addEventListener('click',function(e){ if(e.target===this) fecharModal(); });
 
