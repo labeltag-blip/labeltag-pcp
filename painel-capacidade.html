@@ -125,6 +125,27 @@
   .b-padrao{background:var(--bg3);color:var(--text)}
   .b-fechar{background:none;color:var(--muted)}
   .b-espalhar{background:var(--info);color:#fff;border-color:var(--info)!important}
+  .modal{max-height:90vh;overflow-y:auto}
+  .mdsec{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ouro);margin:18px 0 8px;border-top:1px solid var(--border);padding-top:12px}
+  .lancResumo{margin-bottom:10px}
+  .lancbar{height:7px;border-radius:5px;background:var(--bg3);overflow:hidden;margin-bottom:5px}
+  .lancbar>div{height:100%;border-radius:5px}
+  .lancnums{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);gap:8px}
+  .lancLista{max-height:160px;overflow-y:auto;margin-bottom:8px}
+  .lancItem{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)}
+  .lancItem .ld{flex:1;min-width:0;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lancItem .lv{font-size:12.5px;font-weight:600;white-space:nowrap;font-family:'DM Mono',monospace}
+  .lancItem .lx{cursor:pointer;background:none;border:none;color:var(--muted);font-size:18px;line-height:1;padding:0 2px}
+  .lancItem .lx:hover{color:var(--critico)}
+  .lancAdd{display:flex;gap:6px;align-items:center}
+  .lancAdd input{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit}
+  .lancAdd #lancDesc{flex:1;min-width:0}
+  .lancAdd #lancVal{width:112px;font-family:'DM Mono',monospace;text-align:right}
+  .lancAdd input:focus{outline:none;border-color:var(--ouro)}
+  .lancAdd #lancAddBtn{cursor:pointer;background:var(--ouro);border:none;color:#fff;width:36px;height:36px;border-radius:8px;font-size:20px;font-weight:700;flex:none}
+  .ocup{font-size:10px;font-weight:600;margin-top:2px}
+  .ocupbar{height:4px;border-radius:3px;background:var(--bg3);overflow:hidden;margin-top:3px}
+  .ocupbar>div{height:100%}
 
   .status{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--bg2);border:1px solid var(--border);
     border-radius:10px;padding:9px 16px;font-size:12px;font-weight:600;box-shadow:0 6px 20px #0004;opacity:0;transition:.2s;pointer-events:none;z-index:60}
@@ -150,7 +171,7 @@
   </header>
   <h1>Capacidade Produtiva</h1>
   <p class="sub">Calendário dos dias úteis que a fábrica vai trabalhar. Defina a capacidade de cada dia conforme o momento da empresa — o valor fica salvo e compartilhado entre os computadores.</p>
-  <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin:-10px 0 18px;display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:var(--ok);display:inline-block"></span>Última atualização no ar: <b style="color:var(--text);font-weight:600">10/11/2026 15:50</b></div>
+  <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin:-10px 0 18px;display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:var(--ok);display:inline-block"></span>Última atualização no ar: <b style="color:var(--text);font-weight:600">10/11/2026 16:06</b></div>
 
   <div class="top">
     <div class="card mnav">
@@ -202,6 +223,7 @@
   <div class="modal">
     <h3 id="mdTitulo">—</h3>
     <div class="mdsub" id="mdSub">—</div>
+    <div class="mdsec" style="margin-top:12px;border-top:none;padding-top:0">Capacidade do dia (teto)</div>
     <div class="tgl">
       <span class="tl">A fábrica trabalha neste dia</span>
       <label class="switch"><input type="checkbox" id="mdTrab"><span class="slider"></span></label>
@@ -217,6 +239,19 @@
     </div>
     <div class="mdbtns" style="margin-top:8px">
       <button class="b-padrao" id="mdPadrao">Usar padrão</button>
+    </div>
+
+    <div class="mdsec">Lançamentos (pedidos do dia)</div>
+    <div class="lancResumo" id="lancResumo"></div>
+    <div class="lancLista" id="lancLista"></div>
+    <div class="lancAdd">
+      <input id="lancDesc" placeholder="Cliente / nº do pedido">
+      <input id="lancVal" type="text" inputmode="numeric" placeholder="R$ 0,00">
+      <button id="lancAddBtn" title="Adicionar">+</button>
+    </div>
+    <div class="hint">Dá pra colar vários de uma vez no campo de valor (uma coluna do Excel).</div>
+
+    <div class="mdbtns" style="margin-top:14px">
       <button class="b-fechar" id="mdFechar">Fechar</button>
     </div>
   </div>
@@ -240,6 +275,7 @@
   var ref=new Date(hoje.getFullYear(),hoje.getMonth(),1);
   var capMes={};  // {'YYYY-MM':{cap_mensal,meta}}
   var capDia={};  // {'YYYY-MM-DD':{trabalha,cap_override}}
+  var lancPorDia={}; // {'YYYY-MM-DD':[{id,valor,descricao}]}
   var editIso=null;
 
   var fmtBRL=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2,maximumFractionDigits:2});
@@ -292,15 +328,18 @@
     var fim=iso(new Date(ref.getFullYear(),ref.getMonth()+1,0));
     return Promise.all([
       SB.from('cap_mes').select('*').eq('mes',mk),
-      SB.from('cap_dia').select('*').gte('dia',ini).lte('dia',fim)
+      SB.from('cap_dia').select('*').gte('dia',ini).lte('dia',fim),
+      SB.from('cap_lanc').select('*').gte('dia',ini).lte('dia',fim)
     ]).then(function(res){
-      var em=res[0].error||res[1].error;
+      var em=res[0].error||res[1].error||(res[2]&&res[2].error);
       if(em){ toast('Erro ao ler do Supabase: '+em.message,'erro'); }
       capMes={};
       (res[0].data||[]).forEach(function(r){ capMes[r.mes]={cap_mensal:Number(r.cap_mensal)||0,meta:Number(r.meta)||0}; });
       if(!capMes[mk]) capMes[mk]={cap_mensal:1600000,meta:0}; // default inicial
       capDia={};
       (res[1].data||[]).forEach(function(r){ capDia[r.dia]={trabalha:(r.trabalha==null?null:!!r.trabalha),cap_override:(r.cap_override==null?null:Number(r.cap_override))}; });
+      lancPorDia={};
+      ((res[2]&&res[2].data)||[]).forEach(function(r){ (lancPorDia[r.dia]=lancPorDia[r.dia]||[]).push({id:r.id,valor:Number(r.valor)||0,descricao:r.descricao||''}); });
       render();
     }).catch(function(e){ toast('Falha de conexão: '+e.message,'erro'); render(); });
   }
@@ -328,10 +367,20 @@
       var is=iso(d), trab=trabalhaEfetivo(d,is), r=capDia[is];
       var over=trab&&r&&r.cap_override!=null;
       var cls='dia'+(trab?' trab':' folga')+(over?' over':'')+(is===iso(hoje)?' hoje':'');
-      var corpo;
-      if(trab){ corpo='<div class="cap mono">'+fmtBRL0.format(capEfetiva(d,is,ref))+'</div>'; }
-      else { corpo='<div class="tag" style="color:var(--muted);margin-top:auto">'+(ehRecesso(is)?'recesso':(ehUtil(d)?'folga':'—'))+'</div>'; }
-      row+='<td><div class="'+cls+'" data-iso="'+is+'"><div class="n">'+d.getDate()+'</div>'+corpo+'</div></td>';
+      var corpo='', estilo='';
+      if(trab){
+        var cap=capEfetiva(d,is,ref), lan=lancadoDia(is), pct=cap>0?Math.round(lan/cap*100):0;
+        var cor=(lan<=0)?'':(pct>100?'var(--critico)':(pct>=85?'var(--atencao)':'var(--ok)'));
+        corpo='<div class="cap mono">'+fmtBRL0.format(cap)+'</div>';
+        if(lan>0){
+          corpo+='<div class="ocup mono" style="color:'+cor+'">'+fmtBRL0.format(lan)+' · '+pct+'%</div>'+
+                 '<div class="ocupbar"><div style="width:'+Math.min(100,pct)+'%;background:'+cor+'"></div></div>';
+          estilo=' style="border-left-color:'+cor+'"';
+        }
+      } else {
+        corpo='<div class="tag" style="color:var(--muted);margin-top:auto">'+(ehRecesso(is)?'recesso':(ehUtil(d)?'folga':'—'))+'</div>';
+      }
+      row+='<td><div class="'+cls+'" data-iso="'+is+'"'+estilo+'><div class="n">'+d.getDate()+'</div>'+corpo+'</div></td>';
     });
     if(row)html+='<tr>'+row+'</tr>';
     document.getElementById('calBody').innerHTML=html;
@@ -376,6 +425,7 @@
     setMoeda(document.getElementById('mdCap'),r.cap_override!=null?r.cap_override:'');
     document.getElementById('mdCap').placeholder=fmtBRL.format(Math.round(pad));
     sincModalTrab();
+    renderLancamentos(is);
     document.getElementById('ov').classList.add('on');
   }
   function sincModalTrab(){
@@ -384,6 +434,67 @@
     document.getElementById('mdCap').disabled=!on;
   }
   function fecharModal(){ document.getElementById('ov').classList.remove('on'); editIso=null; }
+
+  function esc(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function lancadoDia(is){ var a=lancPorDia[is]; return a?a.reduce(function(s,x){return s+(x.valor||0);},0):0; }
+
+  function renderLancamentos(is){
+    var d=new Date(is+'T12:00:00');
+    var cap=capEfetiva(d,is,ref), lan=lancadoDia(is), pct=cap>0?Math.round(lan/cap*100):0;
+    var cor=(lan<=0)?'var(--muted)':(pct>100?'var(--critico)':(pct>=85?'var(--atencao)':'var(--ok)'));
+    var resta=cap-lan;
+    document.getElementById('lancResumo').innerHTML=
+      '<div class="lancbar"><div style="width:'+Math.min(100,pct)+'%;background:'+cor+'"></div></div>'+
+      '<div class="lancnums"><span>Lançado: <b style="color:'+cor+'">'+fmtBRL.format(lan)+'</b> de '+fmtBRL.format(cap)+' ('+pct+'%)</span>'+
+      '<span style="color:'+(resta<0?'var(--critico)':'var(--muted)')+'">'+(resta<0?'estourou '+fmtBRL.format(-resta):'cabe +'+fmtBRL.format(resta))+'</span></div>';
+    var arr=lancPorDia[is]||[];
+    document.getElementById('lancLista').innerHTML = arr.length ? arr.map(function(x){
+      return '<div class="lancItem"><span class="ld">'+(x.descricao?esc(x.descricao):'<i style="color:var(--muted)">sem descrição</i>')+'</span>'+
+        '<span class="lv">'+fmtBRL.format(x.valor)+'</span>'+
+        '<button class="lx" data-id="'+x.id+'" title="Remover">&times;</button></div>';
+    }).join('') : '<div class="hint" style="padding:6px 0">Nenhum pedido lançado neste dia.</div>';
+    var self=document.getElementById('lancLista');
+    self.querySelectorAll('.lx').forEach(function(b){ b.addEventListener('click',function(){ removeLancamento(b.getAttribute('data-id'),is); }); });
+  }
+
+  function addLancamento(is,valor,desc){
+    valor=Math.round(Number(valor)||0); if(valor<=0) return Promise.resolve();
+    var id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():('id'+Date.now()+Math.random().toString(16).slice(2));
+    var dc=(desc||'').trim()||null;
+    (lancPorDia[is]=lancPorDia[is]||[]).push({id:id,valor:valor,descricao:dc||''});
+    return SB.from('cap_lanc').insert({id:id,dia:is,valor:valor,descricao:dc,criado_em:new Date().toISOString()}).then(function(res){
+      if(res&&res.error){ toast('Erro ao lançar: '+res.error.message,'erro'); }
+    });
+  }
+
+  function removeLancamento(id,is){
+    lancPorDia[is]=(lancPorDia[is]||[]).filter(function(x){return x.id!==id;});
+    renderLancamentos(is); render();
+    SB.from('cap_lanc').delete().eq('id',id).then(function(res){ if(res&&res.error) toast('Erro ao remover: '+res.error.message,'erro'); });
+  }
+
+  function addUmLanc(){
+    if(!editIso) return;
+    var v=parseNum(document.getElementById('lancVal').value);
+    var dsc=document.getElementById('lancDesc').value;
+    if(v<=0){ toast('Informe um valor','erro'); return; }
+    addLancamento(editIso,v,dsc).then(function(){
+      document.getElementById('lancVal').value=''; document.getElementById('lancDesc').value='';
+      renderLancamentos(editIso); render(); document.getElementById('lancDesc').focus();
+    });
+  }
+  function colarLanc(txt){
+    if(!editIso) return;
+    var linhas=(txt||'').split(/[\r\n]+/).filter(function(l){return l.trim();});
+    var ps=[];
+    linhas.forEach(function(l){
+      var parts=l.split(/\t|;/), val=0, dsc='';
+      parts.forEach(function(p){ var n=parseNum(p); if(n>0&&!val){val=n;} else if(p.trim()){ dsc=(dsc?dsc+' ':'')+p.trim(); } });
+      if(val>0) ps.push(addLancamento(editIso,val,dsc));
+    });
+    if(!ps.length) return;
+    Promise.all(ps).then(function(){ renderLancamentos(editIso); render(); toast(ps.length+' lançamento(s) colado(s)','ok'); });
+  }
 
   function salvarDia(modo){
     if(!editIso) return;
@@ -524,6 +635,13 @@
   document.getElementById('mdEspalhar').addEventListener('click',function(){ salvarDia('espalhar'); });
   document.getElementById('mdPadrao').addEventListener('click',function(){ salvarDia('padrao'); });
   document.getElementById('btnDistribuir').addEventListener('click',distribuirIgual);
+  document.getElementById('lancAddBtn').addEventListener('click',addUmLanc);
+  document.getElementById('lancVal').addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); addUmLanc(); } });
+  document.getElementById('lancDesc').addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); document.getElementById('lancVal').focus(); } });
+  document.getElementById('lancVal').addEventListener('paste',function(e){
+    var txt=((e.clipboardData||window.clipboardData).getData('text')||'');
+    if(/[\r\n]/.test(txt.trim())){ e.preventDefault(); colarLanc(txt); }
+  });
   document.getElementById('mdFechar').addEventListener('click',fecharModal);
   document.getElementById('ov').addEventListener('click',function(e){ if(e.target===this) fecharModal(); });
 
