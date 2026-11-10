@@ -142,8 +142,9 @@
   .lancItem .lx:hover{color:var(--critico)}
   .lancAdd{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
   .lancAdd input{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 9px;font-size:12.5px;font-family:inherit}
-  .lancAdd #lancCli,.lancAdd #lancPed{width:calc(50% - 3px)}
-  .lancAdd #lancVal{flex:1;min-width:92px;font-family:'DM Mono',monospace;text-align:right}
+  .lancAdd #lancCli{width:100%}
+  .lancAdd #lancPed{flex:1;min-width:90px}
+  .lancAdd #lancVal{width:128px;font-family:'DM Mono',monospace;text-align:right}
   .lancAdd input:focus{outline:none;border-color:var(--ouro)}
   .lancAdd #lancAddBtn{cursor:pointer;background:var(--ouro);border:none;color:#fff;width:34px;height:34px;border-radius:8px;font-size:20px;font-weight:700;flex:none}
   .hintmini{font-size:10.5px;color:var(--muted);margin-top:5px}
@@ -175,7 +176,7 @@
   </header>
   <h1>Capacidade Produtiva</h1>
   <p class="sub">Calendário dos dias úteis que a fábrica vai trabalhar. Defina a capacidade de cada dia conforme o momento da empresa — o valor fica salvo e compartilhado entre os computadores.</p>
-  <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin:-10px 0 18px;display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:var(--ok);display:inline-block"></span>Última atualização no ar: <b style="color:var(--text);font-weight:600">10/11/2026 17:38</b></div>
+  <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin:-10px 0 18px;display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:var(--ok);display:inline-block"></span>Última atualização no ar: <b style="color:var(--text);font-weight:600">10/11/2026 17:46</b></div>
 
   <div class="top">
     <div class="card mnav">
@@ -253,8 +254,8 @@
     <div class="lancResumo" id="lancResumo"></div>
     <div class="lancLista" id="lancLista"></div>
     <div class="lancAdd">
-      <input id="lancCli" placeholder="Nº cliente">
-      <input id="lancPed" placeholder="Nº pedido">
+      <input id="lancCli" placeholder="Nome do cliente">
+      <input id="lancPed" placeholder="Nº do pedido">
       <input id="lancVal" type="text" inputmode="numeric" placeholder="R$ 0,00">
       <button id="lancAddBtn" title="Adicionar">+</button>
     </div>
