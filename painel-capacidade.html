@@ -227,9 +227,13 @@
 
   var fmtBRL=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2,maximumFractionDigits:2});
   var fmtBRL0=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
-  function setMoeda(el,v){ if(v===''||v==null){ el.value=''; el.dataset.v=''; return; } var n=Math.round(Number(v)||0); el.dataset.v=n; el.value=fmtBRL.format(n); }
-  function parseMoeda(el){ return Number(el.dataset.v||0)||0; }
-  function maskMoeda(el,cb){ el.addEventListener('input',function(){ var g=el.value.replace(/\D/g,''); if(!g){ el.value=''; el.dataset.v=''; if(cb)cb(); return; } var n=parseInt(g,10); el.dataset.v=n; el.value=fmtBRL.format(n); if(cb)cb(); }); }
+  function parseNum(str){ str=(str||'').toString().replace(/[^\d.,-]/g,'').replace(/\./g,'').replace(',','.'); var n=parseFloat(str); return isNaN(n)?0:n; }
+  function valorDe(el){ return Math.round(parseNum(el.value)); }
+  function setMoeda(el,v){ var n=Math.round(Number(v)||0); el.dataset.v=n; el.value=n?fmtBRL.format(n):''; }
+  function bindMoeda(el,onChange){
+    el.addEventListener('focus',function(){ var n=valorDe(el); el.value=n?String(n):''; setTimeout(function(){ try{el.select();}catch(e){} },0); });
+    el.addEventListener('blur',function(){ var n=valorDe(el); el.dataset.v=n; el.value=n?fmtBRL.format(n):''; if(onChange)onChange(); });
+  }
   function kFmt(v){ if(v==null)return '—'; if(v>=1000) return (Math.round(v/100)/10).toString().replace('.',',')+'k'; return String(Math.round(v)); }
   function iso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
   function mesKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
@@ -354,7 +358,7 @@
     if(!editIso) return;
     var d=new Date(editIso+'T12:00:00');
     var trab=document.getElementById('mdTrab').checked;
-    var capVal=usarPadrao?null:parseMoeda(document.getElementById('mdCap'));
+    var capVal=usarPadrao?null:valorDe(document.getElementById('mdCap'));
     if(!capVal) capVal=null;
     // se o dia bate com o padrão (mesmo trabalha e sem override), remove a linha para não poluir
     var ehPadraoTrab=(trab===trabalhaPadrao(d,editIso));
@@ -375,8 +379,8 @@
 
   function salvarMes(){
     var mk=mesKey(ref);
-    var cm=parseMoeda(document.getElementById('capMensal'));
-    var mt=parseMoeda(document.getElementById('metaMes'));
+    var cm=valorDe(document.getElementById('capMensal'));
+    var mt=valorDe(document.getElementById('metaMes'));
     var reg={mes:mk,cap_mensal:cm,meta:mt,atualizado_em:new Date().toISOString()};
     SB.from('cap_mes').upsert(reg,{onConflict:'mes'}).then(function(res){
       if(res.error){ toast('Erro ao salvar mês: '+res.error.message,'erro'); return; }
@@ -409,10 +413,10 @@
   document.getElementById('mdFechar').addEventListener('click',fecharModal);
   document.getElementById('ov').addEventListener('click',function(e){ if(e.target===this) fecharModal(); });
 
-  maskMoeda(document.getElementById('capMensal'),function(){ var dt=diasTrabalhados(ref).length; setMoeda(document.getElementById('capMedia'), dt>0?parseMoeda(document.getElementById('capMensal'))/dt:0); });
-  maskMoeda(document.getElementById('capMedia'),function(){ var dt=diasTrabalhados(ref).length; setMoeda(document.getElementById('capMensal'), parseMoeda(document.getElementById('capMedia'))*dt); });
-  maskMoeda(document.getElementById('metaMes'));
-  maskMoeda(document.getElementById('mdCap'));
+  bindMoeda(document.getElementById('capMensal'),function(){ var dt=diasTrabalhados(ref).length; setMoeda(document.getElementById('capMedia'), dt>0?valorDe(document.getElementById('capMensal'))/dt:0); });
+  bindMoeda(document.getElementById('capMedia'),function(){ var dt=diasTrabalhados(ref).length; setMoeda(document.getElementById('capMensal'), valorDe(document.getElementById('capMedia'))*dt); });
+  bindMoeda(document.getElementById('metaMes'));
+  bindMoeda(document.getElementById('mdCap'));
 
   carregarMes();
 })();
