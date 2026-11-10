@@ -41,12 +41,17 @@
 
   /* navegação de mês + config */
   .top{display:flex;gap:14px;flex-wrap:wrap;align-items:stretch;margin-bottom:16px}
-  .mnav{display:flex;align-items:center;gap:6px;padding:12px 14px;flex:1;min-width:230px}
-  .mnav button{cursor:pointer;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;width:34px;height:34px;font-size:16px;font-weight:700}
-  .mnav button:hover{border-color:var(--ouro)}
-  .mnav .mlabel{flex:1;text-align:center}
-  .mnav .mlabel .m{font-size:17px;font-weight:700;text-transform:capitalize}
-  .mnav .mlabel .d{font-size:11px;color:var(--muted)}
+  .mnav{display:flex;flex-direction:column;gap:10px;padding:12px 14px;flex:1;min-width:280px}
+  .ynav{display:flex;align-items:center;gap:8px}
+  .ynav button{cursor:pointer;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;width:30px;height:30px;font-size:15px;font-weight:700}
+  .ynav button:hover{border-color:var(--ouro)}
+  .ynav #yLabel{font-size:18px;font-weight:700;font-family:'DM Mono',monospace;min-width:54px;text-align:center}
+  .ynav .mdias{margin-left:auto;font-size:11px;color:var(--muted)}
+  .mesbar{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}
+  .mesbar button{cursor:pointer;background:var(--bg3);border:1px solid var(--border);color:var(--muted);border-radius:7px;padding:7px 0;font-size:12px;font-weight:600;font-family:inherit;text-transform:capitalize}
+  .mesbar button:hover{border-color:var(--ouro);color:var(--text)}
+  .mesbar button.on{background:var(--ouro);border-color:var(--ouro);color:#fff}
+  :root[data-theme="claro"] .mesbar button.on{color:#fffdf8}
 
   .cfg{padding:12px 14px;display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;flex:2;min-width:280px}
   .fld{display:flex;flex-direction:column;gap:3px;min-width:0}
@@ -145,13 +150,17 @@
   </header>
   <h1>Capacidade Produtiva</h1>
   <p class="sub">Calendário dos dias úteis que a fábrica vai trabalhar. Defina a capacidade de cada dia conforme o momento da empresa — o valor fica salvo e compartilhado entre os computadores.</p>
-  <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin:-10px 0 18px;display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:var(--ok);display:inline-block"></span>Última atualização no ar: <b style="color:var(--text);font-weight:600">10/11/2026 15:32</b></div>
+  <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin:-10px 0 18px;display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:var(--ok);display:inline-block"></span>Última atualização no ar: <b style="color:var(--text);font-weight:600">10/11/2026 15:50</b></div>
 
   <div class="top">
     <div class="card mnav">
-      <button id="mPrev" aria-label="Mês anterior">‹</button>
-      <div class="mlabel"><div class="m" id="mNome">—</div><div class="d" id="mDias">—</div></div>
-      <button id="mNext" aria-label="Próximo mês">›</button>
+      <div class="ynav">
+        <button id="yPrev" aria-label="Ano anterior">‹</button>
+        <span id="yLabel">—</span>
+        <button id="yNext" aria-label="Próximo ano">›</button>
+        <span class="mdias" id="mDias">—</span>
+      </div>
+      <div class="mesbar" id="mesbar"></div>
     </div>
     <div class="card cfg">
       <div class="fld">
@@ -299,7 +308,8 @@
   // ===== render =====
   function render(){
     var mk=mesKey(ref);
-    document.getElementById('mNome').textContent=ref.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+    document.getElementById('yLabel').textContent=ref.getFullYear();
+    atualizarMesAtivo();
     var dtrab=diasTrabalhados(ref);
     document.getElementById('mDias').textContent=dtrab.length+' dias de trabalho';
     var _cm=capMes[mk]||{};
@@ -340,6 +350,19 @@
   }
   function kpi(v,l,destaque,extra){ return '<div class="kpi'+(destaque?' destaque':'')+'"><div class="v">'+v+'</div><div class="l">'+l+'</div>'+(extra||'')+'</div>'; }
   function barra(pct,cor){ return '<div class="barra"><div style="width:'+pct+'%;background:'+cor+'"></div></div>'; }
+  var MESES_CURTO=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  function montarMesbar(){
+    var el=document.getElementById('mesbar'); el.innerHTML='';
+    MESES_CURTO.forEach(function(nm,i){
+      var b=document.createElement('button'); b.textContent=nm; b.setAttribute('data-m',i);
+      b.addEventListener('click',function(){ ref=new Date(ref.getFullYear(),i,1); carregarMes(); });
+      el.appendChild(b);
+    });
+  }
+  function atualizarMesAtivo(){
+    var bs=document.querySelectorAll('#mesbar button');
+    for(var i=0;i<bs.length;i++){ bs[i].classList.toggle('on', Number(bs[i].getAttribute('data-m'))===ref.getMonth()); }
+  }
 
   // ===== modal =====
   function abrirModal(is){
@@ -492,8 +515,9 @@
   });
 
   // ===== eventos =====
-  document.getElementById('mPrev').addEventListener('click',function(){ ref=new Date(ref.getFullYear(),ref.getMonth()-1,1); carregarMes(); });
-  document.getElementById('mNext').addEventListener('click',function(){ ref=new Date(ref.getFullYear(),ref.getMonth()+1,1); carregarMes(); });
+  document.getElementById('yPrev').addEventListener('click',function(){ ref=new Date(ref.getFullYear()-1,ref.getMonth(),1); carregarMes(); });
+  document.getElementById('yNext').addEventListener('click',function(){ ref=new Date(ref.getFullYear()+1,ref.getMonth(),1); carregarMes(); });
+  montarMesbar();
   document.getElementById('btnSalvarMes').addEventListener('click',salvarMes);
   document.getElementById('mdTrab').addEventListener('change',sincModalTrab);
   document.getElementById('mdSoDia').addEventListener('click',function(){ salvarDia('so'); });
